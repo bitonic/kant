@@ -1,0 +1,28 @@
+Cabal-Version:      >= 1.8
+Name:               kant
+Version:            0.0
+Author:             Francesco Mazzoli (f@mazzo.li)
+Maintainer:         Francesco Mazzoli (f@mazzo.li)
+Build-Type:         Simple
+License:            GPL-3
+Build-Type:         Simple
+Category:           Compilers/Interpreters, Dependent Types
+Synopsis:           Core dependent language based on OTT
+Tested-With:        GHC==7.4.1
+Homepage:           https://github.com/bitonic/kant
+Bug-Reports:        https://github.com/bitonic/kant/issues
+Description:
+
+Source-Repository head
+    Type:     git
+    Location: git://github.com/kant/mfixed.git
+
+Library
+    Hs-Source-Dirs:   src
+    Build-Depends:    base >= 3 && < 5,
+                      bound,
+
+    GHC-Options:      -Wall -O2
+
+    Exposed-Modules:  Kant.Syntax
+
