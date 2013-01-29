@@ -2,9 +2,8 @@
 {-# LANGUAGE TupleSections #-}
 -- TODO check that there are no duplicate variables
 module Kant.Syntax
-    ( Id
+    ( IdT
     , IdName
-    , IdRaw
     , rawId
     , ConId
     , Level
@@ -20,7 +19,7 @@ module Kant.Syntax
     , freshen
     ) where
 
-import           Control.Arrow ((***), second)
+import           Control.Arrow (second)
 import           Control.Applicative ((<$>), (<*>))
 import           Data.Maybe (fromMaybe)
 
@@ -35,10 +34,9 @@ type IdName = String
 data IdT a = Id IdName         -- ^ Original name
                 a              -- ^ Tag
     deriving (Eq, Ord, Show, Functor)
-type IdRaw = IdT ()
 type Id    = IdT IdTag
 
-rawId :: IdName -> IdRaw
+rawId :: IdName -> IdT ()
 rawId v = Id v ()
 
 type ConId  = String
