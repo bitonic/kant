@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TupleSections #-}
 module Kant.Syntax
     ( Id
     , IdName
@@ -7,17 +8,18 @@ module Kant.Syntax
     , ConId
     , Level
     , Module
-    , Decl(..)
-    , ConDecl(..)
-    , Branch(..)
+    , DeclT(..)
+    , Decl
+    , BranchT(..)
+    , Branch
     , TermT(..)
     , Term
-    , TermRaw
     , subst
     , unRaw
     , freshen
     ) where
 
+import           Control.Arrow ((***), second)
 import           Control.Applicative ((<$>), (<*>))
 import           Data.Maybe (fromMaybe)
 
@@ -40,24 +42,28 @@ rawId v = Id v ()
 
 type ConId  = String
 type Level  = Int
-type Module = [Decl]
+type Module = [DeclT IdName]
 
-data Decl
-    = Val IdName                 -- ^ Name
-          Term
-          [Branch]               -- ^ Branches, abstracted variables indexed by
-                                 --   number, function itself is 0.
+data DeclT id
+    = Val IdName                  -- ^ Name
+          (TermT id)              -- ^ Type
+          [BranchT id]            -- ^ Branches
     | DataType
-          Id                     -- ^ Name
-          [Term]                 -- ^ Parameters' types
-          Level                  -- ^ Resulting level
-          [ConDecl]              -- ^ Constructors
+          IdName                  -- ^ Name
+          (ParamsT id)            -- ^ Parameters' types
+          Level                   -- ^ Resulting level
+          [(ConId, (ParamsT id))] -- ^ Constructors
+    deriving (Show, Eq, Functor)
+type Decl = DeclT IdTag
 
-data ConDecl = ConDecl ConId Term
+newtype ParamsT id = Params {unParams :: [(IdT id, TermT id)]}
+    deriving (Show, Eq, Functor)
 
-data Branch = Branch ConId      -- ^ Matching a constructor
-                     [Id]       -- ^ Abstracting variables
-                     Term
+data BranchT id = Branch ConId      -- ^ Matching a constructor
+                         [IdT id]   -- ^ Abstracting variables
+                         (TermT id)
+    deriving (Show, Eq, Functor)
+type Branch = BranchT IdTag
 
 data TermT id
     = Var (IdT id)
@@ -67,27 +73,64 @@ data TermT id
     | Lambda (IdT id) (TermT id) (TermT id)
     deriving (Eq, Show, Functor)
 
-type Term    = TermT IdTag
-type TermRaw = TermT ()
+type Term = TermT IdTag
 
-subst :: Eq id => IdT id -> TermT id -> TermT id -> TermT id
-subst v t m@(Var v')      = if v == v' then t else m
-subst v t (App m n)       = App (subst v t m) (subst v t n)
-subst v t (Lambda v' m n) = Lambda v' (subst v t m)
-                                   (if v == v' then n else subst v t n)
-subst _ _ m               = m
+class Subst f where
+    subst :: Eq id
+          => IdT id             -- ^ Substitute variable v...
+          -> TermT id           -- ^ ...with term t..
+          -> f id               -- ^ ...in m.
+          -> f id
 
-unRaw :: TermRaw -> Term
-unRaw = go . fmap (const Nothing)
-  where
-    go :: TermT (Maybe IdTag) -> Term
-    go (Var (Id v Nothing))     = Name v
-    go (Var (Id v (Just t)))    = Var (Id v t)
-    go (App m n)                = App (go m) (go n)
-    go (Lambda i@(Id v _) m n)  =
-        Lambda (Id v 0) (go m) (go (subst i (Var (Id v (Just 0))) n))
-    go (Name n)                 = Name n
-    go (Set l)                  = Set l
+instance Subst TermT where
+    subst v t m@(Var v')      = if v == v' then t else m
+    subst v t (App m n)       = App (subst v t m) (subst v t n)
+    subst v t (Lambda v' m n) = Lambda v' (subst v t m)
+                                      (if v == v' then n else subst v t n)
+    subst _ _ m               = m
+
+instance Subst ParamsT where
+    subst v t = Params . go . unParams
+      where
+        go []               = []
+        go ((v', m) : rest) = (v', subst v t m) :
+                              if v == v' then rest else go rest
+
+class UnRaw f where
+    unRaw :: f () -> f IdTag
+
+instance UnRaw DeclT where
+    unRaw (Val name t bs) = Val name (unRaw t) (map unRaw bs)
+    unRaw (DataType name pars l cons) =
+        DataType name (unRaw pars) l (map (second unRaw) cons)
+
+instance UnRaw ParamsT where
+    unRaw = Params . go . map (nothingT *** nothingT) . unParams
+      where
+        -- TODO Remove duplication between here and unMaybe
+        go [] = []
+        go ((i@(Id v _), t) : pars) =
+            (Id v 0, unMaybe t) :
+            go (unParams (subst i (Var (Id v (Just 0))) (Params pars)))
+
+instance UnRaw BranchT where
+    unRaw (Branch con vars t) =
+        Branch con (map (\(Id v ()) -> Id v 0) vars) (unRaw t)
+
+nothingT :: Functor f => f a -> f (Maybe b)
+nothingT = fmap (const Nothing)
+
+unMaybe :: TermT (Maybe IdTag) -> Term
+unMaybe (Var (Id v Nothing))     = Name v
+unMaybe (Var (Id v (Just t)))    = Var (Id v t)
+unMaybe (App m n)                = App (unMaybe m) (unMaybe n)
+unMaybe (Lambda i@(Id v _) m n)  =
+    Lambda (Id v 0) (unMaybe m) (unMaybe (subst i (Var (Id v (Just 0))) n))
+unMaybe (Name n)                 = Name n
+unMaybe (Set l)                  = Set l
+
+instance UnRaw TermT where
+    unRaw = unMaybe . nothingT
 
 
 type Fresh a = State (Map String IdTag) a
@@ -99,10 +142,36 @@ fresh (Id v _) =
        put (Map.insert v (t' + 1) m)
        return (Id v t')
 
-freshen :: Term -> Term
-freshen t' = evalState (go t') Map.empty
-  where
-    go (App t m)      = App <$> go t <*> go m
-    go (Lambda v t m) = do v' <- fresh v
-                           Lambda v' t <$> go (subst v (Var v') m)
-    go t              = return t
+class Freshen f where
+    freshen' :: f IdTag -> Fresh (f IdTag)
+
+instance Freshen DeclT where
+    freshen' (Val name t bs) = Val name <$> freshen' t <*> mapM freshen' bs
+    freshen' (DataType name pars l cons) =
+        DataType name <$> freshen' pars <*> return l
+                      <*> mapM (\(con, p) -> (con,) <$> freshen' p) cons
+
+instance Freshen ParamsT where
+    freshen' (Params pars') = Params <$> go pars'
+      where
+        -- TODO again, remove duplication between this and TermT code
+        go []           = return []
+        go ((v, t) : m) = do t' <- freshen' t
+                             v' <- fresh v
+                             ((v', t') :) <$> go m
+
+-- Note that in the current state we don't need to freshen the constructor
+-- variables, I do it anyway for consistency and because it might be a need at
+-- some point.
+instance Freshen BranchT where
+   freshen' (Branch con vars t) = Branch con <$> mapM fresh vars <*> freshen' t
+
+instance Freshen TermT where
+    freshen' (App t m)      = App <$> freshen' t <*> freshen' m
+    freshen' (Lambda v t m) = do t' <- freshen' t
+                                 v' <- fresh v
+                                 Lambda v' t' <$> freshen' (subst v (Var v') m)
+    freshen' t              = return t
+
+freshen :: Decl -> Decl
+freshen d = evalState (freshen' d) Map.empty
