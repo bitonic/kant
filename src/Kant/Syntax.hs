@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Kant.Syntax
     ( Id
+    , IdName
+    , IdRaw
     , rawId
     , ConId
     , Level
@@ -10,6 +12,7 @@ module Kant.Syntax
     , Branch(..)
     , TermT(..)
     , Term
+    , TermRaw
     , subst
     , unRaw
     , freshen
@@ -96,14 +99,10 @@ fresh (Id v _) =
        put (Map.insert v (t' + 1) m)
        return (Id v t')
 
-freshen' :: Term -> Fresh Term
-freshen' (App t m)      = App <$> freshen' t <*> freshen' m
-freshen' (Lambda v t m) = do v' <- fresh v
-                             Lambda v' t <$> freshen' (subst v (Var v') m)
-freshen' t              = return t
-
 freshen :: Term -> Term
-freshen t = evalState (freshen' t) Map.empty
-
--- arrow :: Term
--- arrow = Var "_->_"
+freshen t' = evalState (go t') Map.empty
+  where
+    go (App t m)      = App <$> go t <*> go m
+    go (Lambda v t m) = do v' <- fresh v
+                           Lambda v' t <$> go (subst v (Var v') m)
+    go t              = return t

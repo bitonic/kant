@@ -23,10 +23,10 @@ tokens :-
     "|"                                   { \_ -> BAR }
     "->"                                  { \_ -> ARROW }
     "="                                   { \_ -> EQUALS }
-    "\\"                                  { \_ -> LAMBDA }
+    [\\]                                  { \_ -> LAMBDA }
     "data"                                { \_ -> DATA }
     "of"                                  { \_ -> OF }
-    $alpha* ($alpha | $digit | $syms)     { VAR . newId }
+    $alpha* ($alpha | $digit | $syms)     { NAME }
 
 {
 -- Each action has type :: String -> Token
@@ -44,7 +44,7 @@ data Token
     | ARROW
     | OF
     | EQUALS
-    | VAR Id
+    | NAME IdName
     deriving (Show, Eq, Ord)
 
 lexKant :: String -> [Token]
