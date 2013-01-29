@@ -15,14 +15,18 @@ Description:
 
 Source-Repository head
     Type:     git
-    Location: git://github.com/kant/mfixed.git
+    Location: git://github.com/kant/kant.git
 
 Library
     Hs-Source-Dirs:   src
     Build-Depends:    base >= 3 && < 5,
-                      bound,
+                      containers,
+                      mtl
+    Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2
 
-    Exposed-Modules:  Kant.Syntax
+    Exposed-Modules:  Kant.Syntax,
+                      Kant.Parser
 
+    Other-Modules:    Kant.Lexer
