@@ -1,7 +1,7 @@
 {
 {-# OPTIONS_GHC -W #-}
 
-module Kant.Parser (parseKant) where
+module Kant.Parser (parseDecl, parseTerm) where
 
 import Data.List (foldl1)
 
@@ -10,7 +10,8 @@ import Kant.Syntax
 
 }
 
-%name parseKant
+%name parseDecl
+%name parseTerm Term
 %tokentype { Token }
 %token
     ';'                 { SEMI }
@@ -29,23 +30,37 @@ import Kant.Syntax
 
 %%
 
-Term :: { Term }
-Term : TermRaw                               { unRaw $1 }
+Seq(X)
+    : X Seq(X)                               { $1 : $2 }
+    | X                                      { [$1] }
 
-TermRaw :: { TermRaw }
-TermRaw
-    : '\\' name ':' TermRaw '->' TermRaw     { Lambda (rawId $2) $4 $6 }
-    | SingleTerms                            { foldl1 App $1 }
+SemiEnd(X) : X ';'                           { $1 }
 
-SingleTerms :: { [TermRaw] }
-SingleTerms
-    : SingleTerm                             { [$1] }
-    | SingleTerm SingleTerms                 { $1 : $2 }
+Decl :: { DeclT () }
+Decl : name ':' Term '{' Seq(SemiEnd(Branch)) '}'
+       { Val $1 $3 $5 }
 
-SingleTerm :: { TermRaw }
+Branch :: { BranchT () }
+Branch
+    : '(' name Seq(Id) ')' '=' Term          { Branch $2 $3 $6 }
+    | name '=' Term                          { Branch $1 [] $3 }
+
+Param :: { (IdT (), TermT ()) }
+    : SingleTerm                             { (rawId "", $1) }
+    | '(' Id ':' Term ')'                    { ($2, $4) }
+
+Term :: { TermT () }
+Term
+    : '\\' Id ':' Term '->' Term             { Lambda $2 $4 $6 }
+    | Seq(SingleTerm)                        { foldl1 App $1 }
+
+SingleTerm :: { TermT () }
 SingleTerm
-    : name                                   { Var (rawId $1) }
-    | '(' TermRaw ')'                        { $2 }
+    : Id                                     { Var $1 }
+    | '(' Term ')'                           { $2 }
+
+Id :: { IdT () }
+Id : name                                    { rawId $1 }
 
 {
 
