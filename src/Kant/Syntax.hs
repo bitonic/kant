@@ -110,40 +110,47 @@ instance Subst ParamsT where
 -- | Separates Names from abstracted variables, and fills al the tags with 0s.
 --   'Freshen' will later update the tags to make them unique.
 class UnRaw f where
-    unRaw :: f () -> f IdTag
+    unRaw' :: f (Maybe IdTag) -> f IdTag
 
 instance UnRaw DeclT where
-    unRaw (Val name t bs) = Val name (unRaw t) (map unRaw bs)
-    unRaw (DataType name pars l cons) =
-        DataType name (unRaw pars) l (map (second unRaw) cons)
+    unRaw' (Val name t bs) = Val name (unRaw' t) (map unRaw' bs)
+    unRaw' (DataType name pars l cons) =
+        DataType name (unRaw' pars) l (map (second unRaw') cons)
 
 instance UnRaw ParamsT where
-    unRaw = Params . go . map (nothingT *** nothingT) . unParams
+    unRaw' = Params . go . unParams
       where
         -- TODO Remove duplication between here and unMaybe
         go [] = []
-        go ((i@(Id v _), t) : pars) =
-            (Id v 0, unMaybe t) :
-            go (unParams (subst i (Var (Id v (Just 0))) (Params pars)))
+        go ((v@(Id name _), t) : pars) =
+            let v' = Id name 0 in
+            (v', unMaybe t) : go (unParams (substMaybe v v' (Params pars)))
 
 instance UnRaw BranchT where
-    unRaw (Branch con vars t) =
-        Branch con (map (\(Id v ()) -> Id v 0) vars) (unRaw t)
+    unRaw' (Branch con vars t) =
+        let vars' = map (\(Id v _) -> Id v 0) vars in
+        Branch con vars'
+              (unRaw' (foldr (\v@(Id n _) -> substMaybe (Id n Nothing) v) t vars'))
 
-nothingT :: Functor f => f a -> f (Maybe b)
-nothingT = fmap (const Nothing)
+substMaybe :: Subst f
+           => IdT (Maybe IdTag)
+           -> Id -> f (Maybe IdTag) -> f (Maybe IdTag)
+substMaybe v (Id name tag) t = subst v (Var (Id name (Just tag))) t
 
 unMaybe :: TermT (Maybe IdTag) -> Term
-unMaybe (Var (Id v Nothing))     = Name v
-unMaybe (Var (Id v (Just t)))    = Var (Id v t)
-unMaybe (App m n)                = App (unMaybe m) (unMaybe n)
-unMaybe (Lambda i@(Id v _) m n)  =
-    Lambda (Id v 0) (unMaybe m) (unMaybe (subst i (Var (Id v (Just 0))) n))
-unMaybe (Name n)                 = Name n
-unMaybe (Set l)                  = Set l
+unMaybe (Var (Id v Nothing))       = Name v
+unMaybe (Var (Id v (Just t)))      = Var (Id v t)
+unMaybe (App m n)                  = App (unMaybe m) (unMaybe n)
+unMaybe (Name n)                   = Name n
+unMaybe (Set l)                    = Set l
+unMaybe (Lambda v@(Id name _) m n) =
+    let v' = Id name 0 in Lambda v' (unMaybe m) (unMaybe (substMaybe v v' n))
 
 instance UnRaw TermT where
-    unRaw = unMaybe . nothingT
+    unRaw' = unMaybe
+
+unRaw :: DeclT () -> Decl
+unRaw = unRaw' . fmap (const Nothing)
 
 
 -- | Makes sure that each abstracted variable is unique, so that there are no
