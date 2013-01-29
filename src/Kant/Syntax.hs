@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TupleSections #-}
+-- TODO check that there are no duplicate variables
 module Kant.Syntax
     ( Id
     , IdName
@@ -56,6 +57,15 @@ data DeclT id
     deriving (Show, Eq, Functor)
 type Decl = DeclT IdTag
 
+-- | Parameters for type and data constructors.  This is basically an arrow type
+--   and in fact we could simply use a term, but I want to enforce more easily
+--   the fact that the return type is either always a Setn with type
+--   constructors or whatever the datatype we are defining is with data
+--   constructors.
+--
+--   Note that each parameter is scoped through the rest of the list.  This
+--   means that parameters in data constructors can shadow global parameters in
+--   the type constructor.
 newtype ParamsT id = Params {unParams :: [(IdT id, TermT id)]}
     deriving (Show, Eq, Functor)
 
@@ -75,6 +85,8 @@ data TermT id
 
 type Term = TermT IdTag
 
+
+-- | Substuting names for terms in things.
 class Subst f where
     subst :: Eq id
           => IdT id             -- ^ Substitute variable v...
@@ -96,6 +108,9 @@ instance Subst ParamsT where
         go ((v', m) : rest) = (v', subst v t m) :
                               if v == v' then rest else go rest
 
+
+-- | Separates Names from abstracted variables, and fills al the tags with 0s.
+--   'Freshen' will later update the tags to make them unique.
 class UnRaw f where
     unRaw :: f () -> f IdTag
 
@@ -133,6 +148,11 @@ instance UnRaw TermT where
     unRaw = unMaybe . nothingT
 
 
+-- | Makes sure that each abstracted variable is unique, so that there are no
+--   issue with variable substitution.
+class Freshen f where
+    freshen' :: f IdTag -> Fresh (f IdTag)
+
 type Fresh a = State (Map String IdTag) a
 
 fresh :: Id -> Fresh Id
@@ -141,9 +161,6 @@ fresh (Id v _) =
        let t' = fromMaybe 0 (Map.lookup v m)
        put (Map.insert v (t' + 1) m)
        return (Id v t')
-
-class Freshen f where
-    freshen' :: f IdTag -> Fresh (f IdTag)
 
 instance Freshen DeclT where
     freshen' (Val name t bs) = Val name <$> freshen' t <*> mapM freshen' bs
