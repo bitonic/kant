@@ -21,13 +21,16 @@ Library
     Hs-Source-Dirs:   src
     Build-Depends:    base >= 3 && < 5,
                       bound,
-                      pretty
-                      prelude-extras
+                      pretty,
+                      prelude-extras,
+                      array,
+                      mtl
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2
 
     Exposed-Modules:  Kant.Syntax,
-                      Kant.Parser
+                      Kant.Parser,
+                      Kant.Pretty
 
     Other-Modules:    Kant.Lexer

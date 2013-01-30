@@ -3,15 +3,15 @@
 
 module Kant.Parser (parseDecl, parseTerm) where
 
-import Data.List (foldl1)
+import           Data.List (foldl1)
 
-import Kant.Lexer
-import Kant.Syntax
+import           Kant.Lexer
+import           Kant.Syntax
 
 }
 
-%name parseDecl
-%name parseTerm Term
+%name parseDecl_
+%name parseTerm_ Term
 %tokentype { Token }
 %token
     ';'                 { SEMI }
@@ -41,8 +41,6 @@ Seq0(X)
     : {- empty -}                            { [] }
     | X Seq0(X)                              { $1 : $2 }
 
-SemiEnd(X) : X ';'                           { $1 }
-
 Decl :: { Decl }
 Decl : name '=' Term ';'                     { Val $1 $3 }
      | 'data' name Seq0(Param) ':' type Seq0(DataCon) 'end'
@@ -61,7 +59,7 @@ Term
     | 'case' Term Seq0(Branch) 'end'         { case_ $2 $3 }
     | Arr                                    { $1 }
 
-Branch :: { (Id, [Id], Term) }
+Branch :: { (ConId, [Id], Term) }
 Branch : '|' name Seq0(name) '->' Term       { ($2, $3, $5) }
 
 SingleTerm :: { Term }
@@ -83,5 +81,11 @@ App : Seq(SingleTerm)                        { foldl1 App $1 }
 
 happyError :: [Token] -> a
 happyError _ = error "Parse error\n"
+
+parseDecl :: String -> Decl
+parseDecl = parseDecl_ . lexKant
+
+parseTerm :: String -> Term
+parseTerm = parseTerm_ . lexKant
 
 }

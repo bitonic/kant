@@ -2,17 +2,20 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 module Kant.Syntax
-    ( Id
+    ( -- * Abstract syntax tree
+      Id
+    , ConId
     , Level
     , Module(..)
     , Decl(..)
     , Data(..)
     , Constr
-    , Params
+    , Param
     , TermT(..)
     , Term
     , TScopeT
     , TScope
+      -- * Smart constructors
     , arrow
     , lam
     , pi_
@@ -20,6 +23,7 @@ module Kant.Syntax
     , case_
     , app
     , dataDecl
+      -- * Utilities
     , uniquify
     ) where
 
@@ -49,36 +53,37 @@ d     Data
 -}
 
 type Id = String
+type ConId = Id
 type Level  = Int
 newtype Module = Module {unModule :: [Decl]}
 
+-- | Value or datatype declaration
 data Decl
-    = Val Id                      -- ^ Name
-          Term                    -- ^ Body
+    = Val Id                      -- Name
+          Term                    -- Body
     | DataDecl Data
     deriving (Show, Eq)
 
-data Data = Data Id               -- ^ Name
-                 Params           -- ^ Parameters' types
-                 Level            -- ^ Resulting level
-                 [Constr]         -- ^ Constructors
-    deriving (Show, Eq)
-
-type Constr = (Id, Params)
-
--- | Parameters for type and data constructors.  This is basically an arrow type
---   and in fact we could simply use a term, but I want to enforce more easily
---   the fact that the return type is either always a Typen with type
---   constructors or whatever the datatype we are defining is with data
---   constructors.
+-- | Inductive data types declarations.
+--
+--   The parameters stuff is basically an arrow type and in fact we could simply
+--   use a term, but I want to enforce more easily the fact that the return type
+--   is either always a Typen with type constructors or whatever the datatype we
+--   are defining is with data constructors.
 --
 --   Note that each parameter is scoped through the rest of the list.  This
 --   means that parameters in data constructors can shadow global parameters in
 --   the type constructor.
-type Params = [(Id, Term)]
+data Data = Data ConId            -- Name
+                 [Param]          -- Parameters' types
+                 Level            -- Resulting level
+                 [Constr]         -- Constructors
+    deriving (Show, Eq)
 
-type TVar v      = Name Id v
-type TScopeT a v = Scope (TVar v) TermT a
+type Constr = (ConId, [Param])
+type Param = (Id, Term)
+
+type TScopeT a v = Scope (Name Id v) TermT a
 type TScope a    = TScopeT a ()
 
 data TermT a
@@ -110,12 +115,18 @@ lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
 
 -- TODO This assumes that the variables are all distinct, fix that.
-case_ :: Term -> [(Id, [Id], Term)] -> Term
+-- | Pattern matching
+case_ :: Term
+      -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
+                                --   variables, and a body.
+      -> Term
 case_ t brs =
     Case t
          (map (\(c, vs, t') -> (c, length vs, (abstractName (`elemIndex` vs) t')))
               brs)
 
+-- | The constructor for arrow types, of type @(A : Type) -> (A -> Type) ->
+--   Type@.
 arrow :: Term
 arrow = Var "(->)"
 
@@ -130,6 +141,9 @@ pi_ v ty₁ ty₂ = app [arrow, ty₁, lam v ty₁ ty₂]
 arr :: Term -> Term -> Term
 arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 
+-- TODO should I keep this unsafe?
+-- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
+-- to @b@ applied to @c@.  Fails with empty lists.
 app :: [Term] -> Term
 app = foldr1 App
 

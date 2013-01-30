@@ -86,7 +86,7 @@ instance Pretty Data where
         nest (vcat (map prettyCon cons)) $$
         "end"
 
-prettyPars :: Params -> Doc
+prettyPars :: [Param] -> Doc
 prettyPars pars = hsep (map ppar pars)
   where
     ppar ("", t) = parens t
