@@ -44,11 +44,13 @@ type Module = [Decl]
 data Decl
     = Val Id                      -- ^ Name
           Term                    -- ^ Body
-    | Data
-          Id                      -- ^ Name
-          Params                  -- ^ Parameters' types
-          Level                   -- ^ Resulting level
-          [Constr]                -- ^ Constructors
+    | DataDecl Data
+    deriving (Show, Eq)
+
+data Data = Data Id               -- ^ Name
+                 Params           -- ^ Parameters' types
+                 Level            -- ^ Resulting level
+                 [Constr]         -- ^ Constructors
     deriving (Show, Eq)
 
 type Constr = (ConId, Params)
@@ -62,8 +64,7 @@ type Constr = (ConId, Params)
 --   Note that each parameter is scoped through the rest of the list.  This
 --   means that parameters in data constructors can shadow global parameters in
 --   the type constructor.
-newtype Params = Params {unParams :: [(Id, Term)]}
-    deriving (Show, Eq)
+type Params = [(Id, Term)]
 
 type TVar v      = Name Id v
 type TScopeT a v = Scope (TVar v) TermT a
@@ -101,6 +102,35 @@ lam v ty t = Lam ty (abstract1Name v t)
 case_ :: Term -> [(ConId, [Id], Term)] -> Term
 case_ t bs =
     Case t (map (\(c, vs, m) -> (c, (abstractName (`elemIndex` vs) m))) bs)
+
+arrow :: Term
+arrow = Var "(->)"
+
+-- | Dependent function, @(x : A) -> B@
+abs_ :: Id                       -- ^ Abstracting an 'x'...
+     -> Term                     -- ^ ...of Type A..
+     -> Term                     -- ^ ...over type B
+     -> Term
+abs_ v ty1 ty2 = app [arrow, ty1, lam v ty1 ty2]
+
+app :: [Term] -> Term
+app = foldr1 App
+
+-- | Extracts the types out of a data declaration.
+--
+--   A type function will be generated as type constructor, taking the
+--   parameters as arguments and returning someting of @Type l@, where @l@ is
+--   the level specified in the declaration.
+--
+--   Another function will be generated for each data constructor, taking all
+--   the parameters of the type constructor plus its own parameter.
+dataDecl :: Data -> ((Id, Term), [(Id, Term)])
+dataDecl (Data v pars l cons) =
+    ((v, rev (Type l) pars),
+     map (\(c, pars') -> (c, rev resTy (pars ++ pars'))) cons)
+  where
+    rev   = foldr (\(v', t) m -> abs_ v' t m)
+    resTy = app (Var v : map (Var . fst) pars)
 
 -- TODO: Define this
 -- | Makes all the 'Name's unique

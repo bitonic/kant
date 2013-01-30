@@ -46,14 +46,14 @@ SemiEnd(X) : X ';'                           { $1 }
 Decl :: { Decl }
 Decl : name '=' Term ';'                     { Val $1 $3 }
      | 'data' name Seq0(Param) ':' type Seq0(DataCon) 'end'
-       { Data $2 (Params $3) $5 $6 }
+       { DataDecl (Data $2 $3 $5 $6) }
 
 Param :: { (Id, Term) }
     : SingleTerm                             { ("", $1) }
     | '(' name ':' Term ')'                  { ($2, $4) }
 
 DataCon :: { Constr }
-DataCon : '|' name Seq0(Param)               { ($2, Params $3) }
+DataCon : '|' name Seq0(Param)               { ($2, $3) }
 
 Term :: { Term }
 Term
