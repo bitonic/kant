@@ -26,6 +26,8 @@ tokens :-
     [\\]                                  { \_ -> LAMBDA }
     "data"                                { \_ -> DATA }
     "of"                                  { \_ -> OF }
+    "case"                                { \_ -> CASE }
+    "end"                                 { \_ -> END }
     "Type" $digit*                        { getLevel }
     $alpha* ($alpha | $digit | $syms)     { NAME }
 
@@ -44,7 +46,9 @@ data Token
     | LAMBDA
     | ARROW
     | OF
+    | CASE
     | EQUALS
+    | END
     | NAME Id
     | TYPE Int
     deriving (Show, Eq, Ord)

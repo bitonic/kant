@@ -25,7 +25,9 @@ import Kant.Syntax
     '='                 { EQUALS }
     '\\'                { LAMBDA }
     'data'              { DATA }
+    'case'              { CASE }
     'of'                { OF }
+    'end'               { END }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -42,27 +44,25 @@ Seq0(X)
 SemiEnd(X) : X ';'                           { $1 }
 
 Decl :: { Decl }
-Decl : name ':' Term '{' Seq0(SemiEnd(Branch)) '}'
-       { Val $1 $3 $5 }
-     | 'data' name Seq0(Param) ':' type '{' Seq0(SemiEnd(DataCon)) '}'
-       { Data $2 (Params $3) $5 $7 }
-
-Branch :: { Branch }
-Branch
-    : '(' name Seq(name) ')' '=' Term        { branch $2 $3 $6 }
-    | name '=' Term                          { branch $1 [] $3 }
-
-DataCon :: { (ConId, Params) }
-DataCon : name Seq0(Param)                   { ($1, Params $2) }
+Decl : name '=' Term ';'                     { Val $1 $3 }
+     | 'data' name Seq0(Param) ':' type Seq0(DataCon) 'end'
+       { Data $2 (Params $3) $5 $6 }
 
 Param :: { (Id, Term) }
     : SingleTerm                             { ("", $1) }
     | '(' name ':' Term ')'                  { ($2, $4) }
 
+DataCon :: { Constr }
+DataCon : '|' name Seq0(Param)               { ($2, Params $3) }
+
 Term :: { Term }
 Term
     : '\\' name ':' Term '->' Term           { lam $2 $4 $6 }
+    | 'case' Term Seq0(Branch) 'end'         { case_ $2 $3 }
     | Seq(SingleTerm)                        { foldl1 App $1 }
+
+Branch :: { (ConId, [Id], Term) }
+Branch : '|' name Seq0(name) '->' Term       { ($2, $3, $5) }
 
 SingleTerm :: { Term }
 SingleTerm

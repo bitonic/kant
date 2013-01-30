@@ -43,8 +43,7 @@ type Module = [Decl]
 
 data Decl
     = Val Id                      -- ^ Name
-          Term                    -- ^ Type
-          [Branch]                -- ^ Branches
+          Term                    -- ^ Body
     | Data
           Id                      -- ^ Name
           Params                  -- ^ Parameters' types
@@ -70,15 +69,12 @@ type TVar v      = Name Id v
 type TScopeT a v = Scope (TVar v) TermT a
 type TScope a    = TScopeT a ()
 
-data Branch  = Branch ConId              -- ^ Matching a constructor
-                      (TScopeT Id Int)   -- ^ Variables abstracted by index
-    deriving (Show, Eq)
-
 data TermT a
     = Var a
     | Type Level
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
+    | Case (TermT a) [(ConId, TScopeT a Int)]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -92,17 +88,19 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v   >>= f = f v
-    Type l  >>= _ = Type l
-    App t m >>= f = App (t >>= f) (m >>= f)
-    Lam t s >>= f = Lam (t >>= f) (s >>>= f)
+    Var v     >>= f = f v
+    Type l    >>= _ = Type l
+    App t m   >>= f = App (t >>= f) (m >>= f)
+    Lam t s   >>= f = Lam (t >>= f) (s >>>= f)
+    Case t bs >>= f = Case (t >>= f) (map (second (>>>= f)) bs)
 
 lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
 
 -- TODO This assumes that the variables are all distinct, fix that.
-branch :: ConId -> [Id] -> Term -> Branch
-branch c vars t = Branch c (abstractName (`elemIndex` vars) t)
+case_ :: Term -> [(ConId, [Id], Term)] -> Term
+case_ t bs =
+    Case t (map (\(c, vs, m) -> (c, (abstractName (`elemIndex` vs) m))) bs)
 
 -- TODO: Define this
 -- | Makes all the 'Name's unique
