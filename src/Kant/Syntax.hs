@@ -13,6 +13,7 @@ module Kant.Syntax
     , Term
     , TScopeT
     , TScope
+    , arrow
     , lam
     , abs_
     , case_

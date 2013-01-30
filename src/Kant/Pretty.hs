@@ -45,8 +45,18 @@ parens t@(Type _)  = pretty t
 parens t           = "(" <> pretty t <> ")"
 
 prettyApp :: Term -> Doc
+-- `t' should always be equal to `m' here
+prettyApp (App arr (App t (Lam m s))) | arr == arrow && t == m =
+    case scopeVar s of
+        Nothing -> noArr t <+> "->" <+> prettyApp (instantiate1 (Var "") s)
+        Just v  -> "(" <> pretty v <+> ":" <+> pretty t <> ")" <+> "->" <+>
+                   prettyApp (instantiate1 (Var v) s)
+  where
+    noArr t'@(App arr' _) | arr' /= arrow = pretty t'
+    noArr t' = parens t'
+
 prettyApp (App t m) = prettyApp t <+> parens m
-prettyApp t         = parens t
+prettyApp t = parens t
 
 prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
 prettyBranch (c, i, s) =
@@ -58,7 +68,7 @@ scopeVar :: (Monad f, Foldable f) => Scope (Name n ()) f a -> Maybe n
 scopeVar s = listToMaybe [ n | Name n _ <- bindings s ]
 
 freshScope :: TScope Id -> (Id, Term)
-freshScope s = (v, instantiate1 (Var v) s) where v = fromMaybe "" (scopeVar s)
+freshScope s = (v, instantiate1 (Var v) s) where v = fromMaybe "_" (scopeVar s)
 
 -- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
 -- in the branch body.
