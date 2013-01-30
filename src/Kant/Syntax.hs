@@ -1,43 +1,34 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Kant.Syntax where
-    -- ( IdT
-    -- , IdName
-    -- , rawId
-    -- , ConId
-    -- , Level
-    -- , Module
-    -- , DeclT(..)
-    -- , Decl
-    -- , BranchT(..)
-    -- , Branch
-    -- , TermT(..)
-    -- , Term
-    -- , subst
-    -- , unRaw
-    -- , freshen
-    -- ) where
+module Kant.Syntax
+    ( Id
+    , Level
+    , Module
+    , Decl(..)
+    , Data(..)
+    , Constr
+    , Params
+    , TermT(..)
+    , Term
+    , lam
+    , abs_
+    , case_
+    , app
+    ) where
 
-import           Control.Applicative (Applicative(..), (<$>), (<*>))
+import           Control.Applicative (Applicative(..))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
-import           Data.Maybe (fromMaybe)
-import           Data.Traversable (Traversable)
 import           Data.List (elemIndex)
-
-import           Control.Monad.State (State, get, put, evalState)
-
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.Traversable (Traversable)
 
 import           Bound
 import           Bound.Name
 import           Prelude.Extras
 
 type Id = String
-type ConId  = String
 type Level  = Int
 type Module = [Decl]
 
@@ -53,7 +44,7 @@ data Data = Data Id               -- ^ Name
                  [Constr]         -- ^ Constructors
     deriving (Show, Eq)
 
-type Constr = (ConId, Params)
+type Constr = (Id, Params)
 
 -- | Parameters for type and data constructors.  This is basically an arrow type
 --   and in fact we could simply use a term, but I want to enforce more easily
@@ -75,7 +66,7 @@ data TermT a
     | Type Level
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
-    | Case (TermT a) [(ConId, TScopeT a Int)]
+    | Case (TermT a) [(Id, TScopeT a Int)]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -99,7 +90,7 @@ lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
 
 -- TODO This assumes that the variables are all distinct, fix that.
-case_ :: Term -> [(ConId, [Id], Term)] -> Term
+case_ :: Term -> [(Id, [Id], Term)] -> Term
 case_ t bs =
     Case t (map (\(c, vs, m) -> (c, (abstractName (`elemIndex` vs) m))) bs)
 

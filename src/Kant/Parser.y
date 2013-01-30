@@ -61,7 +61,7 @@ Term
     | 'case' Term Seq0(Branch) 'end'         { case_ $2 $3 }
     | Seq(SingleTerm)                        { foldl1 App $1 }
 
-Branch :: { (ConId, [Id], Term) }
+Branch :: { (Id, [Id], Term) }
 Branch : '|' name Seq0(name) '->' Term       { ($2, $3, $5) }
 
 SingleTerm :: { Term }
