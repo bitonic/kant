@@ -20,9 +20,8 @@ Source-Repository head
 Library
     Hs-Source-Dirs:   src
     Build-Depends:    base >= 3 && < 5,
-                      containers,
-                      mtl,
                       bound,
+                      pretty
                       prelude-extras
     Build-Tools:      alex, happy
 

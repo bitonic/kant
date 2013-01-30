@@ -1,5 +1,5 @@
 {
-{-# OPTIONS_GHC -W #-}
+{-# OPTIONS_GHC -w #-}
 module Kant.Lexer (lexKant, Token(..)) where
 
 import Kant.Syntax

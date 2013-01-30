@@ -11,6 +11,8 @@ module Kant.Syntax
     , Params
     , TermT(..)
     , Term
+    , TScopeT
+    , TScope
     , lam
     , abs_
     , case_
@@ -20,7 +22,6 @@ module Kant.Syntax
     ) where
 
 import           Control.Applicative (Applicative(..))
-import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
 import           Data.List (elemIndex)
@@ -68,7 +69,7 @@ data TermT a
     | Type Level
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
-    | Case (TermT a) [(Id, TScopeT a Int)]
+    | Case (TermT a) [(Id, Int, TScopeT a Int)]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -86,7 +87,7 @@ instance Monad TermT where
     Type l    >>= _ = Type l
     App t m   >>= f = App (t >>= f) (m >>= f)
     Lam t s   >>= f = Lam (t >>= f) (s >>>= f)
-    Case t bs >>= f = Case (t >>= f) (map (second (>>>= f)) bs)
+    Case t bs >>= f = Case (t >>= f) (map (\(c,n,s) -> (c, n, s >>>= f)) bs)
 
 lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
@@ -94,15 +95,16 @@ lam v ty t = Lam ty (abstract1Name v t)
 -- TODO This assumes that the variables are all distinct, fix that.
 case_ :: Term -> [(Id, [Id], Term)] -> Term
 case_ t bs =
-    Case t (map (\(c, vs, m) -> (c, (abstractName (`elemIndex` vs) m))) bs)
+    Case t (map (\(c, vs, m) -> (c, length vs, (abstractName (`elemIndex` vs) m)))
+                bs)
 
 arrow :: Term
 arrow = Var "(->)"
 
 -- | Dependent function, @(x : A) -> B@
-abs_ :: Id                       -- ^ Abstracting an 'x'...
-     -> Term                     -- ^ ...of Type A..
-     -> Term                     -- ^ ...over type B
+abs_ :: Id                       -- ^ Abstracting an @x@...
+     -> Term                     -- ^ ...of type @A@..
+     -> Term                     -- ^ ...over type @B@
      -> Term
 abs_ v ty1 ty2 = app [arrow, ty1, lam v ty1 ty2]
 
@@ -127,5 +129,5 @@ dataDecl (Data v pars l cons) =
 
 -- TODO: Define this
 -- | Makes all the 'Name's unique
-uniquify :: Term -> Term
-uniquify = undefined
+uniquify :: TermT a -> TermT a
+uniquify = id
