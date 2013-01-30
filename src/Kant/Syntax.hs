@@ -15,6 +15,8 @@ module Kant.Syntax
     , abs_
     , case_
     , app
+    , dataDecl
+    , uniquify
     ) where
 
 import           Control.Applicative (Applicative(..))
