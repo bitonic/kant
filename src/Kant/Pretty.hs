@@ -32,11 +32,10 @@ instance Pretty (TermT Id) where
     pretty (Type 0)    = "Type"
     pretty (Type l)    = "Type" <> text (show l)
     pretty t@(App _ _) = prettyApp t
-    pretty (Lam t s)   = "\\" <> pretty n <+> ":" <+> pretty t <+> "->" <+>
+    pretty (Lam t s)   = "\\" <> pretty n <+> ":" <+> pretty t <+> "=>" <+>
                          pretty t' where (n, t') = freshScope s
     pretty (Case t bs) = "case" <+> pretty t $$
-                         nest (vcat (map prettyBranch bs)) $$
-                         "end"
+                         nest (prettyBarred prettyBranch bs)
 
 parens :: Term -> Doc
 parens t@(Var _)   = pretty t
@@ -56,9 +55,12 @@ prettyApp (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
 prettyApp (App t₁ t₂) = prettyApp t₁ <+> parens t₂
 prettyApp t = parens t
 
+prettyBarred :: (a -> Doc) -> [a] -> Doc
+prettyBarred _ [] = "{ }"
+prettyBarred f (x : xs) = "{" <+> f x $$ vcat (map (("|" <+>) . f) xs) $$ "}"
+
 prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
-prettyBranch (c, i, s) =
-    "|" <+> pretty c <+> hsep (map pretty ns) <+> "->" <+> pretty t
+prettyBranch (c, i, s) = pretty c <+> hsep (map pretty ns) <+> "=>" <+> pretty t
   where (ns, t) = freshScopeI s i
 
 -- | If the variable is used in a single-variable scope, gets its name
@@ -83,8 +85,7 @@ instance Pretty Data where
     pretty (Data c pars l cons) =
         "data" <+> pretty c <+> prettyPars pars <+> ":" <+>
         pretty (Type l :: Term) $$
-        nest (vcat (map prettyCon cons)) $$
-        "end"
+        nest (prettyBarred prettyCon cons)
 
 prettyPars :: [Param] -> Doc
 prettyPars pars = hsep (map ppar pars)
@@ -93,4 +94,4 @@ prettyPars pars = hsep (map ppar pars)
     ppar (n,  t) = "(" <> pretty n <+> ":" <+> pretty t <> ")"
 
 prettyCon :: Constr -> Doc
-prettyCon (c, pars) = "|" <+> pretty c <+> prettyPars pars
+prettyCon (c, pars) = pretty c <+> prettyPars pars

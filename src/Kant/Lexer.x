@@ -14,7 +14,6 @@ $syms  = ['_]
 tokens :-
     $white+                               ;
     "--".*                                ;
-    ";"                                   { \_ -> SEMI }
     ":"                                   { \_ -> COLON }
     "{"                                   { \_ -> LBRACE }
     "}"                                   { \_ -> RBRACE }
@@ -22,12 +21,11 @@ tokens :-
     ")"                                   { \_ -> RPAREN }
     "|"                                   { \_ -> BAR }
     "->"                                  { \_ -> ARROW }
+    "=>"                                  { \_ -> DARROW }
     "="                                   { \_ -> EQUALS }
     [\\]                                  { \_ -> LAMBDA }
     "data"                                { \_ -> DATA }
-    "of"                                  { \_ -> OF }
     "case"                                { \_ -> CASE }
-    "end"                                 { \_ -> END }
     "Type" $digit*                        { getLevel }
     $alpha* ($alpha | $digit | $syms)     { NAME }
 
@@ -36,7 +34,6 @@ tokens :-
 
 data Token
     = COLON
-    | SEMI
     | DATA
     | LBRACE
     | RBRACE
@@ -45,10 +42,9 @@ data Token
     | BAR
     | LAMBDA
     | ARROW
-    | OF
+    | DARROW
     | CASE
     | EQUALS
-    | END
     | NAME Id
     | TYPE Int
     deriving (Show, Eq, Ord)

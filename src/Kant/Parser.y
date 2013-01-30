@@ -14,7 +14,6 @@ import           Kant.Syntax
 %name parseTerm_ Term
 %tokentype { Token }
 %token
-    ';'                 { SEMI }
     ':'                 { COLON }
     '{'                 { LBRACE }
     '}'                 { RBRACE }
@@ -22,12 +21,11 @@ import           Kant.Syntax
     ')'                 { RPAREN }
     '|'                 { BAR }
     '->'                { ARROW }
+    '=>'                { DARROW }
     '='                 { EQUALS }
     '\\'                { LAMBDA }
     'data'              { DATA }
     'case'              { CASE }
-    'of'                { OF }
-    'end'               { END }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -41,26 +39,30 @@ Seq0(X)
     : {- empty -}                            { [] }
     | X Seq0(X)                              { $1 : $2 }
 
+Bar(X)
+    : X                                      { [$1] }
+    | X '|' Bar(X)                           { $1 : $3 }
+
 Decl :: { Decl }
-Decl : name '=' Term ';'                     { Val $1 $3 }
-     | 'data' name Seq0(Param) ':' type Seq0(DataCon) 'end'
-       { DataDecl (Data $2 $3 $5 $6) }
+Decl : name '=' Term                         { Val $1 $3 }
+     | 'data' name Seq0(Param) ':' type '{' Bar(DataCon) '}'
+       { DataDecl (Data $2 $3 $5 $7) }
 
 Param :: { (Id, Term) }
     : SingleTerm                             { ("", $1) }
     | '(' name ':' Term ')'                  { ($2, $4) }
 
 DataCon :: { Constr }
-DataCon : '|' name Seq0(Param)               { ($2, $3) }
+DataCon : name Seq0(Param)                   { ($1, $2) }
 
 Term :: { Term }
 Term
-    : '\\' name ':' Term '->' Term           { lam $2 $4 $6 }
-    | 'case' Term Seq0(Branch) 'end'         { case_ $2 $3 }
+    : '\\' name ':' Term '=>' Term           { lam $2 $4 $6 }
+    | 'case' Term '{' Bar(Branch) '}'        { case_ $2 $4 }
     | Arr                                    { $1 }
 
 Branch :: { (ConId, [Id], Term) }
-Branch : '|' name Seq0(name) '->' Term       { ($2, $3, $5) }
+Branch : name Seq0(name) '=>' Term           { ($1, $2, $4) }
 
 SingleTerm :: { Term }
 SingleTerm
