@@ -59,7 +59,7 @@ Term :: { Term }
 Term
     : '\\' name ':' Term '->' Term           { lam $2 $4 $6 }
     | 'case' Term Seq0(Branch) 'end'         { case_ $2 $3 }
-    | Seq(SingleTerm)                        { foldl1 App $1 }
+    | Arr                                    { $1 }
 
 Branch :: { (Id, [Id], Term) }
 Branch : '|' name Seq0(name) '->' Term       { ($2, $3, $5) }
@@ -69,6 +69,15 @@ SingleTerm
     : name                                   { Var $1 }
     | type                                   { Type $1 }
     | '(' Term ')'                           { $2 }
+
+Arr :: { Term }
+Arr : App '->' Arr                           { arr $1 $3 }
+    | '(' name ':' Term ')' '->' Arr         { pi_ $2 $4 $7 }
+    | App                                    { $1 }
+
+App :: { Term}
+App : Seq(SingleTerm)                        { foldl1 App $1 }
+
 
 {
 

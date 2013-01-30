@@ -15,7 +15,8 @@ module Kant.Syntax
     , TScope
     , arrow
     , lam
-    , abs_
+    , pi_
+    , arr
     , case_
     , app
     , dataDecl
@@ -31,6 +32,21 @@ import           Data.Traversable (Traversable)
 import           Bound
 import           Bound.Name
 import           Prelude.Extras
+
+{-
+t     Term
+ty    Terms that are types
+v     Name
+n     Id inside Name and Id in general
+con   Constr
+c     constructor Id
+l     Level
+s     Scope
+br    Branch
+i     For numbers, e.g. the number of things in patterns
+par   Parameter
+d     Data
+-}
 
 type Id = String
 type Level  = Int
@@ -84,30 +100,35 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v     >>= f = f v
-    Type l    >>= _ = Type l
-    App t m   >>= f = App (t >>= f) (m >>= f)
-    Lam t s   >>= f = Lam (t >>= f) (s >>>= f)
-    Case t bs >>= f = Case (t >>= f) (map (\(c,n,s) -> (c, n, s >>>= f)) bs)
+    Var v      >>= f = f v
+    Type l     >>= _ = Type l
+    App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Lam t s    >>= f = Lam (t >>= f) (s >>>= f)
+    Case t brs >>= f = Case (t >>= f) (map (\(c, i, s) -> (c, i, s >>>= f)) brs)
 
 lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
 
 -- TODO This assumes that the variables are all distinct, fix that.
 case_ :: Term -> [(Id, [Id], Term)] -> Term
-case_ t bs =
-    Case t (map (\(c, vs, m) -> (c, length vs, (abstractName (`elemIndex` vs) m)))
-                bs)
+case_ t brs =
+    Case t
+         (map (\(c, vs, t') -> (c, length vs, (abstractName (`elemIndex` vs) t')))
+              brs)
 
 arrow :: Term
 arrow = Var "(->)"
 
 -- | Dependent function, @(x : A) -> B@
-abs_ :: Id                       -- ^ Abstracting an @x@...
-     -> Term                     -- ^ ...of type @A@..
-     -> Term                     -- ^ ...over type @B@
-     -> Term
-abs_ v ty1 ty2 = app [arrow, ty1, lam v ty1 ty2]
+pi_ :: Id                       -- ^ Abstracting an @x@...
+    -> Term                     -- ^ ...of type @A@..
+    -> Term                     -- ^ ...over type @B@
+    -> Term
+pi_ v ty₁ ty₂ = app [arrow, ty₁, lam v ty₁ ty₂]
+
+-- | Non-dependent function, @A -> B@
+arr :: Term -> Term -> Term
+arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 
 app :: [Term] -> Term
 app = foldr1 App
@@ -121,12 +142,12 @@ app = foldr1 App
 --   Another function will be generated for each data constructor, taking all
 --   the parameters of the type constructor plus its own parameter.
 dataDecl :: Data -> ((Id, Term), [(Id, Term)])
-dataDecl (Data v pars l cons) =
-    ((v, rev (Type l) pars),
-     map (\(c, pars') -> (c, rev resTy (pars ++ pars'))) cons)
+dataDecl (Data c pars l cons) =
+    ((c, rev (Type l) pars),
+     map (\(c', pars') -> (c', rev resTy (pars ++ pars'))) cons)
   where
-    rev   = foldr (\(v', t) m -> abs_ v' t m)
-    resTy = app (Var v : map (Var . fst) pars)
+    rev   = foldr (\(v, t₁) t₂ -> pi_ v t₁ t₂)
+    resTy = app (Var c : map (Var . fst) pars)
 
 -- TODO: Define this
 -- | Makes all the 'Name's unique
