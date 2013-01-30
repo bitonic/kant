@@ -5,8 +5,7 @@ module Kant.Pretty (Pretty(..)) where
 import           Data.Foldable (Foldable)
 import           Data.Maybe (fromMaybe, listToMaybe)
 
-import           Text.PrettyPrint
-                 (Doc, text, (<+>), (<>), char, hcat, vcat, ($$), hsep)
+import           Text.PrettyPrint (Doc, text, (<+>), (<>), char, vcat, ($$), hsep)
 import qualified Text.PrettyPrint as PrettyPrint
 
 import           Kant.Syntax
@@ -24,8 +23,8 @@ class Pretty a where
 instance Pretty Char where
     pretty = char
 
-instance Pretty a => Pretty [a] where
-    pretty = hcat . map pretty
+instance Pretty [Char] where
+    pretty = text
 
 -- TODO Generalise this for every term
 instance Pretty (TermT Id) where
