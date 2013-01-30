@@ -21,7 +21,9 @@ Library
     Hs-Source-Dirs:   src
     Build-Depends:    base >= 3 && < 5,
                       containers,
-                      mtl
+                      mtl,
+                      bound,
+                      prelude-extras
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2

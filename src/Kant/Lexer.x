@@ -45,7 +45,7 @@ data Token
     | ARROW
     | OF
     | EQUALS
-    | NAME IdName
+    | NAME Id
     | TYPE Int
     deriving (Show, Eq, Ord)
 

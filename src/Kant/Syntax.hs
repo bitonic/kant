@@ -1,199 +1,110 @@
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TupleSections #-}
--- TODO check that there are no duplicate variables
-module Kant.Syntax
-    ( IdT
-    , IdName
-    , rawId
-    , ConId
-    , Level
-    , Module
-    , DeclT(..)
-    , Decl
-    , BranchT(..)
-    , Branch
-    , TermT(..)
-    , Term
-    , subst
-    , unRaw
-    , freshen
-    ) where
+{-# LANGUAGE DeriveTraversable #-}
+module Kant.Syntax where
+    -- ( IdT
+    -- , IdName
+    -- , rawId
+    -- , ConId
+    -- , Level
+    -- , Module
+    -- , DeclT(..)
+    -- , Decl
+    -- , BranchT(..)
+    -- , Branch
+    -- , TermT(..)
+    -- , Term
+    -- , subst
+    -- , unRaw
+    -- , freshen
+    -- ) where
 
+import           Control.Applicative (Applicative(..), (<$>), (<*>))
 import           Control.Arrow (second)
-import           Control.Applicative ((<$>), (<*>))
+import           Control.Monad (ap)
+import           Data.Foldable (Foldable)
 import           Data.Maybe (fromMaybe)
+import           Data.Traversable (Traversable)
+import           Data.List (elemIndex)
 
 import           Control.Monad.State (State, get, put, evalState)
 
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
-type IdTag = Int
-type IdName = String
+import           Bound
+import           Bound.Name
+import           Prelude.Extras
 
-data IdT a = Id IdName         -- ^ Original name
-                a              -- ^ Tag
-    deriving (Eq, Ord, Show, Functor)
-type Id    = IdT IdTag
-
-rawId :: IdName -> IdT ()
-rawId v = Id v ()
-
+type Id = String
 type ConId  = String
 type Level  = Int
-type Module = [DeclT IdName]
+type Module = [Decl]
 
-data DeclT id
-    = Val IdName                  -- ^ Name
-          (TermT id)              -- ^ Type
-          [BranchT id]            -- ^ Branches
-    | DataType
-          IdName                  -- ^ Name
-          (ParamsT id)            -- ^ Parameters' types
+data Decl
+    = Val Id                      -- ^ Name
+          Term                    -- ^ Type
+          [Branch]                -- ^ Branches
+    | Data
+          Id                      -- ^ Name
+          Params                  -- ^ Parameters' types
           Level                   -- ^ Resulting level
-          [(ConId, (ParamsT id))] -- ^ Constructors
-    deriving (Show, Eq, Functor)
-type Decl = DeclT IdTag
+          [Constr]                -- ^ Constructors
+    deriving (Show, Eq)
+
+type Constr = (ConId, Params)
 
 -- | Parameters for type and data constructors.  This is basically an arrow type
 --   and in fact we could simply use a term, but I want to enforce more easily
---   the fact that the return type is either always a Setn with type
+--   the fact that the return type is either always a Typen with type
 --   constructors or whatever the datatype we are defining is with data
 --   constructors.
 --
 --   Note that each parameter is scoped through the rest of the list.  This
 --   means that parameters in data constructors can shadow global parameters in
 --   the type constructor.
-newtype ParamsT id = Params {unParams :: [(IdT id, TermT id)]}
-    deriving (Show, Eq, Functor)
+newtype Params = Params {unParams :: [(Id, Term)]}
+    deriving (Show, Eq)
 
-data BranchT id = Branch ConId      -- ^ Matching a constructor
-                         [IdT id]   -- ^ Abstracting variables
-                         (TermT id)
-    deriving (Show, Eq, Functor)
-type Branch = BranchT IdTag
+type TVar v      = Name Id v
+type TScopeT a v = Scope (TVar v) TermT a
+type TScope a    = TScopeT a ()
 
-data TermT id
-    = Var (IdT id)
-    | Name IdName
-    | Set Level
-    | App (TermT id) (TermT id)
-    | Lambda (IdT id) (TermT id) (TermT id)
-    deriving (Eq, Show, Functor)
+data Branch  = Branch ConId              -- ^ Matching a constructor
+                      (TScopeT Id Int)   -- ^ Variables abstracted by index
+    deriving (Show, Eq)
 
-type Term = TermT IdTag
+data TermT a
+    = Var a
+    | Type Level
+    | App (TermT a) (TermT a)
+    | Lam (TermT a) (TScope a)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
+type Term = TermT Id
 
--- | Substuting names for terms in things.
-class Subst f where
-    subst :: Eq id
-          => IdT id             -- ^ Substitute variable v...
-          -> TermT id           -- ^ ...with term t..
-          -> f id               -- ^ ...in m.
-          -> f id
+instance Eq1 TermT   where (==#)      = (==)
+instance Ord1 TermT  where compare1   = compare
+instance Show1 TermT where showsPrec1 = showsPrec
+instance Read1 TermT where readsPrec1 = readsPrec
+instance Applicative TermT where pure = Var; (<*>) = ap
 
-instance Subst TermT where
-    subst v t m@(Var v')      = if v == v' then t else m
-    subst v t (App m n)       = App (subst v t m) (subst v t n)
-    subst v t (Lambda v' m n) = Lambda v' (subst v t m)
-                                      (if v == v' then n else subst v t n)
-    subst _ _ m               = m
+instance Monad TermT where
+    return = Var
 
-instance Subst ParamsT where
-    subst v t = Params . go . unParams
-      where
-        go []               = []
-        go ((v', m) : rest) = (v', subst v t m) :
-                              if v == v' then rest else go rest
+    Var v   >>= f = f v
+    Type l  >>= _ = Type l
+    App t m >>= f = App (t >>= f) (m >>= f)
+    Lam t s >>= f = Lam (t >>= f) (s >>>= f)
 
+lam :: Id -> Term -> Term -> Term
+lam v ty t = Lam ty (abstract1Name v t)
 
--- | Separates Names from abstracted variables, and fills al the tags with 0s.
---   'Freshen' will later update the tags to make them unique.
-class UnRaw f where
-    unRaw' :: f (Maybe IdTag) -> f IdTag
+-- TODO This assumes that the variables are all distinct, fix that.
+branch :: ConId -> [Id] -> Term -> Branch
+branch c vars t = Branch c (abstractName (`elemIndex` vars) t)
 
-instance UnRaw DeclT where
-    unRaw' (Val name t bs) = Val name (unRaw' t) (map unRaw' bs)
-    unRaw' (DataType name pars l cons) =
-        DataType name (unRaw' pars) l (map (second unRaw') cons)
-
-instance UnRaw ParamsT where
-    unRaw' = Params . go . unParams
-      where
-        -- TODO Remove duplication between here and unMaybe
-        go [] = []
-        go ((v@(Id name _), t) : pars) =
-            let v' = Id name 0 in
-            (v', unMaybe t) : go (unParams (substMaybe v v' (Params pars)))
-
-instance UnRaw BranchT where
-    unRaw' (Branch con vars t) =
-        let vars' = map (\(Id v _) -> Id v 0) vars in
-        Branch con vars'
-              (unRaw' (foldr (\v@(Id n _) -> substMaybe (Id n Nothing) v) t vars'))
-
-substMaybe :: Subst f
-           => IdT (Maybe IdTag)
-           -> Id -> f (Maybe IdTag) -> f (Maybe IdTag)
-substMaybe v (Id name tag) t = subst v (Var (Id name (Just tag))) t
-
-unMaybe :: TermT (Maybe IdTag) -> Term
-unMaybe (Var (Id v Nothing))       = Name v
-unMaybe (Var (Id v (Just t)))      = Var (Id v t)
-unMaybe (App m n)                  = App (unMaybe m) (unMaybe n)
-unMaybe (Name n)                   = Name n
-unMaybe (Set l)                    = Set l
-unMaybe (Lambda v@(Id name _) m n) =
-    let v' = Id name 0 in Lambda v' (unMaybe m) (unMaybe (substMaybe v v' n))
-
-instance UnRaw TermT where
-    unRaw' = unMaybe
-
-unRaw :: DeclT () -> Decl
-unRaw = unRaw' . fmap (const Nothing)
-
-
--- | Makes sure that each abstracted variable is unique, so that there are no
---   issue with variable substitution.
-class Freshen f where
-    freshen' :: f IdTag -> Fresh (f IdTag)
-
-type Fresh a = State (Map String IdTag) a
-
-fresh :: Id -> Fresh Id
-fresh (Id v _) =
-    do m <- get
-       let t' = fromMaybe 0 (Map.lookup v m)
-       put (Map.insert v (t' + 1) m)
-       return (Id v t')
-
-instance Freshen DeclT where
-    freshen' (Val name t bs) = Val name <$> freshen' t <*> mapM freshen' bs
-    freshen' (DataType name pars l cons) =
-        DataType name <$> freshen' pars <*> return l
-                      <*> mapM (\(con, p) -> (con,) <$> freshen' p) cons
-
-instance Freshen ParamsT where
-    freshen' (Params pars') = Params <$> go pars'
-      where
-        -- TODO again, remove duplication between this and TermT code
-        go []           = return []
-        go ((v, t) : m) = do t' <- freshen' t
-                             v' <- fresh v
-                             ((v', t') :) <$> go m
-
--- Note that in the current state we don't need to freshen the constructor
--- variables, I do it anyway for consistency and because it might be a need at
--- some point.
-instance Freshen BranchT where
-   freshen' (Branch con vars t) = Branch con <$> mapM fresh vars <*> freshen' t
-
-instance Freshen TermT where
-    freshen' (App t m)      = App <$> freshen' t <*> freshen' m
-    freshen' (Lambda v t m) = do t' <- freshen' t
-                                 v' <- fresh v
-                                 Lambda v' t' <$> freshen' (subst v (Var v') m)
-    freshen' t              = return t
-
-freshen :: Decl -> Decl
-freshen d = evalState (freshen' d) Map.empty
+-- TODO: Define this
+-- | Makes all the 'Name's unique
+uniquify :: Term -> Term
+uniquify = undefined

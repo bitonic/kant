@@ -41,37 +41,34 @@ Seq0(X)
 
 SemiEnd(X) : X ';'                           { $1 }
 
-Decl :: { DeclT () }
+Decl :: { Decl }
 Decl : name ':' Term '{' Seq0(SemiEnd(Branch)) '}'
        { Val $1 $3 $5 }
      | 'data' name Seq0(Param) ':' type '{' Seq0(SemiEnd(DataCon)) '}'
        { Data $2 (Params $3) $5 $7 }
 
-Branch :: { BranchT () }
+Branch :: { Branch }
 Branch
-    : '(' name Seq(Id) ')' '=' Term          { Branch $2 $3 $6 }
-    | name '=' Term                          { Branch $1 [] $3 }
+    : '(' name Seq(name) ')' '=' Term        { branch $2 $3 $6 }
+    | name '=' Term                          { branch $1 [] $3 }
 
-DataCon :: { (ConId, ParamsT ()) }
+DataCon :: { (ConId, Params) }
 DataCon : name Seq0(Param)                   { ($1, Params $2) }
 
-Param :: { (IdT (), TermT ()) }
-    : SingleTerm                             { (rawId "", $1) }
-    | '(' Id ':' Term ')'                    { ($2, $4) }
+Param :: { (Id, Term) }
+    : SingleTerm                             { ("", $1) }
+    | '(' name ':' Term ')'                  { ($2, $4) }
 
-Term :: { TermT () }
+Term :: { Term }
 Term
-    : '\\' Id ':' Term '->' Term             { Lambda $2 $4 $6 }
+    : '\\' name ':' Term '->' Term           { lam $2 $4 $6 }
     | Seq(SingleTerm)                        { foldl1 App $1 }
 
-SingleTerm :: { TermT () }
+SingleTerm :: { Term }
 SingleTerm
-    : Id                                     { Var $1 }
+    : name                                   { Var $1 }
     | type                                   { Type $1 }
     | '(' Term ')'                           { $2 }
-
-Id :: { IdT () }
-Id : name                                    { rawId $1 }
 
 {
 
