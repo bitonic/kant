@@ -27,23 +27,33 @@ import Kant.Syntax
     'data'              { DATA }
     'of'                { OF }
     name                { NAME $$ }
+    type                { TYPE $$ }
 
 %%
 
 Seq(X)
-    : X Seq(X)                               { $1 : $2 }
-    | X                                      { [$1] }
+    : X                                      { [$1] }
+    | X Seq(X)                               { $1 : $2 }
+
+Seq0(X)
+    : {- empty -}                            { [] }
+    | X Seq0(X)                              { $1 : $2 }
 
 SemiEnd(X) : X ';'                           { $1 }
 
 Decl :: { DeclT () }
-Decl : name ':' Term '{' Seq(SemiEnd(Branch)) '}'
+Decl : name ':' Term '{' Seq0(SemiEnd(Branch)) '}'
        { Val $1 $3 $5 }
+     | 'data' name Seq0(Param) ':' type '{' Seq0(SemiEnd(DataCon)) '}'
+       { Data $2 (Params $3) $5 $7 }
 
 Branch :: { BranchT () }
 Branch
     : '(' name Seq(Id) ')' '=' Term          { Branch $2 $3 $6 }
     | name '=' Term                          { Branch $1 [] $3 }
+
+DataCon :: { (ConId, ParamsT ()) }
+DataCon : name Seq0(Param)                   { ($1, Params $2) }
 
 Param :: { (IdT (), TermT ()) }
     : SingleTerm                             { (rawId "", $1) }
@@ -57,6 +67,7 @@ Term
 SingleTerm :: { TermT () }
 SingleTerm
     : Id                                     { Var $1 }
+    | type                                   { Type $1 }
     | '(' Term ')'                           { $2 }
 
 Id :: { IdT () }

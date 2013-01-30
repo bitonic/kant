@@ -26,6 +26,7 @@ tokens :-
     [\\]                                  { \_ -> LAMBDA }
     "data"                                { \_ -> DATA }
     "of"                                  { \_ -> OF }
+    "Type" $digit*                        { getLevel }
     $alpha* ($alpha | $digit | $syms)     { NAME }
 
 {
@@ -45,8 +46,13 @@ data Token
     | OF
     | EQUALS
     | NAME IdName
+    | TYPE Int
     deriving (Show, Eq, Ord)
 
 lexKant :: String -> [Token]
 lexKant = alexScanTokens
+
+getLevel :: String -> Token
+getLevel s = TYPE (if length s > len then read (drop len s) else 0)
+  where len = length "Type"
 }
