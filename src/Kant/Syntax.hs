@@ -4,7 +4,7 @@
 module Kant.Syntax
     ( Id
     , Level
-    , Module
+    , Module(..)
     , Decl(..)
     , Data(..)
     , Constr
@@ -33,7 +33,7 @@ import           Prelude.Extras
 
 type Id = String
 type Level  = Int
-type Module = [Decl]
+newtype Module = Module {unModule :: [Decl]}
 
 data Decl
     = Val Id                      -- ^ Name

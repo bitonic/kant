@@ -5,7 +5,8 @@ module Kant.Pretty (Pretty(..)) where
 import           Data.Foldable (Foldable)
 import           Data.Maybe (fromMaybe, listToMaybe)
 
-import           Text.PrettyPrint (Doc, text, (<+>), (<>), char, hcat, vcat, ($$))
+import           Text.PrettyPrint
+                 (Doc, text, (<+>), (<>), char, hcat, vcat, ($$), hsep)
 import qualified Text.PrettyPrint as PrettyPrint
 
 import           Kant.Syntax
@@ -29,6 +30,7 @@ instance Pretty a => Pretty [a] where
 -- TODO Generalise this for every term
 instance Pretty (TermT Id) where
     pretty (Var v)     = pretty v
+    pretty (Type 0)    = "Type"
     pretty (Type l)    = "Type" <> text (show l)
     pretty t@(App _ _) = prettyApp t
     pretty (Lam t s)   = "\\" <> pretty v <+> ":" <+> pretty t <+> "->" <+>
@@ -48,7 +50,7 @@ prettyApp t         = parens t
 
 prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
 prettyBranch (c, i, s) =
-    "|" <+> pretty c <+> hcat (map pretty vs) <+> "->" <+> pretty t
+    "|" <+> pretty c <+> hsep (map pretty vs) <+> "->" <+> pretty t
   where (vs, t) = freshScopeI s i
 
 -- | If the variable is used in a single-variable scope, gets its name
@@ -64,3 +66,23 @@ freshScopeI :: TScopeT Id Int -> Int -> ([Id], Term)
 freshScopeI s n = (vars', instantiateName (map Var vars' !!) s)
   where vars  = [ (i, n') | Name n' i <- bindings s ]
         vars' = map (\i -> fromMaybe "_" (lookup i vars)) [0..(n-1)]
+
+instance Pretty Decl where
+    pretty (Val n t)   = pretty n <+> "=" <+> pretty t
+    pretty (DataDecl d) = pretty d
+
+instance Pretty Data where
+    pretty (Data n pars l cons) =
+        "data" <+> pretty n <+> prettyPars pars <+> ":" <+>
+        pretty (Type l :: Term) $$
+        nest (vcat (map prettyCon cons)) $$
+        "end"
+
+prettyPars :: Params -> Doc
+prettyPars pars = hsep (map ppar pars)
+  where
+    ppar ("", t) = parens t
+    ppar (n,  t) = "(" <> pretty n <+> ":" <+> pretty t <> ")"
+
+prettyCon :: Constr -> Doc
+prettyCon (c, pars) = "|" <+> pretty c <+> prettyPars pars
