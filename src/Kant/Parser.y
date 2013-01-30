@@ -1,8 +1,14 @@
 {
 {-# OPTIONS_GHC -w #-}
 
-module Kant.Parser (parseDecl, parseTerm) where
+module Kant.Parser
+    ( parseModule
+    , parseFile
+    , parseDecl
+    , parseTerm
+    ) where
 
+import           Control.Applicative ((<$>))
 import           Data.List (foldl1)
 
 import           Kant.Lexer
@@ -10,15 +16,19 @@ import           Kant.Syntax
 
 }
 
-%name parseDecl_
+%name parseModule_
+%name parseDecl_ Decl
 %name parseTerm_ Term
 %tokentype { Token }
 %token
     ':'                 { COLON }
+    ';'                 { SEMI }
     '{'                 { LBRACE }
     '}'                 { RBRACE }
     '('                 { LPAREN }
     ')'                 { RPAREN }
+    '['                 { LBRACK }
+    ']'                 { RBRACK }
     '|'                 { BAR }
     '->'                { ARROW }
     '=>'                { DARROW }
@@ -44,21 +54,28 @@ Bar(X)
     | X                                      { [$1] }
     | X '|' Bar(X)                           { $1 : $3 }
 
+Module :: { Module }
+Module : Seq0(Decl)                          { Module $1 }
+
 Decl :: { Decl }
-Decl : name '=' Term                         { Val $1 $3 }
-     | 'data' name Seq0(Param) ':' type '{' Bar(DataCon) '}'
+Decl : name '=' Term ';'                     { Val $1 $3 }
+     | 'data' name Params ':' type '{' Bar(DataCon) '}'
        { DataDecl (Data $2 $3 $5 $7) }
 
-Param :: { (Id, Term) }
-    : SingleTerm                             { ("", $1) }
-    | '(' name ':' Term ')'                  { ($2, $4) }
+Params :: { [Param] }
+Params : Seq0(Param)                         { concat $1 }
+
+Param :: { [Param] }
+Param
+    : '[' Seq(name) ':' Term ']'             { zip $2 (repeat $4) }
+    | SingleTerm                             { [(discarded, $1)] }
 
 DataCon :: { Constr }
-DataCon : name Seq0(Param)                   { ($1, $2) }
+DataCon : name Params                        { ($1, $2) }
 
 Term :: { Term }
 Term
-    : '\\' name ':' Term '=>' Term           { lam $2 $4 $6 }
+    : '\\' Seq(Param) '=>' Term              { lams (concat $2) $4 }
     | 'case' Term '{' Bar(Branch) '}'        { case_ $2 $4 }
     | Arr                                    { $1 }
 
@@ -79,16 +96,21 @@ Arr : App '->' Arr                           { arr $1 $3 }
 App :: { Term}
 App : Seq(SingleTerm)                        { foldl1 App $1 }
 
-
 {
 
 happyError :: [Token] -> a
 happyError _ = error "Parse error\n"
 
+parseModule :: String -> Module
+parseModule = parseModule_ . map fst. lexToks
+
 parseDecl :: String -> Decl
-parseDecl = parseDecl_ . lexKant
+parseDecl = parseDecl_ . map fst . lexToks
 
 parseTerm :: String -> Term
-parseTerm = parseTerm_ . lexKant
+parseTerm = parseTerm_ . map fst . lexToks
+
+parseFile :: FilePath -> IO Module
+parseFile fp = parseModule <$> readFile fp
 
 }

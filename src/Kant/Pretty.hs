@@ -46,8 +46,8 @@ prettyApp :: Term -> Doc
 -- `t₂' should always be equal to `t₃' here
 prettyApp (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
     case scopeVar s of
-        Nothing -> noArr t₂ <+> "->" <+> prettyApp (instantiate1 (Var "") s)
-        Just n  -> "(" <> pretty n <+> ":" <+> pretty t₂ <> ")" <+> "->" <+>
+        Nothing -> noArr t₂ <+> "->" <+> prettyApp (instantiate1 (Var discarded) s)
+        Just n  -> "[" <> pretty n <+> ":" <+> pretty t₂ <> "]" <+> "->" <+>
                    prettyApp (instantiate1 (Var n) s)
   where
     noArr t@(App t' _) | t' /= arrow = pretty t
@@ -78,7 +78,7 @@ freshScopeI s i = (vars', instantiateName (map Var vars' !!) s)
         vars' = map (\ix -> fromMaybe "_" (lookup ix vars)) [0..(i-1)]
 
 instance Pretty Decl where
-    pretty (Val n t)   = pretty n <+> "=" <+> pretty t
+    pretty (Val n t)   = pretty n <+> "=" <+> pretty t <> ";"
     pretty (DataDecl d) = pretty d
 
 instance Pretty Data where
@@ -90,8 +90,11 @@ instance Pretty Data where
 prettyPars :: [Param] -> Doc
 prettyPars pars = hsep (map ppar pars)
   where
-    ppar ("", t) = parens t
-    ppar (n,  t) = "(" <> pretty n <+> ":" <+> pretty t <> ")"
+    ppar (n, t) = if n == discarded then parens t
+                  else "[" <> pretty n <+> ":" <+> pretty t <> "]"
 
 prettyCon :: Constr -> Doc
 prettyCon (c, pars) = pretty c <+> prettyPars pars
+
+instance Pretty Module where
+    pretty (Module decl) = vcat (map pretty decl)

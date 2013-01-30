@@ -15,9 +15,12 @@ module Kant.Syntax
     , Term
     , TScopeT
     , TScope
-      -- * Smart constructors
+      -- * Commonly used things
     , arrow
+    , discarded
+      -- * Smart constructors
     , lam
+    , lams
     , pi_
     , arr
     , case_
@@ -56,6 +59,7 @@ type Id = String
 type ConId = Id
 type Level  = Int
 newtype Module = Module {unModule :: [Decl]}
+    deriving (Show, Eq)
 
 -- | Value or datatype declaration
 data Decl
@@ -111,8 +115,16 @@ instance Monad TermT where
     Lam t s    >>= f = Lam (t >>= f) (s >>>= f)
     Case t brs >>= f = Case (t >>= f) (map (\(c, i, s) -> (c, i, s >>>= f)) brs)
 
+-- | Good 'ol lambda abstraction.
 lam :: Id -> Term -> Term -> Term
 lam v ty t = Lam ty (abstract1Name v t)
+
+params :: (Id -> Term -> Term -> Term) -> [Param] -> Term -> Term
+params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
+
+-- | Like 'lam', but abstracts over several parameters
+lams :: [Param] -> Term -> Term
+lams = params lam
 
 -- TODO This assumes that the variables are all distinct, fix that.
 -- | Pattern matching
@@ -124,6 +136,10 @@ case_ t brs =
     Case t
          (map (\(c, vs, t') -> (c, length vs, (abstractName (`elemIndex` vs) t')))
               brs)
+
+-- | A binding/pattern match that we are not going to use.
+discarded :: Id
+discarded = "_"
 
 -- | The constructor for arrow types, of type @(A : Type) -> (A -> Type) ->
 --   Type@.
@@ -157,10 +173,9 @@ app = foldr1 App
 --   the parameters of the type constructor plus its own parameter.
 dataDecl :: Data -> ((Id, Term), [(Id, Term)])
 dataDecl (Data c pars l cons) =
-    ((c, rev (Type l) pars),
-     map (\(c', pars') -> (c', rev resTy (pars ++ pars'))) cons)
+    ((c, params pi_ pars (Type l)),
+     map (\(c', pars') -> (c', params pi_ (pars ++ pars') resTy)) cons)
   where
-    rev   = foldr (\(v, t₁) t₂ -> pi_ v t₁ t₂)
     resTy = app (Var c : map (Var . fst) pars)
 
 -- TODO: Define this
