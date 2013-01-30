@@ -3,6 +3,7 @@
 module Kant.Pretty (Pretty(..)) where
 
 import           Data.Foldable (Foldable)
+import           Data.List (groupBy)
 import           Data.Maybe (fromMaybe, listToMaybe)
 
 import           Text.PrettyPrint (Doc, text, (<+>), (<>), char, vcat, ($$), hsep)
@@ -19,6 +20,12 @@ nest = PrettyPrint.nest 4
 
 class Pretty a where
     pretty :: a -> Doc
+
+hsep' :: Pretty a => [a] -> Doc
+hsep' = hsep . map pretty
+
+vcat' :: Pretty a => [a] -> Doc
+vcat' = vcat . map pretty
 
 instance Pretty Char where
     pretty = char
@@ -60,7 +67,7 @@ prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = "{" <+> f x $$ vcat (map (("|" <+>) . f) xs) $$ "}"
 
 prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
-prettyBranch (c, i, s) = pretty c <+> hsep (map pretty ns) <+> "=>" <+> pretty t
+prettyBranch (c, i, s) = pretty c <+> hsep' ns <+> "=>" <+> pretty t
   where (ns, t) = freshScopeI s i
 
 -- | If the variable is used in a single-variable scope, gets its name
@@ -88,13 +95,16 @@ instance Pretty Data where
         nest (prettyBarred prettyCon cons)
 
 prettyPars :: [Param] -> Doc
-prettyPars pars = hsep (map ppar pars)
+prettyPars pars = hsep (map ppar coll)
   where
-    ppar (n, t) = if n == discarded then parens t
-                  else "[" <> pretty n <+> ":" <+> pretty t <> "]"
+    coll = map (\l -> (map fst l, snd (head l))) $
+           groupBy (\(n, t) (n', t') ->
+                     n /= discarded && n' /= discarded && t == t') pars
+    ppar (ns, t) = if ns == [discarded] then parens t
+                   else "[" <> hsep' ns <+> ":" <+> pretty t <> "]"
 
 prettyCon :: Constr -> Doc
 prettyCon (c, pars) = pretty c <+> prettyPars pars
 
 instance Pretty Module where
-    pretty (Module decl) = vcat (map pretty decl)
+    pretty (Module decl) = vcat' decl

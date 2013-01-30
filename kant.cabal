@@ -33,4 +33,5 @@ Library
                       Kant.Parser,
                       Kant.Pretty
 
-    Other-Modules:    Kant.Lexer
+    Other-Modules:    Kant.Lexer,
+                      Kant.Common
