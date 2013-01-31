@@ -62,14 +62,15 @@ scopeVar :: (Monad f, Foldable f) => Scope (Name n ()) f a -> Maybe n
 scopeVar s = listToMaybe [ n | Name n _ <- bindings s ]
 
 freshScope :: TScope Id -> (Id, Term)
-freshScope s = (n, instantiate1 (Var n) s) where n = fromMaybe "_" (scopeVar s)
+freshScope s = (n, instantiate1 (Var n) s)
+  where n = fromMaybe discarded (scopeVar s)
 
 -- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
 -- in the branch body.
 freshScopeI :: TScopeT Id Int -> Int -> ([Id], Term)
-freshScopeI s i = (vars', instantiateName (map Var vars' !!) s)
+freshScopeI s i = (vars', instantiateList (map Var vars') s)
   where vars  = [ (ix, n) | Name n ix <- bindings s ]
-        vars' = map (\ix -> fromMaybe "_" (lookup ix vars)) [0..(i-1)]
+        vars' = [ fromMaybe discarded (lookup ix vars) | ix <- [0..(i-1)] ]
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2

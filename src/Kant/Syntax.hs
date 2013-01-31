@@ -28,6 +28,7 @@ module Kant.Syntax
     , dataDecl
       -- * Utilities
     , uniquify
+    , instantiateList
     ) where
 
 import           Control.Applicative (Applicative(..))
@@ -53,6 +54,7 @@ br    Branch
 i     For numbers, e.g. the number of things in patterns
 par   Parameter
 d     Data
+env   Env
 -}
 
 type Id = String
@@ -87,7 +89,7 @@ data Data = Data ConId            -- Name
 type Constr = (ConId, [Param])
 type Param = (Id, Term)
 
-type TScopeT a v = Scope (Name Id v) TermT a
+type TScopeT a b = Scope (Name Id b) TermT a
 type TScope a    = TScopeT a ()
 
 data TermT a
@@ -182,3 +184,11 @@ dataDecl (Data c pars l cons) =
 -- | Makes all the 'Name's unique
 uniquify :: TermT a -> TermT a
 uniquify = id
+
+-- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
+--   the element at index 'n' in the provided list.
+--
+--   IMPORTANT: this function is unsafe, it crashes if the list doesn't cover
+--   all the indices in the term.
+instantiateList :: Monad f => [f a] -> Scope (Name n Int) f a -> f a
+instantiateList ts = instantiateName (ts !!)
