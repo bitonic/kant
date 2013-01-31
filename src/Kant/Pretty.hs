@@ -35,14 +35,15 @@ instance Pretty [Char] where
 
 -- TODO Generalise this for every term
 instance Pretty (TermT Id) where
-    pretty (Var v)     = pretty v
-    pretty (Type 0)    = "Type"
-    pretty (Type l)    = "Type" <> text (show l)
-    pretty t@(App _ _) = prettyApp t
-    pretty (Lam t s)   = "\\" <> pretty n <+> ":" <+> pretty t <+> "=>" <+>
-                         pretty t' where (n, t') = freshScope s
-    pretty (Case t bs) = "case" <+> pretty t $$
-                         nest (prettyBarred prettyBranch bs)
+    pretty (Var v)      = pretty v
+    pretty (Type 0)     = "Type"
+    pretty (Type l)     = "Type" <> text (show l)
+    pretty t@(App _ _)  = prettyApp t
+    pretty t@(Lam ty _) = "\\" <> prettyLam (ty, []) t
+    -- pretty t@(Lam _ _)   = "\\" <> pretty n <+> ":" <+> pretty t <+> "=>" <+>
+    --                      pretty t' where (n, t') = freshScope s
+    pretty (Case t bs)  = "case" <+> pretty t $$
+                          nest (prettyBarred prettyBranch bs)
 
 parens :: Term -> Doc
 parens t@(Var _)   = pretty t
@@ -50,7 +51,7 @@ parens t@(Type _)  = pretty t
 parens t           = "(" <> pretty t <> ")"
 
 prettyApp :: Term -> Doc
--- `t₂' should always be equal to `t₃' here
+-- 't₂' should always be equal to `t₃' here
 prettyApp (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
     case scopeVar s of
         Nothing -> noArr t₂ <+> "->" <+> prettyApp (instantiate1 (Var discarded) s)
@@ -83,6 +84,17 @@ freshScopeI :: TScopeT Id Int -> Int -> ([Id], Term)
 freshScopeI s i = (vars', instantiateName (map Var vars' !!) s)
   where vars  = [ (ix, n) | Name n ix <- bindings s ]
         vars' = map (\ix -> fromMaybe "_" (lookup ix vars)) [0..(i-1)]
+
+prettyLam :: (Term, [Id]) -> Term -> Doc
+prettyLam (ty₁, ns) (Lam ty₂ s) =
+    case () of
+      _ | n == discarded -> flush <+> pretty ty₂ <+> prettyLam (ty₂, []) t
+      _ | ty₁ == ty₂     -> prettyLam (ty₁, n : ns) t
+      _ | otherwise      -> flush <+> prettyLam (ty₂, [n]) t
+  where (n, t) = freshScope s
+        flush  = prettyPars (zip (reverse ns) (repeat ty₁))
+
+prettyLam (ty, ns) t = prettyPars (zip ns (repeat ty)) <+> "=>" <+> pretty t
 
 instance Pretty Decl where
     pretty (Val n t)   = pretty n <+> "=" <+> pretty t <> ";"
