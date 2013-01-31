@@ -21,9 +21,6 @@ import           Kant.Syntax
 hsep' :: Pretty a => [a] -> Doc
 hsep' = hsep . map pretty
 
-vcat' :: Pretty a => [a] -> Doc
-vcat' = vcat . map pretty
-
 spaceIfCons :: [a] -> Doc
 spaceIfCons [] = ""
 spaceIfCons _  = " "
