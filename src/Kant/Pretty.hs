@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Kant.Pretty2 (pretty) where
+module Kant.Pretty (pretty) where
 
 import           Data.Foldable (Foldable)
 import           Data.List (groupBy, intersperse)
