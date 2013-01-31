@@ -40,14 +40,14 @@ ite {
 
 ite' {
   \[A : Type] [B : Type] [b : Bool] [x y : B] =>
-   ite A (const A) b x y;
+   ite A (const A) b x y
 }
 
 data Empty : Type { }
 
 data Unit : Type { tt }
 
-T = \[b : Bool] => ite' b Unit Empty;
+T { \[b : Bool] => ite' b Unit Empty }
 
 absurd { \[bot : Empty] => case bot { } }
 
@@ -57,4 +57,5 @@ ackerman {
           | suc m' => case n { zero   => ackerman m' one
                              | suc n' => ackerman m' (ackerman m n')
                              }
+          }
 }

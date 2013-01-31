@@ -24,7 +24,8 @@ Library
                       pretty,
                       prelude-extras,
                       array,
-                      mtl
+                      mtl,
+                      wl-pprint
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2

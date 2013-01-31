@@ -1,25 +1,22 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Kant.Pretty (Pretty(..)) where
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+module Kant.Pretty2 (pretty) where
 
 import           Data.Foldable (Foldable)
-import           Data.List (groupBy)
+import           Data.List (groupBy, intersperse)
 import           Data.Maybe (fromMaybe, listToMaybe)
-
-import           Text.PrettyPrint (Doc, text, (<+>), (<>), char, vcat, ($$), hsep)
-import qualified Text.PrettyPrint as PrettyPrint
-
-import           Kant.Syntax
+import           Data.String (IsString(..))
 
 import           Bound
 import           Bound.Name
 import           Bound.Scope
+import           Text.PrettyPrint.Leijen
+                 (Pretty(..), (<+>), (<>), Doc, align, fillSep, hsep, vcat,
+                  (<$>), vsep, group)
+import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
-nest :: Doc -> Doc
-nest = PrettyPrint.nest 4
-
-class Pretty a where
-    pretty :: a -> Doc
+import           Kant.Syntax
 
 hsep' :: Pretty a => [a] -> Doc
 hsep' = hsep . map pretty
@@ -27,51 +24,43 @@ hsep' = hsep . map pretty
 vcat' :: Pretty a => [a] -> Doc
 vcat' = vcat . map pretty
 
-instance Pretty Char where
-    pretty = char
+spaceIfCons :: [a] -> Doc
+spaceIfCons [] = ""
+spaceIfCons _  = " "
 
-instance Pretty [Char] where
-    pretty = text
+instance IsString Doc where
+    fromString = pretty
 
--- TODO Generalise this for every term
-instance Pretty (TermT Id) where
-    pretty (Var v)      = pretty v
-    pretty (Type 0)     = "Type"
-    pretty (Type l)     = "Type" <> text (show l)
-    pretty t@(App _ _)  = prettyApp t
-    pretty t@(Lam ty _) = "\\" <> prettyLam (ty, []) t
-    -- pretty t@(Lam _ _)   = "\\" <> pretty n <+> ":" <+> pretty t <+> "=>" <+>
-    --                      pretty t' where (n, t') = freshScope s
-    pretty (Case t bs)  = "case" <+> pretty t $$
-                          nest (prettyBarred prettyBranch bs)
+instance a ~ Id => Pretty (TermT a) where
+    pretty (Var v)        = pretty v
+    pretty (Type 0)       = "Type"
+    pretty (Type l)       = "Type" <> pretty (show l)
+    pretty to@(App _ _)   = go to
+      where
+        -- 't₂' should always be equal to 't₃' here
+        go (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
+            case scopeVar s of
+                Nothing -> noArr t₂ <+> "->" <+> go (instantiate1 (Var discarded) s)
+                Just n  -> "[" <> pretty n <+> ":" <+> pretty t₂ <> "]" <+> "->" <+>
+                           go (instantiate1 (Var n) s)
+          where
+            noArr t@(App t' _) | t' /= arrow = pretty t
+            noArr t = parens t
+        go (App t₁ t₂) = go t₁ <+> parens t₂
+        go t = parens t
+    pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
+      where
+        go (ty₁, ns) (Lam ty₂ s) =
+            case () of
+              _ | n == discarded -> flush <> pretty ty₂ <+> go (ty₂, []) t
+              _ | ty₁ == ty₂     -> go (ty₁, n : ns) t
+              _ | otherwise      -> flush <> go (ty₂, [n]) t
+          where (n, t) = freshScope s
+                flush  = prettyPars' (zip (reverse ns) (repeat ty₁))
+        go (ty, ns) t = prettyPars' (zip ns (repeat ty)) <> "=>" <$> align (pretty t)
+    pretty   (Case t brs) =
+        group (nest ("case" <+> pretty t <$> (align (prettyBarred prettyBranch brs))))
 
-parens :: Term -> Doc
-parens t@(Var _)   = pretty t
-parens t@(Type _)  = pretty t
-parens t           = "(" <> pretty t <> ")"
-
-prettyApp :: Term -> Doc
--- 't₂' should always be equal to `t₃' here
-prettyApp (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
-    case scopeVar s of
-        Nothing -> noArr t₂ <+> "->" <+> prettyApp (instantiate1 (Var discarded) s)
-        Just n  -> "[" <> pretty n <+> ":" <+> pretty t₂ <> "]" <+> "->" <+>
-                   prettyApp (instantiate1 (Var n) s)
-  where
-    noArr t@(App t' _) | t' /= arrow = pretty t
-    noArr t = parens t
-prettyApp (App t₁ t₂) = prettyApp t₁ <+> parens t₂
-prettyApp t = parens t
-
-prettyBarred :: (a -> Doc) -> [a] -> Doc
-prettyBarred _ [] = "{ }"
-prettyBarred f (x : xs) = "{" <+> f x $$ vcat (map (("|" <+>) . f) xs) $$ "}"
-
-prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
-prettyBranch (c, i, s) = pretty c <+> hsep' ns <+> "=>" <+> pretty t
-  where (ns, t) = freshScopeI s i
-
--- | If the variable is used in a single-variable scope, gets its name
 scopeVar :: (Monad f, Foldable f) => Scope (Name n ()) f a -> Maybe n
 scopeVar s = listToMaybe [ n | Name n _ <- bindings s ]
 
@@ -85,29 +74,16 @@ freshScopeI s i = (vars', instantiateName (map Var vars' !!) s)
   where vars  = [ (ix, n) | Name n ix <- bindings s ]
         vars' = map (\ix -> fromMaybe "_" (lookup ix vars)) [0..(i-1)]
 
-prettyLam :: (Term, [Id]) -> Term -> Doc
-prettyLam (ty₁, ns) (Lam ty₂ s) =
-    case () of
-      _ | n == discarded -> flush <+> pretty ty₂ <+> prettyLam (ty₂, []) t
-      _ | ty₁ == ty₂     -> prettyLam (ty₁, n : ns) t
-      _ | otherwise      -> flush <+> prettyLam (ty₂, [n]) t
-  where (n, t) = freshScope s
-        flush  = prettyPars (zip (reverse ns) (repeat ty₁))
+nest :: Doc -> Doc
+nest = PrettyPrint.nest 2
 
-prettyLam (ty, ns) t = prettyPars (zip ns (repeat ty)) <+> "=>" <+> pretty t
-
-instance Pretty Decl where
-    pretty (Val n t)   = pretty n <+> "=" <+> pretty t <> ";"
-    pretty (DataDecl d) = pretty d
-
-instance Pretty Data where
-    pretty (Data c pars l cons) =
-        "data" <+> pretty c <+> prettyPars pars <+> ":" <+>
-        pretty (Type l :: Term) $$
-        nest (prettyBarred prettyCon cons)
+parens :: Term -> Doc
+parens t@(Var _)   = pretty t
+parens t@(Type _)  = pretty t
+parens t           = "(" <> align (pretty t) <> ")"
 
 prettyPars :: [Param] -> Doc
-prettyPars pars = hsep (map ppar coll)
+prettyPars pars = fillSep (map ppar coll)
   where
     coll = map (\l -> (map fst l, snd (head l))) $
            groupBy (\(n, t) (n', t') ->
@@ -115,8 +91,31 @@ prettyPars pars = hsep (map ppar coll)
     ppar (ns, t) = if ns == [discarded] then parens t
                    else "[" <> hsep' ns <+> ":" <+> pretty t <> "]"
 
-prettyCon :: Constr -> Doc
-prettyCon (c, pars) = pretty c <+> prettyPars pars
+prettyPars' :: [Param] -> Doc
+prettyPars' pars = prettyPars pars <> spaceIfCons pars
+
+prettyBarred :: (a -> Doc) -> [a] -> Doc
+prettyBarred _ [] = "{ }"
+prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
+
+prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
+prettyBranch (c, i, s) = group (align (pretty c <> spaceIfCons ns <>
+                                       hsep' ns <+> "=>" <$> pretty t))
+  where (ns, t) = freshScopeI s i
+
+instance Pretty Data where
+    pretty (Data c pars l cons) =
+        group (nest ("data" <+> pretty c <+> prettyPars' pars <> ":" <+>
+                     pretty (Type l :: Term) <$> group (prettyBarred pcon cons)))
+      where
+        pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
+
+instance Pretty Decl where
+    pretty (Val n t)    =
+        group (nest (pretty n <+> "{" <$> pretty t) <$> "}")
+    pretty (DataDecl d) = pretty d
+
+    prettyList = vcat . intersperse "" . map pretty
 
 instance Pretty Module where
-    pretty (Module decl) = vcat' decl
+    pretty = prettyList . unModule
