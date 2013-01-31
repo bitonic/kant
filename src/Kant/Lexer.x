@@ -19,7 +19,6 @@ tokens :-
     $white+                               ;
     "--".*                                ;
     ":"                                   { simpleTok COLON }
-    ";"                                   { simpleTok SEMI }
     "{"                                   { simpleTok LBRACE }
     "}"                                   { simpleTok RBRACE }
     "("                                   { simpleTok LPAREN }
@@ -29,7 +28,6 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
-    "="                                   { simpleTok EQUALS }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "case"                                { simpleTok CASE }
@@ -49,12 +47,10 @@ data Token
     | LBRACK
     | RBRACK
     | BAR
-    | SEMI
     | LAMBDA
     | ARROW
     | DARROW
     | CASE
-    | EQUALS
     | NAME Id
     | TYPE Int
     deriving (Show, Eq, Ord)

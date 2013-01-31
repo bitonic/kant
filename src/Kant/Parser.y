@@ -22,7 +22,6 @@ import           Kant.Syntax
 %tokentype { Token }
 %token
     ':'                 { COLON }
-    ';'                 { SEMI }
     '{'                 { LBRACE }
     '}'                 { RBRACE }
     '('                 { LPAREN }
@@ -32,7 +31,6 @@ import           Kant.Syntax
     '|'                 { BAR }
     '->'                { ARROW }
     '=>'                { DARROW }
-    '='                 { EQUALS }
     '\\'                { LAMBDA }
     'data'              { DATA }
     'case'              { CASE }
@@ -58,7 +56,7 @@ Module :: { Module }
 Module : Seq0(Decl)                          { Module $1 }
 
 Decl :: { Decl }
-Decl : name '=' Term ';'                     { Val $1 $3 }
+Decl : name '{' Term '}'                     { Val $1 $3 }
      | 'data' name Params ':' type '{' Bar(DataCon) '}'
        { DataDecl (Data $2 $3 $5 $7) }
 
