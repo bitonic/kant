@@ -13,6 +13,8 @@ module Kant.Syntax
     , Param
     , TermT(..)
     , Term
+    , BranchT
+    , Branch
     , TScopeT
     , TScope
       -- * Commonly used things
@@ -73,9 +75,10 @@ data Decl
 -- | Inductive data types declarations.
 --
 --   The parameters stuff is basically an arrow type and in fact we could simply
---   use a term, but I want to enforce more easily the fact that the return type
---   is either always a Typen with type constructors or whatever the datatype we
---   are defining is with data constructors.
+--   use a 'Term', but I want to enforce more easily the fact that the return
+--   type is either always a 'Type'n with type constructors or whatever the
+--   datatype we are defining is with data constructors.  'dataDecl' can be used
+--   to recover the types.
 --
 --   Note that each parameter is scoped through the rest of the list.  This
 --   means that parameters in data constructors can shadow global parameters in
@@ -97,10 +100,13 @@ data TermT a
     | Type Level
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
-    | Case (TermT a) [(Id, Int, TScopeT a Int)]
+    | Case (TermT a) [BranchT a]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
+
+type BranchT a = (Id, Int, TScopeT a Int)
+type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
 instance Ord1 TermT  where compare1   = compare

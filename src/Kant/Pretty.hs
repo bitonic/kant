@@ -18,6 +18,7 @@ import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
 
+
 hsep' :: Pretty a => [a] -> Doc
 hsep' = hsep . map pretty
 
@@ -29,10 +30,10 @@ instance IsString Doc where
     fromString = pretty
 
 instance a ~ Id => Pretty (TermT a) where
-    pretty (Var v)        = pretty v
-    pretty (Type 0)       = "Type"
-    pretty (Type l)       = "Type" <> pretty (show l)
-    pretty to@(App _ _)   = go to
+    pretty (Var v) = pretty v
+    pretty (Type 0) = "Type"
+    pretty (Type l) = "Type" <> pretty (show l)
+    pretty to@(App _ _) = go to
       where
         -- 't₂' should always be equal to 't₃' here
         go (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
@@ -55,8 +56,12 @@ instance a ~ Id => Pretty (TermT a) where
           where (n, t) = freshScope s
                 flush  = prettyPars' (zip (reverse ns) (repeat ty₁))
         go (ty, ns) t = prettyPars' (zip ns (repeat ty)) <> "=>" <$> align (pretty t)
-    pretty   (Case t brs) =
-        group (nest ("case" <+> pretty t <$> (align (prettyBarred prettyBranch brs))))
+    pretty (Case t₁ brs) =
+        group (nest ("case" <+> pretty t₁ <$> (align (prettyBarred pbranch brs))))
+      where
+        pbranch (c, i, s) = group (align (pretty c <> spaceIfCons ns <>
+                                   hsep' ns <+> "=>" <$> pretty t₂))
+          where (ns, t₂) = freshScopeI s i
 
 scopeVar :: (Monad f, Foldable f) => Scope (Name n ()) f a -> Maybe n
 scopeVar s = listToMaybe [ n | Name n _ <- bindings s ]
@@ -95,11 +100,6 @@ prettyPars' pars = prettyPars pars <> spaceIfCons pars
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
-
-prettyBranch :: (Id, Int, TScopeT Id Int) -> Doc
-prettyBranch (c, i, s) = group (align (pretty c <> spaceIfCons ns <>
-                                       hsep' ns <+> "=>" <$> pretty t))
-  where (ns, t) = freshScopeI s i
 
 instance Pretty Data where
     pretty (Data c pars l cons) =

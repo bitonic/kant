@@ -1,6 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 module Kant.Reduce
-    ( nf
+    ( Reducer
+    , EnvT
+    , Env
+    , Lift
+    , nf
     , nf'
     , whnf
     , whnf'
@@ -12,8 +16,9 @@ import           Bound
 
 import           Kant.Syntax
 
-type EnvT a = a -> TermT a
+
 type Lift a = ConId -> a
+type EnvT a = a -> TermT a
 type Env = EnvT Id
 
 type Reducer = forall a. Eq a => EnvT a -> Lift a -> TermT a -> TermT a

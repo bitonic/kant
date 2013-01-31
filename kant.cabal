@@ -30,8 +30,10 @@ Library
 
     GHC-Options:      -Wall -O2
 
-    Exposed-Modules:  Kant.Syntax,
+    Exposed-Modules:  Kant,
+                      Kant.Syntax,
                       Kant.Parser,
-                      Kant.Pretty
+                      Kant.Pretty,
+                      Kant.Reduce
 
     Other-Modules:    Kant.Lexer
