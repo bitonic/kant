@@ -1,0 +1,50 @@
+
+data Nat : Type { zero | suc Nat }
+
+one = suc zero;
+
+plus = \[x y : Nat] =>
+       case x { zero   => y
+              | suc x' => suc (plus x' y)
+              };
+
+times = \[x y : Nat] =>
+        case x { zero   => zero
+               | suc x' => plus y (times x' y)
+               };
+
+data List [A : Type] : Type
+    { nil
+    | cons A (List A)
+    }
+
+app = \[xs ys : List A] =>
+      case xs { nil        => ys
+              | cons x xs' => cons x (app xs' ys)
+              };
+
+id    = \[A : Type] [x : A] => x;
+const = \[A B : Type] [x : A] B => x;
+
+data Bool : Type { true | false }
+
+ite = \[A : Type] [B : Bool -> Type] [b : Bool] [x : B true] [y : B false] =>
+      case b { true => x | false => y };
+
+ite' = \[A : Type] [B : Type] [b : Bool] [x y : B] =>
+       ite A (const A) b x y;
+
+data Empty : Type { }
+
+data Unit : Type { tt }
+
+T = \[b : Bool] => ite' b Unit Empty;
+
+absurd = \[bot : Empty] => case bot { };
+
+ackerman = \[m n : Nat] =>
+           case m { zero   => suc n
+                  | suc m' => case n { zero   => ackerman m' one
+                                     | suc n' => ackerman m' (ackerman m n')
+                                     }
+                  };
