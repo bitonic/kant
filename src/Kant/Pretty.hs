@@ -111,9 +111,14 @@ instance Pretty Data where
       where
         pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
 
+-- TODO reform the parameters to the values instead of simply having lambdas
+instance Pretty Val where
+    pretty (Val n ty t) =
+        group (nest (pretty n <+> ":" <+> pretty ty <+> ":=" <+>
+                     singleTerm ("(" <$$>) t) <$$> ")")
+
 instance Pretty Decl where
-    pretty (Val n t) =
-        group (nest (pretty n <+> ":=" <+> singleTerm ("(" <$$>) t) <$$> ")")
+    pretty (ValDecl val) = pretty val
     pretty (Postulate n ty) =
         "postulate" <+> pretty n <+> ":" <+> singleParens ty
     pretty (DataDecl d) = pretty d

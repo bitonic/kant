@@ -9,6 +9,7 @@ module Kant.Syntax
     , Module(..)
     , Decl(..)
     , Data(..)
+    , Val(..)
     , Constr
     , Param
     , TermT(..)
@@ -24,9 +25,11 @@ module Kant.Syntax
     , lam
     , lams
     , pi_
+    , pis
     , arr
     , case_
     , app
+    , valDecl
     , dataDecl
       -- * Utilities
     , uniquify
@@ -67,10 +70,16 @@ newtype Module = Module {unModule :: [Decl]}
 
 -- | Value or datatype declaration
 data Decl
-    = Val Id                      -- Name
-          Term                    -- Body
-    | Postulate Id Term
+    = ValDecl Val
+    | Postulate
+          Id                    -- Name
+          Term                  -- Type
     | DataDecl Data
+    deriving (Show, Eq)
+
+data Val = Val Id               -- Name
+               Term             -- Type
+               Term             -- Body
     deriving (Show, Eq)
 
 -- | Inductive data types declarations.
@@ -155,12 +164,16 @@ discarded = "_"
 arrow :: Term
 arrow = Var "(->)"
 
--- | Dependent function, @(x : A) -> B@
+-- | Dependent function, @(x : A) -> B@.
 pi_ :: Id                       -- ^ Abstracting an @x@...
     -> Term                     -- ^ ...of type @A@..
     -> Term                     -- ^ ...over type @B@
     -> Term
 pi_ v ty₁ ty₂ = app [arrow, ty₁, lam v ty₁ ty₂]
+
+-- | @lam : lams = pi_ : pis@.
+pis :: [Param] -> Term -> Term
+pis = params pi_
 
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term
@@ -171,6 +184,13 @@ arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 -- to @b@ applied to @c@.  Fails with empty lists.
 app :: [Term] -> Term
 app = foldr1 App
+
+valDecl :: Id                   -- ^ Value name
+        -> [Param]              -- ^ Function arguments
+        -> Term                 -- ^ Return type
+        -> Term                 -- ^ Body
+        -> Val
+valDecl n pars ty t = Val n (pis pars ty) (lams pars t)
 
 -- | Extracts the types out of a data declaration.
 --

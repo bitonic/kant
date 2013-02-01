@@ -64,10 +64,16 @@ Module :: { Module }
 Module : Seq0(Decl)                          { Module $1 }
 
 Decl :: { Decl }
-Decl : name ':=' SingleTerm                  { Val $1 $3 }
+Decl : Val                                   { ValDecl $1 }
      | 'postulate' name ':' SingleTerm       { Postulate $2 $4}
-     | 'data' name Params ':' type '{' Bar(DataCon) '}'
-       { DataDecl (Data $2 $3 $5 $7) }
+     | Data                                  { DataDecl $1 }
+
+Data :: { Data }
+Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
+       { Data $2 $3 $5 $7 }
+
+Val :: { Val }
+Val : name Params ':' Term ':=' SingleTerm   { valDecl $1 $2 $4 $6 }
 
 Params :: { [Param] }
 Params : Seq0(Param)                         { concat $1 }
