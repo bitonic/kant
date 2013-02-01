@@ -3,67 +3,59 @@ module Kant.Reduce
     ( Reducer
     , EnvT
     , Env
-    , Lift
     , nf
     , nf'
     , whnf
     , whnf'
     ) where
 
-import           Control.Applicative ((<$>))
+import           Data.Maybe (fromMaybe)
 
 import           Bound
 
 import           Kant.Syntax
+import           Kant.Environment
 
 
-type Lift a = ConId -> a
-type EnvT a = a -> TermT a
-type Env = EnvT Id
+type Reducer = forall a. Eq a => EnvT a -> TermT a -> TermT a
 
-type Reducer = forall a. Eq a => EnvT a -> Lift a -> TermT a -> TermT a
-
--- TODO do something better, e.g. exceptions, when there are mismatches, for
--- example on 'case'.
--- | Reduces a term.  Assumes that the code is type checked.  For example it
---   doesn't do anything when the scrutined term under 'Case' doesn't match any
---   branch; and similarly doesn't complain when two branches can be taken, in
---   which case some matching will be taken.
+-- | Reduces a term.  Assumes that the code is type checked:
+--
+--   * It doesn't do anything when the scrutined term under 'Case' doesn't match
+--     any branch; and similarly doesn't complain when two branches can be
+--     taken, in which case some matching will be taken.
+--
+--   * When it encounters an out of bounds definition it simply leaves the
+--     variable there.
 reduce :: Reducer -> Reducer
-reduce _ env _ (Var v) = env v
-reduce _ _ _ (Type l) = Type l
-reduce r env lif (App t₁ t₂) =
-    case reduce r env lif t₁ of
-        Lam _ s -> reduce r env lif (instantiate1 t₂ s)
-        t₁'     -> App (r env lif t₁') (r env lif t₂)
-reduce r env lif (Case t brs) =
+reduce _ env t@(Var v) = fromMaybe t (lookupDef v env)
+reduce _ _ (Type l) = Type l
+reduce r env (App t₁ t₂) =
+    case reduce r env t₁ of
+        Lam _ s -> reduce r env (instantiate1 t₂ s)
+        t₁'     -> App (r env t₁') (r env t₂)
+reduce r env (Case t brs) =
     case unrollApp t' of
         (Var v, ts) ->
-            case [ s | (n, i, s) <- brs, v == lif n, length ts == i ] of
+            case [ s | (n, i, s) <- brs, v == envNest env n, length ts == i ] of
                 []      -> stuck
                 (s : _) -> instantiateList ts s
         _ -> stuck
   where
-    t'    = reduce r env lif t
-    stuck = Case t' [ (n, i, reduceScope r env lif s) | (n, i, s) <- brs ]
-reduce r env lif (Lam t s) =
-    Lam (reduce r env lif t) (reduceScope r env lif s)
+    t'    = reduce r env t
+    stuck = Case t' [ (n, i, reduceScope r env s) | (n, i, s) <- brs ]
+reduce r env (Lam t s) =
+    Lam (reduce r env t) (reduceScope r env s)
 
 reduceScope :: (Eq b, Eq a)
-            => Reducer -> EnvT a -> Lift a -> TScopeT a b -> TScopeT a b
-reduceScope r env lif = toScope . uncurry r (extend env lif) . fromScope
+            => Reducer -> EnvT a -> TScopeT a b -> TScopeT a b
+reduceScope r env = toScope . reduce r (nestEnv env) . fromScope
 
 unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp = go []
   where
     go ts (App t₁ t₂) = go (t₂ : ts) t₁
     go ts t           = (t, reverse ts)
-
-extend :: EnvT a -> Lift a -> (EnvT (Var b a), Lift (Var b a))
-extend env lif = (goenv, F . lif)
-  where
-    goenv v@(B _) = Var v
-    goenv   (F v) = F <$> env v
 
 -- | Reduces a term to its normal form - computes under binders, if you only
 --   want canonical constructors see 'whnf'.
@@ -72,10 +64,10 @@ nf = reduce nf
 
 -- | Same as 'nf' but for closed 'Term's.
 nf' :: Env -> Term -> Term
-nf' env = nf env id
+nf' env = nf env
 
 whnf :: Reducer
-whnf = reduce (\_ _ t -> t)
+whnf = reduce (\_ t -> t)
 
 whnf' :: Env -> Term -> Term
-whnf' env = whnf env id
+whnf' env = whnf env

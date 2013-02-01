@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
--- | Sets up a warm place (cit) to reduce, typecheck, and "reify" things into.
+-- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
     ( ItemT(..)
+    , Item
     , CtxT
     , Ctx
     , NestT
@@ -13,7 +14,11 @@ module Kant.Environment
     , Pull
     , EnvT(..)
     , Env
+      -- * Utilities
     , nestEnv
+    , lookupTy
+    , lookupDef
+    , newEnv
     ) where
 
 import           Control.Applicative ((<$>))
@@ -27,14 +32,15 @@ import           Kant.Syntax
 
 -- | The inhabitants of our environment
 data ItemT a
-    = Constr Constr Term        -- ^ Constructor with its type
+    = Constr Constr Term        -- ^ Constructor with its type.
     | TyConstr Term [Constr]    -- ^ Type constructor and associated data
-                                --   constructors
-    | DeclVal Term Term         -- ^ Declared value, type value - the value will
-                                --   be the 'Var' itself for postulated
+                                --   constructors.
+    | DeclVal Term Term         -- ^ Declared value, type and value - the value
+                                --   will be the 'Var' itself for postulated
                                 --   variables.
-    | Bound (TermT a)           -- ^ Bound variable, with its type
+    | Abstract (TermT a)        -- ^ Abstracted variable, with its type.
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+type Item = ItemT Id
 
 -- | Given a bound name, returns the matching 'ItemT', if present.
 type CtxT a = (a -> Maybe (ItemT a))
@@ -52,25 +58,46 @@ type Pull = PullT Id
 
 -- | Bringing it all together
 data EnvT a = Env
-    { stCtx  :: CtxT a
-    , stNest :: NestT a
-    , stPull :: PullT a
+    { envCtx  :: CtxT a
+    , envNest :: NestT a
+    , envPull :: PullT a
     }
 type Env = EnvT Id
 
 -- | To be used when we enter a 'Scope', it adjust the environment functions to
 --   work with the new level of boundness.
 nestEnv :: EnvT a
-        -> (b -> TermT a)       -- ^ Function that substitutes the variables of
-                                --   the scope we are entering, same as the one
-                                --   accepted by 'instantiateName' & co.
         -> EnvT (Var (Name Id b) a)
-nestEnv Env{stCtx = ctx, stNest = nest, stPull = pull} f =
-    Env { stCtx  = \v -> case v of
-                             B (Name _ b) -> Just (F <$> Bound (f b))
-                             F v'         -> (F <$>) <$> ctx v'
-        , stNest = F . nest
-        , stPull = \v -> case v of
-                             B b  -> name b
-                             F v' -> pull v'
+nestEnv Env{envCtx = ctx, envNest = nest, envPull = pull} =
+    Env { envCtx  = \v -> case v of
+                              B _  -> Just (Abstract (Var v))
+                              F v' -> (F <$>) <$> ctx v'
+        , envNest = F . nest
+        , envPull = \v -> case v of
+                              B b  -> name b
+                              F v' -> pull v'
         }
+
+-- | Looks up the type of a variable.
+lookupTy :: a -> EnvT a -> Maybe (TermT a)
+lookupTy v Env{envCtx = ctx, envNest = nest} =
+    case ctx v of
+        Nothing              -> Nothing
+        Just (Constr _ ty)   -> nest' ty
+        Just (TyConstr ty _) -> nest' ty
+        Just (DeclVal ty _)  -> nest' ty
+        Just (Abstract ty)   -> Just ty
+  where nest' ty = Just (nest <$> ty)
+
+-- | Looks up the body of a definition.
+lookupDef :: a -> EnvT a -> Maybe (TermT a)
+lookupDef v Env{envCtx = ctx, envNest = nest} =
+    case ctx v of
+        Nothing            -> Nothing
+        Just (DeclVal _ t) -> Just (nest <$> t)
+        _                  -> Nothing
+
+-- | Creates a new environment given a lookup function for top level
+--   declarations.
+newEnv :: (Id -> Maybe Item) -> Env
+newEnv ctx = Env{envCtx = ctx, envNest = id, envPull = id}
