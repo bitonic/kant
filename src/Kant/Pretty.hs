@@ -43,9 +43,9 @@ instance a ~ Id => Pretty (TermT a) where
                            go (instantiate1 (Var n) s)
           where
             noArr t@(App t' _) | t' /= arrow = pretty t
-            noArr t = parens t
-        go (App t₁ t₂) = go t₁ <+> parens t₂
-        go t = parens t
+            noArr t = singleParens t
+        go (App t₁ t₂) = go t₁ <+> singleParens t₂
+        go t = singleParens t
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
       where
         go (ty₁, ns) (Lam ty₂ s) =
@@ -80,10 +80,13 @@ freshScopeI s i = (vars', instantiateList (map Var vars') s)
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
 
-parens :: Term -> Doc
-parens t@(Var _)   = pretty t
-parens t@(Type _)  = pretty t
-parens t           = "(" <> align (pretty t) <> ")"
+singleTerm :: (Doc -> Doc) -> Term -> Doc
+singleTerm _ t@(Var _)  = pretty t
+singleTerm _ t@(Type _) = pretty t
+singleTerm f t          = f (pretty t)
+
+singleParens :: Term -> Doc
+singleParens = singleTerm (\d -> "(" <> align d <> ")")
 
 prettyPars :: [Param] -> Doc
 prettyPars pars = fillSep (map ppar coll)
@@ -91,7 +94,7 @@ prettyPars pars = fillSep (map ppar coll)
     coll = map (\l -> (map fst l, snd (head l))) $
            groupBy (\(n, t) (n', t') ->
                      n /= discarded && n' /= discarded && t == t') pars
-    ppar (ns, t) = if ns == [discarded] then parens t
+    ppar (ns, t) = if ns == [discarded] then singleParens t
                    else "[" <> hsep' ns <+> ":" <+> pretty t <> "]"
 
 prettyPars' :: [Param] -> Doc
@@ -110,12 +113,9 @@ instance Pretty Data where
 
 instance Pretty Decl where
     pretty (Val n t) =
-        group (nest (pretty n <+> ":=" <+> pp t) <$$> ")")
-      where pp t'@(Var _)  = pretty t'
-            pp t'@(Type _) = pretty t'
-            pp t'          = "(" <$$> pretty t'
+        group (nest (pretty n <+> ":=" <+> singleTerm ("(" <$$>) t) <$$> ")")
     pretty (Postulate n ty) =
-        "postulate" <+> pretty n <+> ":" <+> parens ty
+        "postulate" <+> pretty n <+> ":" <+> singleParens ty
     pretty (DataDecl d) = pretty d
 
     prettyList = vcat . intersperse "" . map pretty
