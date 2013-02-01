@@ -31,9 +31,11 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
+    ":="                                  { simpleTok ASSIGN }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "case"                                { simpleTok CASE }
+    "postulate"                           { simpleTok POSTULATE }
     "Type" $digit*                        { typeTok }
     $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
 
@@ -53,6 +55,8 @@ data Token
     | ARROW
     | DARROW
     | CASE
+    | POSTULATE
+    | ASSIGN
     | NAME Id
     | TYPE Int
     | EOF

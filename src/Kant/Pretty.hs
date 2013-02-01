@@ -13,7 +13,7 @@ import           Bound.Name
 import           Bound.Scope
 import           Text.PrettyPrint.Leijen
                  (Pretty(..), (<+>), (<>), Doc, align, fillSep, hsep, vcat,
-                  (<$>), vsep, group)
+                  (<$>), vsep, group, (<$$>))
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
@@ -109,8 +109,13 @@ instance Pretty Data where
         pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
 
 instance Pretty Decl where
-    pretty (Val n t)    =
-        group (nest (pretty n <+> "{" <$> pretty t) <$> "}")
+    pretty (Val n t) =
+        group (nest (pretty n <+> ":=" <+> pp t) <$$> ")")
+      where pp t'@(Var _)  = pretty t'
+            pp t'@(Type _) = pretty t'
+            pp t'          = "(" <$$> pretty t'
+    pretty (Postulate n ty) =
+        "postulate" <+> pretty n <+> ":" <+> parens ty
     pretty (DataDecl d) = pretty d
 
     prettyList = vcat . intersperse "" . map pretty

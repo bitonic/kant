@@ -38,8 +38,10 @@ import           Kant.Syntax
     '->'                { ARROW }
     '=>'                { DARROW }
     '\\'                { LAMBDA }
+    ':='                { ASSIGN }
     'data'              { DATA }
     'case'              { CASE }
+    'postulate'         { POSTULATE }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -62,7 +64,8 @@ Module :: { Module }
 Module : Seq0(Decl)                          { Module $1 }
 
 Decl :: { Decl }
-Decl : name '{' Term '}'                     { Val $1 $3 }
+Decl : name ':=' SingleTerm                  { Val $1 $3 }
+     | 'postulate' name ':' SingleTerm       { Postulate $2 $4}
      | 'data' name Params ':' type '{' Bar(DataCon) '}'
        { DataDecl (Data $2 $3 $5 $7) }
 

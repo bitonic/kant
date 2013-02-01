@@ -69,6 +69,7 @@ newtype Module = Module {unModule :: [Decl]}
 data Decl
     = Val Id                      -- Name
           Term                    -- Body
+    | Postulate Id Term
     | DataDecl Data
     deriving (Show, Eq)
 

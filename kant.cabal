@@ -36,6 +36,7 @@ Library
                       Kant.Syntax,
                       Kant.Parser,
                       Kant.Pretty,
-                      Kant.Reduce
+                      Kant.Reduce,
+                      Kant.Environment
 
     Other-Modules:    Kant.Lexer
