@@ -1,15 +1,18 @@
 {
 {-# OPTIONS_GHC -w #-}
 module Kant.Lexer
-    ( lexToks
+    ( Alex(..)
+    , alexMonadScan'
+    , alexGetInput
+    , lineCol
     , Token(..)
-    , Position(..)
+    , runAlex
     ) where
 
 import Kant.Syntax
 }
 
-%wrapper "posn"
+%wrapper "monad"
 
 $digit = 0-9
 $alpha = [a-zA-Z]
@@ -35,7 +38,6 @@ tokens :-
     $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
 
 {
--- Each action has type :: String -> Token
 
 data Token
     = COLON
@@ -53,28 +55,46 @@ data Token
     | CASE
     | NAME Id
     | TYPE Int
+    | EOF
     deriving (Show, Eq, Ord)
 
-data Position = Position { lineNum :: !Int
-                         , colNum  :: !Int
-                         }
-    deriving (Show, Eq)
+type Action r = (AlexPosn, Char, String) -> Int -> Alex r
 
-toPosition :: AlexPosn -> Position
-toPosition (AlexPn _ l c) = Position l c
+simpleTok :: Token -> Action Token
+simpleTok tok _ _ = return tok
 
-simpleTok :: Token -> AlexPosn -> String -> (Token, Position)
-simpleTok tok pos _ = (tok, toPosition pos)
+getS :: (AlexPosn, Char, String) -> Int -> String
+getS (_, _, input) len = take len input
 
-stringTok :: (String -> Token) -> AlexPosn -> String -> (Token, Position)
-stringTok f pos s = (f s, toPosition pos)
+stringTok :: (String -> Token) -> Action Token
+stringTok f inp len = return (f (getS inp len))
 
-lexToks :: String -> [(Token, Position)]
-lexToks = alexScanTokens
-
-typeTok :: AlexPosn -> String -> (Token, Position)
-typeTok pos s = (TYPE (if length s > len then read (drop len s) else 0),
-                 toPosition pos)
+typeTok :: Action Token
+typeTok inp len =
+    return (TYPE (if length s > len then read (drop len s) else 0))
   where len = length "Type"
+        s   = getS inp len
+
+alexEOF :: Alex Token
+alexEOF = return EOF
+
+lineCol :: AlexInput -> (Int, Int)
+lineCol (AlexPn _ l c, _, _, _) = (l, c)
+
+alexMonadScan' :: Alex Token
+alexMonadScan' = do
+    inp <- alexGetInput
+    sc <- alexGetStartCode
+    case alexScan inp sc of
+        AlexEOF -> alexEOF
+        AlexError inp' ->
+            let (l, c) = lineCol inp'
+            in alexError ("Lexical error at line " ++ show l ++ ", column " ++ show c)
+        AlexSkip  inp' len ->
+            do alexSetInput inp'
+               alexMonadScan'
+        AlexToken inp' len action ->
+            do alexSetInput inp'
+               action (ignorePendingBytes inp) len
 
 }

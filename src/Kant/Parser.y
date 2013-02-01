@@ -8,7 +8,7 @@ module Kant.Parser
     , parseTerm
     ) where
 
-import           Control.Applicative ((<$>))
+import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
 import           Kant.Lexer
@@ -20,26 +20,27 @@ import           Kant.Syntax
 %name parseDecl_ Decl
 %name parseTerm_ Term
 
-%tokentype { (Token, Position) }
+%tokentype { Token }
 
-%monad { ParseM }
+%monad { Alex }
+%lexer { lexer } { EOF }
 
 %token
-    ':'                 { (COLON, _) }
-    '{'                 { (LBRACE, _) }
-    '}'                 { (RBRACE, _) }
-    '('                 { (LPAREN, _) }
-    ')'                 { (RPAREN, _) }
-    '['                 { (LBRACK, _) }
-    ']'                 { (RBRACK, _) }
-    '|'                 { (BAR, _) }
-    '->'                { (ARROW, _) }
-    '=>'                { (DARROW, _) }
-    '\\'                { (LAMBDA, _) }
-    'data'              { (DATA, _) }
-    'case'              { (CASE, _) }
-    name                { (NAME $$, _) }
-    type                { (TYPE $$, _) }
+    ':'                 { COLON }
+    '{'                 { LBRACE }
+    '}'                 { RBRACE }
+    '('                 { LPAREN }
+    ')'                 { RPAREN }
+    '['                 { LBRACK }
+    ']'                 { RBRACK }
+    '|'                 { BAR }
+    '->'                { ARROW }
+    '=>'                { DARROW }
+    '\\'                { LAMBDA }
+    'data'              { DATA }
+    'case'              { CASE }
+    name                { NAME $$ }
+    type                { TYPE $$ }
 
 %%
 
@@ -100,39 +101,39 @@ App : Seq(SingleTerm)                        { foldl1 App $1 }
 
 {
 
-type ParseError = String
-type ParseM = Either ParseError
+lexer :: (Token -> Alex a) -> Alex a
+lexer f = alexMonadScan' >>= f
 
-happyError :: [(Token, Position)] -> ParseM a
-happyError [] = fail "Parse error"
-happyError ((tok, Position l c) : _) =
-    fail ("Parse error at " ++ showTok tok ++ ", line " ++ show l ++
-          ", column " ++ show c)
-  where
-    showTok COLON    = "token `:'"
-    showTok DATA     = "token `data'"
-    showTok LBRACE   = "token `{'"
-    showTok RBRACE   = "token `}'"
-    showTok LPAREN   = "token `('"
-    showTok RPAREN   = "token `)'"
-    showTok LBRACK   = "token `['"
-    showTok RBRACK   = "token `]'"
-    showTok BAR      = "token `|'"
-    showTok LAMBDA   = "token `\\'"
-    showTok ARROW    = "token `->'"
-    showTok DARROW   = "token `=>'"
-    showTok CASE     = "token `case'"
-    showTok (NAME n) = "identifier `" ++ n ++ "'"
-    showTok (TYPE l) = "identifier `Type" ++ if l > 0 then show l else "" ++ "'"
+-- TODO find a way to show the token
+happyError :: Alex a
+happyError =
+    do (l, c) <- lineCol `liftM` alexGetInput
+       fail ("Parse error at line " ++ show l ++ ", column " ++ show c)
+  -- where
+  --   showTok COLON    = "token `:'"
+  --   showTok DATA     = "token `data'"
+  --   showTok LBRACE   = "token `{'"
+  --   showTok RBRACE   = "token `}'"
+  --   showTok LPAREN   = "token `('"
+  --   showTok RPAREN   = "token `)'"
+  --   showTok LBRACK   = "token `['"
+  --   showTok RBRACK   = "token `]'"
+  --   showTok BAR      = "token `|'"
+  --   showTok LAMBDA   = "token `\\'"
+  --   showTok ARROW    = "token `->'"
+  --   showTok DARROW   = "token `=>'"
+  --   showTok CASE     = "token `case'"
+  --   showTok (NAME n) = "identifier `" ++ n ++ "'"
+  --   showTok (TYPE l) = "identifier `Type" ++ if l > 0 then show l else "" ++ "'"
 
-parseModule :: String -> ParseM Module
-parseModule = parseModule_ . lexToks
+parseModule :: String -> Either String Module
+parseModule s = runAlex s parseModule_
 
-parseDecl :: String -> ParseM Decl
-parseDecl = parseDecl_ . lexToks
+parseDecl :: String -> Either String Decl
+parseDecl s = runAlex s parseDecl_
 
-parseTerm :: String -> ParseM Term
-parseTerm = parseTerm_ . lexToks
+parseTerm :: String -> Either String Term
+parseTerm s = runAlex s parseTerm_
 
 parseFile :: FilePath -> IO Module
 parseFile fp = readFile fp >>= either fail return . parseModule
