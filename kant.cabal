@@ -26,7 +26,8 @@ Library
                       prelude-extras,
                       array,
                       mtl,
-                      wl-pprint
+                      wl-pprint,
+                      containers
 
     Build-Tools:      alex, happy
 

@@ -101,3 +101,10 @@ lookupDef v Env{envCtx = ctx, envNest = nest} =
 --   declarations.
 newEnv :: (Id -> Maybe Item) -> Env
 newEnv ctx = Env{envCtx = ctx, envNest = id, envPull = id}
+
+-- TODO implement this
+-- | Slams a @'TermT' a@ back to a 'Term', by replacing all the abstracted
+--   variables with identifiers.  Duplicate names will be distinguished, keeping
+--   top level names.
+-- pullTerm :: EnvT a -> TermT a -> Term
+-- pullTerm env = undefined
