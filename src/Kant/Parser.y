@@ -19,23 +19,27 @@ import           Kant.Syntax
 %name parseModule_
 %name parseDecl_ Decl
 %name parseTerm_ Term
-%tokentype { Token }
+
+%tokentype { (Token, Position) }
+
+%monad { ParseM }
+
 %token
-    ':'                 { COLON }
-    '{'                 { LBRACE }
-    '}'                 { RBRACE }
-    '('                 { LPAREN }
-    ')'                 { RPAREN }
-    '['                 { LBRACK }
-    ']'                 { RBRACK }
-    '|'                 { BAR }
-    '->'                { ARROW }
-    '=>'                { DARROW }
-    '\\'                { LAMBDA }
-    'data'              { DATA }
-    'case'              { CASE }
-    name                { NAME $$ }
-    type                { TYPE $$ }
+    ':'                 { (COLON, _) }
+    '{'                 { (LBRACE, _) }
+    '}'                 { (RBRACE, _) }
+    '('                 { (LPAREN, _) }
+    ')'                 { (RPAREN, _) }
+    '['                 { (LBRACK, _) }
+    ']'                 { (RBRACK, _) }
+    '|'                 { (BAR, _) }
+    '->'                { (ARROW, _) }
+    '=>'                { (DARROW, _) }
+    '\\'                { (LAMBDA, _) }
+    'data'              { (DATA, _) }
+    'case'              { (CASE, _) }
+    name                { (NAME $$, _) }
+    type                { (TYPE $$, _) }
 
 %%
 
@@ -91,24 +95,46 @@ Arr : App '->' Arr                           { arr $1 $3 }
     | '(' name ':' Term ')' '->' Arr         { pi_ $2 $4 $7 }
     | App                                    { $1 }
 
-App :: { Term}
+App :: { Term }
 App : Seq(SingleTerm)                        { foldl1 App $1 }
 
 {
 
-happyError :: [Token] -> a
-happyError _ = error "Parse error\n"
+type ParseError = String
+type ParseM = Either ParseError
 
-parseModule :: String -> Module
-parseModule = parseModule_ . map fst. lexToks
+happyError :: [(Token, Position)] -> ParseM a
+happyError [] = fail "Parse error"
+happyError ((tok, Position l c) : _) =
+    fail ("Parse error at " ++ showTok tok ++ ", line " ++ show l ++
+          ", column " ++ show c)
+  where
+    showTok COLON    = "token `:'"
+    showTok DATA     = "token `data'"
+    showTok LBRACE   = "token `{'"
+    showTok RBRACE   = "token `}'"
+    showTok LPAREN   = "token `('"
+    showTok RPAREN   = "token `)'"
+    showTok LBRACK   = "token `['"
+    showTok RBRACK   = "token `]'"
+    showTok BAR      = "token `|'"
+    showTok LAMBDA   = "token `\\'"
+    showTok ARROW    = "token `->'"
+    showTok DARROW   = "token `=>'"
+    showTok CASE     = "token `case'"
+    showTok (NAME n) = "identifier `" ++ n ++ "'"
+    showTok (TYPE l) = "identifier `Type" ++ if l > 0 then show l else "" ++ "'"
 
-parseDecl :: String -> Decl
-parseDecl = parseDecl_ . map fst . lexToks
+parseModule :: String -> ParseM Module
+parseModule = parseModule_ . lexToks
 
-parseTerm :: String -> Term
-parseTerm = parseTerm_ . map fst . lexToks
+parseDecl :: String -> ParseM Decl
+parseDecl = parseDecl_ . lexToks
+
+parseTerm :: String -> ParseM Term
+parseTerm = parseTerm_ . lexToks
 
 parseFile :: FilePath -> IO Module
-parseFile fp = parseModule <$> readFile fp
+parseFile fp = readFile fp >>= either fail return . parseModule
 
 }

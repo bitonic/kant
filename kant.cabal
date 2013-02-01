@@ -19,6 +19,7 @@ Source-Repository head
 
 Library
     Hs-Source-Dirs:   src
+
     Build-Depends:    base >= 3 && < 5,
                       bound,
                       pretty,
@@ -26,6 +27,7 @@ Library
                       array,
                       mtl,
                       wl-pprint
+
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2
