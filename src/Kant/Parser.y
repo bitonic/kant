@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -w #-}
 
 module Kant.Parser
-    ( parseModule
+    ( ParseResult
+    , parseModule
     , parseFile
     , parseDecl
     , parseTerm
@@ -126,15 +127,19 @@ happyError =
   --   showTok (NAME n) = "identifier `" ++ n ++ "'"
   --   showTok (TYPE l) = "identifier `Type" ++ if l > 0 then show l else "" ++ "'"
 
-parseModule :: String -> Either String Module
+-- | 'Left' for an error 'String', 'Right' for a result.
+type ParseResult = Either String
+
+parseModule :: String -> ParseResult Module
 parseModule s = runAlex s parseModule_
 
-parseDecl :: String -> Either String Decl
+parseDecl :: String -> ParseResult Decl
 parseDecl s = runAlex s parseDecl_
 
-parseTerm :: String -> Either String Term
+parseTerm :: String -> ParseResult Term
 parseTerm s = runAlex s parseTerm_
 
+-- | Explodes if things go wrong.
 parseFile :: FilePath -> IO Module
 parseFile fp = readFile fp >>= either fail return . parseModule
 

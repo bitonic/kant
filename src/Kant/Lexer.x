@@ -91,10 +91,8 @@ alexMonadScan' = do
             let (l, c) = lineCol inp'
             in alexError ("Lexical error at line " ++ show l ++ ", column " ++ show c)
         AlexSkip  inp' len ->
-            do alexSetInput inp'
-               alexMonadScan'
+            alexSetInput inp' >> alexMonadScan'
         AlexToken inp' len action ->
-            do alexSetInput inp'
-               action (ignorePendingBytes inp) len
+            alexSetInput inp' >> action (ignorePendingBytes inp) len
 
 }
