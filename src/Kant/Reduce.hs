@@ -1,15 +1,15 @@
 {-# LANGUAGE RankNTypes #-}
 module Kant.Reduce
     ( Reducer
-    , EnvT
-    , Env
     , nf
     , nf'
     , whnf
     , whnf'
+    , defeq
     ) where
 
 import           Data.Maybe (fromMaybe)
+import           Data.Function (on)
 
 import           Bound
 
@@ -71,3 +71,9 @@ whnf = reduce (\_ t -> t)
 
 whnf' :: Env -> Term -> Term
 whnf' env = whnf env
+
+-- TODO eta expansion, congruence, blah blah.
+-- | Definitional equality: reduce two terms to their normal forms, and then
+--   check if they are equal.
+defeq :: Eq a => EnvT a -> TermT a -> TermT a -> Bool
+defeq env = (==) `on` nf env
