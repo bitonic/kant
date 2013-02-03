@@ -55,9 +55,10 @@ instance a ~ Id => Pretty (TermT a) where
     pretty (Case t₁ brs) =
         group (nest ("case" <+> pretty t₁ <$> (align (prettyBarred pbranch brs))))
       where
-        pbranch (c, i, s) = group (align (pretty c <> spaceIfCons ns <>
-                                   hsep' ns <+> "=>" <$> pretty t₂))
-          where (ns, t₂) = freshScopeI s i
+        pbranch (c, i, s) =
+            let (ns, t₂) = freshScopeI s i
+            in group (align (pretty c <> spaceIfCons ns <>
+                             hsep' ns <+> "=>" <$> pretty t₂))
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
