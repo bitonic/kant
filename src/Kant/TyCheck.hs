@@ -3,13 +3,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
-module Kant.TyCheck where
+module Kant.TyCheck
+    ( TyCheckError(..)
+    , TyCheckM
+    , TyCheck(..)
+    ) where
 
 import           Control.Applicative (Applicative(..), (<$>), (<$))
 import           Control.Monad (unless)
+import           Data.Maybe (fromMaybe)
+import           Data.Traversable (traverse)
 
-import           Control.Monad.Reader (ReaderT(..), MonadReader(..), asks, runReaderT)
 import           Control.Monad.Error (Error(..), MonadError(..))
+import           Control.Monad.Reader (ReaderT(..), MonadReader(..), asks, runReaderT)
+import           Control.Monad.Trans (lift)
 
 import           Bound
 import           Bound.Name
@@ -61,14 +68,35 @@ instance TyCheck Decl where
                _      -> addAbst n t
     tyCheck (DataDecl dat)  = tyCheck dat
 
-instance TyCheck Val
+instance TyCheck Val where
+    tyCheck vd@(Val _ ty t) =
+        do env <- addVal vd
+           TyCheckM (lift (runReaderT (unTyCheckM (tyCheckEq ty t)) env))
+           return env
 
-instance TyCheck Data
+instance TyCheck Data where
+    tyCheck dd =
+        do env <- addData dd
+           undefined -- TyCheckM (lift (runReaderT (unTyCheckM (tyCheckEq ty t)) env))
+           return env
 
 -- Some overloaded versions...
 
 addAbst :: Eq a => a -> TermT a -> TyCheckM a (EnvT a)
-addAbst n t = do env <- ask; return (Env.addAbst env n t)
+addAbst n t = do env <- ask
+                 maybe (throwError =<< DuplicateName <$> pull n) return
+                       (Env.addAbst env n t)
+
+addVal :: Val -> TyCheckM Id Env
+addVal vd@(Val n _ _) = do env <- ask
+                           maybe (throwError =<< DuplicateName <$> pull n) return
+                                 (Env.addVal env vd)
+
+
+addData :: Data -> TyCheckM Id Env
+addData dd = do env <- ask
+                either (throwError . DuplicateName) return
+                       (Env.addData env dd)
 
 lookupTy :: Eq a => a -> TyCheckM a (TermT a)
 lookupTy v = do env <- ask
@@ -79,11 +107,17 @@ lookupTy v = do env <- ask
 pullTerm :: Ord a => TermT a -> TyCheckM a Term
 pullTerm t = do env <- ask; return (Env.pullTerm env t)
 
-envNest :: TyCheckM a (NestT a)
-envNest = asks Env.envNest
+nest' :: TyCheckM a (NestT a)
+nest' = asks Env.envNest
 
-envPull :: TyCheckM a (PullT a)
-envPull = asks Env.envPull
+nest :: Id -> TyCheckM a a
+nest n = nest' <*> return n
+
+pull' :: TyCheckM a (PullT a)
+pull' = asks Env.envPull
+
+pull :: a -> TyCheckM a Id
+pull n = pull' <*> return n
 
 -- /
 
@@ -101,14 +135,14 @@ tyCheck' (Var v)      = lookupTy v
 tyCheck' (Type l)     = return (Type (l + 1))
 tyCheck' (App t₁ t₂)  =
     do ty₁ <- tyCheck' t₁
-       ar <- arrV <$> envNest <*> nf ty₁
+       ar <- arrV <$> nest' <*> nf ty₁
        case ar of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq ty₂ t₂
            NoArr       -> throwError =<<
                           ExpectingFunction <$> pullTerm t₂
                                             <*> (tyCheck' t₂ >>= pullTerm)
 tyCheck' (Lam ty s)   =
-    do ar <- (<$> arrow) <$> envNest
+    do ar <- traverse nest arrow
        tyCheck' ty
        tys <- toScope <$> nestTyCheckM s tyCheck'
        return (App (App ar ty) (Lam ty tys))

@@ -25,6 +25,8 @@ module Kant.Environment
     , newEnv
     , pullTerm
     , addAbst
+    , addVal
+    , addData
     ) where
 
 import           Control.Applicative ((<$>))
@@ -145,7 +147,23 @@ pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
     (_, mn') = foldr collect2
                      (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
 
+addCtx :: Eq a => EnvT a -> a -> ItemT a -> Maybe (EnvT a)
+addCtx env@Env{envCtx = ctx} v₁ it =
+    case ctx v₁ of
+        Nothing -> Just (env{envCtx = \v₂ -> if v₁ == v₂ then Just it else ctx v₂})
+        Just _  -> Nothing
+
 -- | Adds an abstracted variable to an environment.
-addAbst :: Eq a => EnvT a -> a -> TermT a -> EnvT a
-addAbst env v₁ t =
-    env{envCtx = \v₂ -> if v₁ == v₂ then Just (Abstract t) else envCtx env v₂}
+addAbst :: Eq a => EnvT a -> a -> TermT a -> Maybe (EnvT a)
+addAbst env v₁ t = addCtx env v₁ (Abstract t)
+
+addVal :: Env -> Val -> Maybe Env
+addVal env (Val n ty t) = addCtx env n (DeclVal ty t)
+
+addData :: Env -> Data -> Either Id Env
+addData env dat =
+    let (tyc, cons) = dataDecl dat
+    in foldr (\(c, ty) enve ->
+               do env' <- enve;
+                  maybe (Left c) Right (addCtx env' c (Abstract ty)))
+             (Right env) (tyc : cons)
