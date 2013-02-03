@@ -33,17 +33,25 @@ module Kant.Syntax
     , dataDecl
       -- * Utilities
     , uniquify
+    , unrollApp
     , instantiateList
+    , scopeVars
+    , scopeVar
+    , ArrV(..)
+    , arrV
     ) where
 
 import           Control.Applicative (Applicative(..))
+import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
-import           Data.List (elemIndex)
+import           Data.List (elemIndex, nub)
+import           Data.Maybe (listToMaybe)
 import           Data.Traversable (Traversable)
 
 import           Bound
 import           Bound.Name
+import           Bound.Scope
 import           Prelude.Extras
 
 {-
@@ -211,6 +219,37 @@ dataDecl (Data c pars l cons) =
 -- | Makes all the 'Name's unique
 uniquify :: TermT a -> TermT a
 uniquify = id
+
+unrollApp :: TermT a -> (TermT a, [TermT a])
+unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
+unrollApp t           = (t, [])
+
+data ArrV a
+    = IsArr (TermT a)      -- To the left of the arrow
+            (Maybe a)
+            (TermT a)      -- To the right - the var will be instantiated
+                           -- automatically with a Var
+    | NoArr Term
+
+scopeVars :: (Monad f, Foldable f, Eq n) => Scope (Name n b) f a -> [n]
+scopeVars s = nub [ n | Name n _ <- bindings s ]
+
+scopeVar :: (Monad f, Foldable f, Eq n) => Scope (Name n ()) f a -> Maybe n
+scopeVar = listToMaybe . scopeVars
+
+arrV :: Term -> ArrV Id
+arrV (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ = IsArr t₂ v t₄
+  where
+    (v, t₄) = case scopeVar s of
+                  Nothing -> (Nothing, instantiate1 (Var discarded) s)
+                  Just n  -> (Just n, instantiate1 (Var n) s)
+arrV t = NoArr t
+
+
+-- unrollArr :: TermT a -> ([(a, TermT a)], TermT a)
+-- unrollArr = go []
+--   where
+--     go ts (App
 
 -- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
 --   the element at index 'n' in the provided list.

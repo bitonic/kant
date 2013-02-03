@@ -1,11 +1,12 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Kant.Pretty (pretty) where
 
 import           Data.Foldable (Foldable)
 import           Data.List (groupBy, intersperse)
-import           Data.Maybe (fromMaybe, listToMaybe)
+import           Data.Maybe (fromMaybe)
 import           Data.String (IsString(..))
 
 import           Bound
@@ -35,17 +36,13 @@ instance a ~ Id => Pretty (TermT a) where
     pretty (Type l) = "Type" <> pretty (show l)
     pretty to@(App _ _) = go to
       where
-        -- 't₂' should always be equal to 't₃' here
-        go (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ =
-            case scopeVar s of
-                Nothing -> noArr t₂ <+> "->" <+> go (instantiate1 (Var discarded) s)
-                Just n  -> "[" <> pretty n <+> ":" <+> pretty t₂ <> "]" <+> "->" <+>
-                           go (instantiate1 (Var n) s)
-          where
-            noArr t@(App t' _) | t' /= arrow = pretty t
-            noArr t = singleParens t
+        go (arrV -> IsArr t₁ Nothing t₂) = noArr t₁ <+> "->" <+> go t₂
+        go (arrV -> IsArr t₁ (Just n) t₂) =
+            "[" <> pretty n <+> ":" <+> pretty t₁ <> "]" <+> "->" <+> go t₂
         go (App t₁ t₂) = go t₁ <+> singleParens t₂
         go t = singleParens t
+        noArr t@(App t' _) | t' /= arrow = pretty t
+        noArr t = singleParens t
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
       where
         go (ty₁, ns) (Lam ty₂ s) =
@@ -62,9 +59,6 @@ instance a ~ Id => Pretty (TermT a) where
         pbranch (c, i, s) = group (align (pretty c <> spaceIfCons ns <>
                                    hsep' ns <+> "=>" <$> pretty t₂))
           where (ns, t₂) = freshScopeI s i
-
-scopeVar :: (Monad f, Foldable f) => Scope (Name n ()) f a -> Maybe n
-scopeVar s = listToMaybe [ n | Name n _ <- bindings s ]
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
@@ -116,6 +110,7 @@ instance Pretty Val where
     pretty (Val n ty t) =
         group (nest (pretty n <+> ":" <+> pretty ty <+> ":=" <+>
                      singleTerm ("(" <$$>) t) <$$> ")")
+      where
 
 instance Pretty Decl where
     pretty (ValDecl val) = pretty val

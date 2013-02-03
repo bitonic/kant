@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE ViewPatterns #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
@@ -19,11 +20,18 @@ module Kant.Environment
     , lookupTy
     , lookupDef
     , newEnv
+    , pullTerm
     ) where
 
 import           Control.Applicative ((<$>))
 import           Data.Foldable (Foldable)
+import           Data.Foldable (foldr)
+import           Data.Maybe (fromMaybe)
 import           Data.Traversable (Traversable)
+import           Prelude hiding (foldr)
+
+import           Data.Map (Map)
+import qualified Data.Map as Map
 
 import           Bound
 import           Bound.Name
@@ -46,21 +54,23 @@ type Item = ItemT Id
 type CtxT a = (a -> Maybe (ItemT a))
 type Ctx = CtxT Id
 
--- | Nests an 'Id' the required amount of times to turn it into the correct type
---   to be put in some @'TermT' a@.
+-- I can solve this problem by having an 'Id -> Maybe a' to see if an Id is
+-- taken, and a 'a -> Id' to get the Id back.
+
+-- | Nests an 'Id' the required amount of times to turn it into a top level
+--   variable.
 type NestT a = Id -> a
 type Nest = NestT Id
 
--- | Extracts the name out of the bound variable, useful to print out nested
---   terms.
+-- | Extracts the name out of the bound variable, and the how nested it is.
 type PullT a = a -> Id
 type Pull = PullT Id
 
 -- | Bringing it all together
 data EnvT a = Env
-    { envCtx  :: CtxT a
-    , envNest :: NestT a
-    , envPull :: PullT a
+    { envCtx   :: CtxT a
+    , envNest  :: NestT a
+    , envPull  :: PullT a
     }
 type Env = EnvT Id
 
@@ -100,11 +110,33 @@ lookupDef v Env{envCtx = ctx, envNest = nest} =
 -- | Creates a new environment given a lookup function for top level
 --   declarations.
 newEnv :: (Id -> Maybe Item) -> Env
-newEnv ctx = Env{envCtx = ctx, envNest = id, envPull = id}
+newEnv ctx = Env{ envCtx   = ctx
+                , envNest  = id
+                , envPull  = id
+                }
 
--- TODO implement this
+-- | Checks if a variable refers to a top level thing
+isTop :: Eq a => EnvT a -> a -> Bool
+isTop env v = envNest env (envPull env v) == v
+
 -- | Slams a @'TermT' a@ back to a 'Term', by replacing all the abstracted
---   variables with identifiers.  Duplicate names will be distinguished, keeping
---   top level names.
--- pullTerm :: EnvT a -> TermT a -> Term
--- pullTerm env = undefined
+--   variables with identifiers.  Distinguishes duplicate names while keeping
+--   top level names alone.
+pullTerm :: Ord a => EnvT a -> TermT a -> Term
+pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
+  where
+    format 0 n = n
+    format i n = n ++ show i
+
+    collect1 v@(isTop env -> True) (mcount, mn) =
+        (Map.insert (pull v) 0 mcount, Map.insert v (pull v) mn)
+    collect1 _ ms = ms
+
+    collect2 v ms@(_, Map.lookup v -> Just _) = ms
+    collect2 v (mcount, mn) =
+        let n = pull v
+            c = fromMaybe 0 (Map.lookup n mcount)
+        in (Map.insert (pull v) c mcount, Map.insert v (format c n) mn)
+
+    (_, mn') = foldr collect2
+                     (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
