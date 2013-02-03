@@ -4,6 +4,7 @@ module Kant
     , module Kant.Pretty
     , module Kant.Reduce
     , module Kant.Environment
+    , module Kant.TyCheck
     ) where
 
 import Kant.Parser
@@ -11,3 +12,4 @@ import Kant.Syntax
 import Kant.Pretty
 import Kant.Reduce
 import Kant.Environment
+import Kant.TyCheck
