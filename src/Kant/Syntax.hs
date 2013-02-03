@@ -41,7 +41,7 @@ module Kant.Syntax
     , arrV
     ) where
 
-import           Control.Applicative (Applicative(..), (<$>))
+import           Control.Applicative (Applicative(..))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)

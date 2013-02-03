@@ -38,6 +38,7 @@ Library
                       Kant.Parser,
                       Kant.Pretty,
                       Kant.Reduce,
-                      Kant.Environment
+                      Kant.Environment,
+                      Kant.TyCheck
 
     Other-Modules:    Kant.Lexer
