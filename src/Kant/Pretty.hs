@@ -45,20 +45,19 @@ instance a ~ Id => Pretty (TermT a) where
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
       where
         go (ty₁, ns) (Lam ty₂ s) =
-            case () of
-              _ | n == discarded -> flush <> pretty ty₂ <+> go (ty₂, []) t
-              _ | ty₁ == ty₂     -> go (ty₁, n : ns) t
-              _ | otherwise      -> flush <> go (ty₂, [n]) t
-          where (n, t) = freshScope s
+            let (n, t) = freshScope s
                 flush  = prettyPars' (zip (reverse ns) (repeat ty₁))
+            in case () of
+                 _ | n == discarded -> flush <> pretty ty₂ <+> go (ty₂, []) t
+                 _ | ty₁ == ty₂     -> go (ty₁, n : ns) t
+                 _ | otherwise      -> flush <> go (ty₂, [n]) t
         go (ty, ns) t = prettyPars' (zip ns (repeat ty)) <> "=>" <$> align (pretty t)
     pretty (Case t₁ brs) =
         group (nest ("case" <+> pretty t₁ <$> (align (prettyBarred pbranch brs))))
       where
-        pbranch (c, i, s) =
-            let (ns, t₂) = freshScopeI s i
-            in group (align (pretty c <> spaceIfCons ns <>
-                             hsep' ns <+> "=>" <$> pretty t₂))
+        pbranch (c, i, s) = let (ns, t₂) = freshScopeI s i
+                            in group (align (pretty c <> spaceIfCons ns <>
+                                             hsep' ns <+> "=>" <$> pretty t₂))
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
@@ -110,7 +109,6 @@ instance Pretty Val where
     pretty (Val n ty t) =
         group (nest (pretty n <+> ":" <+> pretty ty <+> ":=" <+>
                      singleTerm ("(" <$$>) t) <$$> ")")
-      where
 
 instance Pretty Decl where
     pretty (ValDecl val) = pretty val
