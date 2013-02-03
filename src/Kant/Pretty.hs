@@ -4,7 +4,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Kant.Pretty (pretty) where
 
-import           Data.Foldable (Foldable)
 import           Data.List (groupBy, intersperse)
 import           Data.Maybe (fromMaybe)
 import           Data.String (IsString(..))

@@ -51,12 +51,6 @@ reduceScope :: (Eq b, Eq a)
             => Reducer -> EnvT a -> TScopeT a b -> TScopeT a b
 reduceScope r env = toScope . reduce r (nestEnv env) . fromScope
 
-unrollApp :: TermT a -> (TermT a, [TermT a])
-unrollApp = go []
-  where
-    go ts (App t₁ t₂) = go (t₂ : ts) t₁
-    go ts t           = (t, reverse ts)
-
 -- | Reduces a term to its normal form - computes under binders, if you only
 --   want canonical constructors see 'whnf'.
 nf :: Reducer
