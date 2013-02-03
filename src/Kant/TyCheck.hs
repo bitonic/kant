@@ -15,7 +15,8 @@ import           Bound
 import           Bound.Name
 
 import           Kant.Syntax
-import           Kant.Environment
+import           Kant.Environment (EnvT, Env, NestT, PullT)
+import qualified Kant.Environment as Env
 import qualified Kant.Reduce as Reduce
 
 data TyCheckError
@@ -36,7 +37,8 @@ nestTyCheckM :: TScopeT a b
              -> (TermT (Var (Name Id b) a) -> TyCheckM (Var (Name Id b) a) c)
              -> TyCheckM a c
 nestTyCheckM s f =
-    TyCheckM . ReaderT $ runReaderT (unTyCheckM (f (fromScope s))) . nestEnv
+    TyCheckM . ReaderT $
+    runReaderT (unTyCheckM (f (fromScope s))) . Env.nestEnv
 
 instance MonadReader (EnvT a) (TyCheckM a) where
     ask = TyCheckM ask
@@ -54,9 +56,9 @@ instance TyCheck Decl where
     tyCheck (ValDecl val)   = tyCheck val
     tyCheck (Postulate n t) =
         do env <- ask
-           case lookupTy n env of
+           case Env.lookupTy n env of
                Just _ -> throwError (DuplicateName n)
-               _      -> addAbst' n t
+               _      -> addAbst n t
     tyCheck (DataDecl dat)  = tyCheck dat
 
 instance TyCheck Val
@@ -65,17 +67,25 @@ instance TyCheck Data
 
 -- Some overloaded versions...
 
-addAbst' :: Eq a => a -> TermT a -> TyCheckM a (EnvT a)
-addAbst' n t = do env <- ask; return (addAbst env n t)
+addAbst :: Eq a => a -> TermT a -> TyCheckM a (EnvT a)
+addAbst n t = do env <- ask; return (Env.addAbst env n t)
 
-lookupTy' :: Eq a => a -> TyCheckM a (TermT a)
-lookupTy' v = do env <- ask
-                 case lookupTy v env of
-                     Nothing -> throwError (OutOfBounds (envPull env v))
-                     Just ty -> return ty
+lookupTy :: Eq a => a -> TyCheckM a (TermT a)
+lookupTy v = do env <- ask
+                case Env.lookupTy v env of
+                    Nothing -> throwError (OutOfBounds (Env.envPull env v))
+                    Just ty -> return ty
 
-pullTerm' :: Ord a => TermT a -> TyCheckM a Term
-pullTerm' t = do env <- ask; return (pullTerm env t)
+pullTerm :: Ord a => TermT a -> TyCheckM a Term
+pullTerm t = do env <- ask; return (Env.pullTerm env t)
+
+envNest :: TyCheckM a (NestT a)
+envNest = asks Env.envNest
+
+envPull :: TyCheckM a (PullT a)
+envPull = asks Env.envPull
+
+-- /
 
 nf :: Eq a => TermT a -> TyCheckM a (TermT a)
 nf t = do env <- ask; return (Reduce.nf env t)
@@ -87,18 +97,18 @@ tyCheck' :: Ord a => TermT a -> TyCheckM a (TermT a)
 -- `envPull env v' will be consistent with whatever `pullTerm' returns since
 -- outer bounds variables are the top level ones, and so the name will be
 -- preserved.
-tyCheck' (Var v)      = lookupTy' v
+tyCheck' (Var v)      = lookupTy v
 tyCheck' (Type l)     = return (Type (l + 1))
 tyCheck' (App t₁ t₂)  =
     do ty₁ <- tyCheck' t₁
-       ar <- arrV <$> asks envNest <*> nf ty₁
+       ar <- arrV <$> envNest <*> nf ty₁
        case ar of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq ty₂ t₂
            NoArr       -> throwError =<<
-                          ExpectingFunction <$> pullTerm' t₂
-                                            <*> (tyCheck' t₂ >>= pullTerm')
+                          ExpectingFunction <$> pullTerm t₂
+                                            <*> (tyCheck' t₂ >>= pullTerm)
 tyCheck' (Lam ty s)   =
-    do ar <- (<$> arrow) <$> asks envNest
+    do ar <- (<$> arrow) <$> envNest
        tyCheck' ty
        tys <- toScope <$> nestTyCheckM s tyCheck'
        return (App (App ar ty) (Lam ty tys))
@@ -109,4 +119,4 @@ tyCheckEq :: Ord a => TermT a -> TermT a -> TyCheckM a ()
 tyCheckEq ty t =
     do ty' <- tyCheck' t
        b <- defeq ty ty'
-       unless b (throwError =<< Mismatch <$> pullTerm' ty <*> pullTerm' ty')
+       unless b (throwError =<< Mismatch <$> pullTerm ty <*> pullTerm ty')
