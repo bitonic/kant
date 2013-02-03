@@ -41,7 +41,7 @@ module Kant.Syntax
     , arrV
     ) where
 
-import           Control.Applicative (Applicative(..))
+import           Control.Applicative (Applicative(..), (<$>))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
@@ -226,10 +226,8 @@ unrollApp t           = (t, [])
 
 data ArrV a
     = IsArr (TermT a)      -- To the left of the arrow
-            (Maybe a)
-            (TermT a)      -- To the right - the var will be instantiated
-                           -- automatically with a Var
-    | NoArr Term
+            (TScope a)     -- The scope to the right
+    | NoArr
 
 scopeVars :: (Monad f, Foldable f, Eq n) => Scope (Name n b) f a -> [n]
 scopeVars s = nub [ n | Name n _ <- bindings s ]
@@ -237,13 +235,10 @@ scopeVars s = nub [ n | Name n _ <- bindings s ]
 scopeVar :: (Monad f, Foldable f, Eq n) => Scope (Name n ()) f a -> Maybe n
 scopeVar = listToMaybe . scopeVars
 
-arrV :: Term -> ArrV Id
-arrV (App t₁ (App t₂ (Lam t₃ s))) | t₁ == arrow && t₂ == t₃ = IsArr t₂ v t₄
-  where
-    (v, t₄) = case scopeVar s of
-                  Nothing -> (Nothing, instantiate1 (Var discarded) s)
-                  Just n  -> (Just n, instantiate1 (Var n) s)
-arrV t = NoArr t
+-- This should have knowledge of 'PullT', maybe I should move it to Environment.
+arrV :: Eq a => (Id -> a) -> TermT a -> ArrV a
+arrV f (App t₁ (App t₂ (Lam t₃ s))) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
+arrV _ _ = NoArr
 
 
 -- unrollArr :: TermT a -> ([(a, TermT a)], TermT a)

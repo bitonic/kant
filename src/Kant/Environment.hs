@@ -13,7 +13,10 @@ module Kant.Environment
     , Nest
     , PullT
     , Pull
-    , EnvT(..)
+    , EnvT
+    , envNest
+    , envPull
+    , envCtx
     , Env
       -- * Utilities
     , nestEnv
@@ -21,6 +24,7 @@ module Kant.Environment
     , lookupDef
     , newEnv
     , pullTerm
+    , addAbst
     ) where
 
 import           Control.Applicative ((<$>))
@@ -140,3 +144,8 @@ pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
 
     (_, mn') = foldr collect2
                      (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
+
+-- | Adds an abstracted variable to an environment.
+addAbst :: Eq a => EnvT a -> a -> TermT a -> EnvT a
+addAbst env v₁ t =
+    env{envCtx = \v₂ -> if v₁ == v₂ then Just (Abstract t) else envCtx env v₂}

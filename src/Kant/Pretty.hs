@@ -35,9 +35,11 @@ instance a ~ Id => Pretty (TermT a) where
     pretty (Type l) = "Type" <> pretty (show l)
     pretty to@(App _ _) = go to
       where
-        go (arrV -> IsArr t₁ Nothing t₂) = noArr t₁ <+> "->" <+> go t₂
-        go (arrV -> IsArr t₁ (Just n) t₂) =
-            "[" <> pretty n <+> ":" <+> pretty t₁ <> "]" <+> "->" <+> go t₂
+        go (arrV id -> IsArr t s) =
+            case scopeVar s of
+                Nothing -> noArr t <+> "->" <+> go (instantiate1 (Var discarded) s)
+                Just n  -> "[" <> pretty n <+> ":" <+> pretty t <> "]" <+>
+                           "->" <+> go (instantiate1 (Var n) s)
         go (App t₁ t₂) = go t₁ <+> singleParens t₂
         go t = singleParens t
         noArr t@(App t' _) | t' /= arrow = pretty t
