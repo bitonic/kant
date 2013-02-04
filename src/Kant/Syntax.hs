@@ -191,7 +191,7 @@ arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 -- to @b@ applied to @c@.  Fails with empty lists.
 app :: [Term] -> Term
-app = foldr1 App
+app = foldl1 App
 
 valDecl :: Id                   -- ^ Value name
         -> [Param]              -- ^ Function arguments
@@ -237,9 +237,8 @@ scopeVar = listToMaybe . scopeVars
 
 -- This should have knowledge of 'PullT', maybe I should move it to Environment.
 arrV :: Eq a => (Id -> a) -> TermT a -> ArrV a
-arrV f (App t₁ (App t₂ (Lam t₃ s))) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
+arrV f (App (App t₁ t₂) (Lam t₃ s)) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
 arrV _ _ = NoArr
-
 
 -- unrollArr :: TermT a -> ([(a, TermT a)], TermT a)
 -- unrollArr = go []

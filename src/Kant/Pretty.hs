@@ -17,6 +17,7 @@ import           Text.PrettyPrint.Leijen
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
+import           Kant.TyCheck
 
 
 hsep' :: Pretty a => [a] -> Doc
@@ -37,13 +38,12 @@ instance a ~ Id => Pretty (TermT a) where
       where
         go (arrV id -> IsArr t s) =
             case scopeVar s of
-                Nothing -> noArr t <+> "->" <+> go (instantiate1 (Var discarded) s)
+                Nothing -> singleParens t <+> "->" <+>
+                           go (instantiate1 (Var discarded) s)
                 Just n  -> "(" <> pretty n <+> ":" <+> pretty t <> ")" <+>
                            "->" <+> go (instantiate1 (Var n) s)
         go (App t₁ t₂) = go t₁ <+> singleParens t₂
         go t = singleParens t
-        noArr t@(App t' _) | t' /= arrow = pretty t
-        noArr t = singleParens t
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
       where
         go (ty₁, ns) (Lam ty₂ s) =
@@ -122,3 +122,15 @@ instance Pretty Decl where
 
 instance Pretty Module where
     pretty = prettyList . unModule
+
+instance Pretty TyCheckError where
+    pretty TyCheckError = "fixme"
+    pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
+    pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
+    pretty (Mismatch ty₁ t ty₂) =
+        group (nest ("Expecting type" <$> pretty ty₁) <$>
+               nest ("for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty₂))
+    pretty (ExpectingFunction t ty) =
+        group (nest ("Expecting function type for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty))

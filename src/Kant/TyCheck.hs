@@ -9,6 +9,7 @@ module Kant.TyCheck
     , runTyCheckM
     , TyCheck(..)
     , tyCheck'
+    , basicEnv
     ) where
 
 import           Control.Applicative (Applicative(..), (<$>), (<$))
@@ -23,7 +24,7 @@ import           Bound
 import           Bound.Name
 
 import           Kant.Syntax
-import           Kant.Environment (EnvT, Env, NestT, PullT)
+import           Kant.Environment (EnvT, Env, NestT, PullT, ItemT(..))
 import qualified Kant.Environment as Env
 import qualified Kant.Reduce as Reduce
 
@@ -31,7 +32,7 @@ data TyCheckError
     = TyCheckError
     | OutOfBounds Id
     | DuplicateName Id
-    | Mismatch Term Term
+    | Mismatch Term Term Term
     | ExpectingFunction Term Term
     deriving (Eq, Show)
 
@@ -145,13 +146,12 @@ tyCheck' (App t₁ t₂)  =
        case ar of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq ty₂ t₂
            NoArr       -> throwError =<<
-                          ExpectingFunction <$> pullTerm t₂
-                                            <*> (tyCheck' t₂ >>= pullTerm)
+                          ExpectingFunction <$> pullTerm t₁ <*> pullTerm ty₁
 tyCheck' (Lam ty s)   =
     do ar <- traverse nest arrow
        tyCheck' ty
        tys <- toScope <$> nestTyCheckM s ty tyCheck'
-       return (App ar (App ty (Lam ty tys)))
+       return (App (App ar ty) (Lam ty tys))
 tyCheck' (Case t brs) = undefined
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
@@ -159,4 +159,12 @@ tyCheckEq :: Ord a => TermT a -> TermT a -> TyCheckM a ()
 tyCheckEq ty t =
     do ty' <- tyCheck' t
        b <- defeq ty ty'
-       unless b (throwError =<< Mismatch <$> pullTerm ty <*> pullTerm ty')
+       unless b (throwError =<< Mismatch <$> pullTerm ty <*> pullTerm t
+                                         <*> pullTerm ty')
+
+-- TODO make this large
+basicEnv :: Env
+basicEnv = Env.newEnv $ \n -> if n == "(->)"
+                              then Just (Abstract arrty)
+                              else Nothing
+  where arrty = pis [("A", Type 0), ("B", arr (Var "A") (Type 0))] (Type 0)
