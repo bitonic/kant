@@ -49,7 +49,7 @@ reduce r env (Lam t s) =
 
 reduceScope :: (Eq b, Eq a)
             => Reducer -> EnvT a -> TScopeT a b -> TScopeT a b
-reduceScope r env = toScope . reduce r (nestEnv env) . fromScope
+reduceScope r env = toScope . reduce r (nestEnv env Nothing) . fromScope
 
 -- | Reduces a term to its normal form - computes under binders, if you only
 --   want canonical constructors see 'whnf'.

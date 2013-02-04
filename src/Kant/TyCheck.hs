@@ -6,12 +6,13 @@
 module Kant.TyCheck
     ( TyCheckError(..)
     , TyCheckM
+    , runTyCheckM
     , TyCheck(..)
+    , tyCheck'
     ) where
 
 import           Control.Applicative (Applicative(..), (<$>), (<$))
 import           Control.Monad (unless)
-import           Data.Maybe (fromMaybe)
 import           Data.Traversable (traverse)
 
 import           Control.Monad.Error (Error(..), MonadError(..))
@@ -32,6 +33,7 @@ data TyCheckError
     | DuplicateName Id
     | Mismatch Term Term
     | ExpectingFunction Term Term
+    deriving (Eq, Show)
 
 instance Error TyCheckError where
     noMsg = TyCheckError
@@ -40,12 +42,16 @@ newtype TyCheckM b a =
     TyCheckM {unTyCheckM :: ReaderT (EnvT b) (Either TyCheckError) a}
     deriving (Functor, Applicative, Monad)
 
+runTyCheckM :: EnvT a -> TyCheckM a b -> Either TyCheckError b
+runTyCheckM env (TyCheckM m) = runReaderT m env
+
 nestTyCheckM :: TScopeT a b
+             -> TermT a
              -> (TermT (Var (Name Id b) a) -> TyCheckM (Var (Name Id b) a) c)
              -> TyCheckM a c
-nestTyCheckM s f =
+nestTyCheckM s ty f =
     TyCheckM . ReaderT $
-    runReaderT (unTyCheckM (f (fromScope s))) . Env.nestEnv
+    runReaderT (unTyCheckM (f (fromScope s))) . (`Env.nestEnv` (Just ty))
 
 instance MonadReader (EnvT a) (TyCheckM a) where
     ask = TyCheckM ask
@@ -144,8 +150,8 @@ tyCheck' (App t₁ t₂)  =
 tyCheck' (Lam ty s)   =
     do ar <- traverse nest arrow
        tyCheck' ty
-       tys <- toScope <$> nestTyCheckM s tyCheck'
-       return (App (App ar ty) (Lam ty tys))
+       tys <- toScope <$> nestTyCheckM s ty tyCheck'
+       return (App ar (App ty (Lam ty tys)))
 tyCheck' (Case t brs) = undefined
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
