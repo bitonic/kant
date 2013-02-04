@@ -17,6 +17,7 @@ import           Text.PrettyPrint.Leijen
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
+import           Kant.Environment
 import           Kant.TyCheck
 
 
@@ -38,10 +39,11 @@ instance a ~ Id => Pretty (TermT a) where
       where
         go (arrV id -> IsArr t s) =
             case scopeVar s of
+                -- TODO we don't need parens for constructors apart from arrow
                 Nothing -> singleParens t <+> "->" <+>
                            go (instantiate1 (Var discarded) s)
-                Just n  -> "(" <> pretty n <+> ":" <+> pretty t <> ")" <+>
-                           "->" <+> go (instantiate1 (Var n) s)
+                Just n  -> "(" <> typed n t <> ")" <+> "->" <+>
+                           go (instantiate1 (Var n) s)
         go (App t₁ t₂) = go t₁ <+> singleParens t₂
         go t = singleParens t
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
@@ -99,6 +101,9 @@ prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
 
+typed :: Id -> Term -> Doc
+typed n ty = pretty n <+> ":" <+> pretty ty
+
 instance Pretty Data where
     pretty (Data c pars l cons) =
         group (nest ("data" <+> pretty c <+> prettyPars' pars <> ":" <+>
@@ -113,15 +118,21 @@ instance Pretty Val where
                      singleTerm ("(" <$$>) t) <$$> ")")
 
 instance Pretty Decl where
-    pretty (ValDecl val) = pretty val
-    pretty (Postulate n ty) =
-        "postulate" <+> pretty n <+> ":" <+> singleParens ty
-    pretty (DataDecl d) = pretty d
+    pretty (ValDecl val)    = pretty val
+    pretty (Postulate n ty) = "postulate" <+> typed n ty
+    pretty (DataDecl d)     = pretty d
 
     prettyList = vcat . intersperse "" . map pretty
 
 instance Pretty Module where
     pretty = prettyList . unModule
+
+instance a ~ Id => Pretty (ItemT a) where
+    pretty (Constr _ _)   = undefined
+    pretty (TyConstr _ _) = undefined
+    pretty (DeclVal ty t) = group (nest ("Value" <$> pretty t) <$>
+                                   nest ("of type" <$> pretty ty))
+    pretty (Abstract ty)  = group (nest ("Abstract value of type" <$> pretty ty))
 
 instance Pretty TyCheckError where
     pretty TyCheckError = "fixme"

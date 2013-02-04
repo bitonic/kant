@@ -96,8 +96,8 @@ nestEnv Env{envCtx = ctx, envNest = nest, envPull = pull} ty =
         }
 
 -- | Looks up the type of a variable.
-lookupTy :: a -> EnvT a -> Maybe (TermT a)
-lookupTy v Env{envCtx = ctx, envNest = nest} =
+lookupTy :: EnvT a -> a -> Maybe (TermT a)
+lookupTy Env{envCtx = ctx, envNest = nest} v =
     case ctx v of
         Nothing              -> Nothing
         Just (Constr _ ty)   -> nest' ty
