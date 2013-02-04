@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Kant.TyCheck
     ( TyCheckError(..)
@@ -26,6 +27,7 @@ data TyCheckError
     | DuplicateName Id
     | Mismatch Term Term Term
     | ExpectingFunction Term Term
+    | ExpectingType Term Term
     deriving (Eq, Show)
 
 instance Error TyCheckError where
@@ -90,15 +92,30 @@ tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
 -- `envPull env v' will be consistent with whatever `pullTerm' returns since
 -- outer bounds variables are the top level ones, and so the name will be
 -- preserved.
-tyCheck' env (Var v)      = lookupTy env v
-tyCheck' _   (Type l)     = return (Type (l + 1))
-tyCheck' env (App t₁ t₂)  =
+tyCheck' env (Var v) = lookupTy env v
+tyCheck' _ (Type l) = return (Type (l + 1))
+-- TODO we manually have a "large" arrow here, but ideally we'd like to have
+-- some kind of level polymorphism so that the arrow operator can be postulated
+-- like any other.
+tyCheck' env (arrV (envNest env) -> IsArr ty s) =
+    do ty' <- tyCheck' env ty
+       case nf env ty' of
+           Type l₁ ->
+               do let env' = nestEnv env (Just ty)
+                  tys <- tyCheck' env' (fromScope s)
+                  case nf env' tys of
+                      Type l₂ -> return (Type (max l₁ l₂))
+                      _       -> expty env' (fromScope s) tys
+           _ -> expty env ty ty'
+  where
+    expty e t ty' = throwError (ExpectingType (pullTerm e t) (pullTerm e ty'))
+tyCheck' env (App t₁ t₂) =
     do ty₁ <- tyCheck' env t₁
        case arrV (envNest env) (nf env ty₁) of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
            NoArr       -> throwError $
                           ExpectingFunction (pullTerm env t₁) (pullTerm env ty₁)
-tyCheck' env (Lam ty s)   =
+tyCheck' env (Lam ty s) =
     do let ar = envNest env <$> arrow
        tyCheck' env ty
        tys <- toScope <$> nestTyCheckM env s ty tyCheck'
@@ -113,9 +130,5 @@ tyCheckEq env ty t =
               (throwError (Mismatch (pullTerm env ty) (pullTerm env t)
                                     (pullTerm env ty')))
 
--- TODO make this large
 basicEnv :: Env
-basicEnv = Env.newEnv $ \n -> if n == "(->)"
-                              then Just (Abstract arrty)
-                              else Nothing
-  where arrty = pis [("A", Type 0), ("B", arr (Var "A") (Type 0))] (Type 0)
+basicEnv = Env.newEnv (const Nothing)

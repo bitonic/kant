@@ -145,3 +145,7 @@ instance Pretty TyCheckError where
     pretty (ExpectingFunction t ty) =
         group (nest ("Expecting function type for term" <$> pretty t) <$>
                nest ("instead of" <$> pretty ty))
+    pretty (ExpectingType t ty) =
+        group (nest ("Expecting a Type for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty))
+
