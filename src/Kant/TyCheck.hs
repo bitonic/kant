@@ -131,4 +131,4 @@ tyCheckEq env ty t =
                                     (pullTerm env ty')))
 
 basicEnv :: Env
-basicEnv = Env.newEnv (const Nothing)
+basicEnv = newEnv (const Nothing)
