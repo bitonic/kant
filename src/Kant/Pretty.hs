@@ -39,13 +39,17 @@ instance a ~ Id => Pretty (TermT a) where
       where
         go (arrV id -> IsArr t s) =
             case scopeVar s of
-                -- TODO we don't need parens for constructors apart from arrow
-                Nothing -> singleParens t <+> "->" <+>
+                Nothing -> noArr t <+> "->" <+>
                            go (instantiate1 (Var discarded) s)
                 Just n  -> "(" <> typed n t <> ")" <+> "->" <+>
                            go (instantiate1 (Var n) s)
         go (App t₁ t₂) = go t₁ <+> singleParens t₂
         go t = singleParens t
+        -- Note that we don't need to consider lambdas here since lambdas are
+        -- values and we don't even parse arrow types with lambdas, see 'Arr'
+        -- rule in Parser.y
+        noArr t@(arrV id -> IsArr _ _) = singleParens t
+        noArr t                        = pretty t
     pretty to@(Lam tyo _) = "\\" <> group (align (go (tyo, []) to))
       where
         go (ty₁, ns) (Lam ty₂ s) =
