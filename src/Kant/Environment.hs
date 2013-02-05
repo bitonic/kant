@@ -60,9 +60,6 @@ type Item = ItemT Id
 type CtxT a = (a -> Maybe (ItemT a))
 type Ctx = CtxT Id
 
--- I can solve this problem by having an 'Id -> Maybe a' to see if an Id is
--- taken, and a 'a -> Id' to get the Id back.
-
 -- | Nests an 'Id' the required amount of times to turn it into a top level
 --   variable.
 type NestT a = Id -> a
