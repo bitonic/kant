@@ -45,7 +45,7 @@ import           Control.Applicative (Applicative(..), (<$))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
-import           Data.List (elemIndex, nub)
+import           Data.List (elemIndex)
 import           Data.Maybe (listToMaybe)
 import           Data.Traversable (Traversable)
 
@@ -235,10 +235,10 @@ data ArrV a
             (TScope a)     -- The scope to the right
     | NoArr
 
-scopeVars :: (Monad f, Foldable f, Eq n) => Scope (Name n b) f a -> [n]
-scopeVars s = nub [ n | Name n _ <- bindings s ]
+scopeVars :: (Monad f, Foldable f, Ord n) => Scope (Name n b) f a -> [n]
+scopeVars s = Set.toList (Set.fromList (map name (bindings s)))
 
-scopeVar :: (Monad f, Foldable f, Eq n) => Scope (Name n ()) f a -> Maybe n
+scopeVar :: (Monad f, Foldable f, Ord n) => Scope (Name n ()) f a -> Maybe n
 scopeVar = listToMaybe . scopeVars
 
 -- This should have knowledge of 'PullT', maybe I should move it to Environment.
