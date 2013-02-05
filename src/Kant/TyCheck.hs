@@ -17,7 +17,7 @@ import           Bound
 import           Bound.Name
 
 import qualified Kant.Environment as Env
-import           Kant.Environment hiding (lookupTy, addAbst, addVal)
+import           Kant.Environment hiding (lookupTy, addAbst, addVal, addData)
 import           Kant.Reduce
 import           Kant.Syntax
 
@@ -65,23 +65,25 @@ instance TyCheck Val where
            env' <$ tyCheckEq env' ty t
 
 instance TyCheck Data where
-    tyCheck _ _ = undefined
+    tyCheck env dd =
+        do let ((c, ty), cons) = dataDecl dd
+           tyCheck' env ty
+           env' <- addAbst env c ty
+           mapM_ (tyCheck' env') (map snd cons)
+           addData env dd
 
--- -- Some overloaded versions...
+dupMaybe :: Id -> Maybe b -> TyCheckM b
+dupMaybe _ (Just x) = return x
+dupMaybe n Nothing  = throwError (DuplicateName n)
 
-addAbst :: Eq a => EnvT a -> a -> TermT a -> TyCheckM (EnvT a)
-addAbst env n t = maybe (throwError (DuplicateName (envPull env n))) return
-                        (Env.addAbst env n t)
+addAbst :: Env -> Id -> Term -> TyCheckM Env
+addAbst env n t = dupMaybe n (Env.addAbst env n t)
 
 addVal :: Env -> Val -> TyCheckM Env
-addVal env vd@(Val n _ _) = maybe (throwError (DuplicateName (envPull env n))) return
-                                  (Env.addVal env vd)
+addVal env vd@(Val n _ _) = dupMaybe n (Env.addVal env vd)
 
-
--- addData :: Data -> TyCheckM Id Env
--- addData dd = do env <- ask
---                 either (throwError . DuplicateName) return
---                        (Env.addData env dd)
+addData :: Env -> Data -> TyCheckM Env
+addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 
 lookupTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 lookupTy env v = case Env.lookupTy env v of

@@ -30,8 +30,8 @@ module Kant.Syntax
     , case_
     , app
     , valDecl
-    , dataDecl
       -- * Utilities
+    , dataDecl
     , unrollApp
     , instantiateList
     , scopeVars
