@@ -193,9 +193,8 @@ pis = params pi_
 arr :: Term -> Term -> Term
 arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 
--- TODO should I keep this unsafe?
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
--- to @b@ applied to @c@.  Fails with empty lists.
+--   to @b@ applied to @c@.  Fails with empty lists.
 app :: [Term] -> Term
 app = foldl1 App
 
