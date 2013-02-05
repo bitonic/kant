@@ -133,10 +133,13 @@ pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
     format 0 n = n
     format i n = n ++ show i
 
+    -- We first insert all the top level ones, so we know they are going to have
+    -- count 0
     collect1 v@(isTop env -> True) (mcount, mn) =
         (Map.insert (pull v) 0 mcount, Map.insert v (pull v) mn)
     collect1 _ ms = ms
 
+    -- Then the rest.
     collect2 v ms@(_, Map.lookup v -> Just _) = ms
     collect2 v (mcount, mn) =
         let n = pull v
