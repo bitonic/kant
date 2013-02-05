@@ -41,13 +41,15 @@ module Kant.Syntax
     , arrV
     ) where
 
-import           Control.Applicative (Applicative(..))
+import           Control.Applicative (Applicative(..), (<$))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
 import           Data.List (elemIndex, nub)
 import           Data.Maybe (listToMaybe)
 import           Data.Traversable (Traversable)
+
+import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -152,16 +154,20 @@ params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 lams :: [Param] -> Term -> Term
 lams = params lam
 
--- TODO This assumes that the variables are all distinct, fix that.
--- | Pattern matching
+-- | Pattern matching.  Returns a formed term ('Right') or the name of a
+--   duplicated variable ('Left'), if there is one.
 case_ :: Term
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
-      -> Term
+      -> Either Id Term
 case_ t brs =
-    Case t
-         (map (\(c, vs, t') -> (c, length vs, (abstractName (`elemIndex` vs) t')))
-              brs)
+    Case t [ (c, length vs, (abstractName (`elemIndex` vs) t'))
+           | (c, vs, t') <- brs ]
+    <$ mapM (foldr (\n se -> se >>= \s ->
+                     if Set.member n s then Left n
+                     else Right (Set.insert n s))
+                   (Right Set.empty))
+            [ ns | (_, ns, _) <- brs ]
 
 -- | A binding/pattern match that we are not going to use.
 discarded :: Id

@@ -89,7 +89,7 @@ DataCon : name Params                        { ($1, $2) }
 Term :: { Term }
 Term
     : '\\' Seq(Param) '=>' Term              { lams (concat $2) $4 }
-    | 'case' Term '{' Bar(Branch) '}'        { case_ $2 $4 }
+    | 'case' Term '{' Bar(Branch) '}'        {% checkCase $2 $4 }
     | Arr                                    { $1 }
 
 Branch :: { (ConId, [Id], Term) }
@@ -114,27 +114,21 @@ App : Seq(SingleTerm)                        { foldl1 App $1 }
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
--- TODO find a way to show the token
-happyError :: Alex a
-happyError =
+checkCase :: Term -> [(ConId, [Id], Term)] -> Alex Term
+checkCase t₁ brs =
+    case case_ t₁ brs of
+        Left n   -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
+        Right t₂ -> return t₂
+
+parseErr :: String -> Alex a
+parseErr err =
     do (l, c) <- lineCol `liftM` alexGetInput
-       fail ("Parse error at line " ++ show l ++ ", column " ++ show c)
-  -- where
-  --   showTok COLON    = "token `:'"
-  --   showTok DATA     = "token `data'"
-  --   showTok LBRACE   = "token `{'"
-  --   showTok RBRACE   = "token `}'"
-  --   showTok LPAREN   = "token `('"
-  --   showTok RPAREN   = "token `)'"
-  --   showTok LBRACK   = "token `['"
-  --   showTok RBRACK   = "token `]'"
-  --   showTok BAR      = "token `|'"
-  --   showTok LAMBDA   = "token `\\'"
-  --   showTok ARROW    = "token `->'"
-  --   showTok DARROW   = "token `=>'"
-  --   showTok CASE     = "token `case'"
-  --   showTok (NAME n) = "identifier `" ++ n ++ "'"
-  --   showTok (TYPE l) = "identifier `Type" ++ if l > 0 then show l else "" ++ "'"
+       fail ("Parse error at line " ++ show l ++ ", column " ++ show c ++ err)
+
+-- TODO find a way to find more info, e.g. tokens we were expecting or stuff
+-- like this.
+happyError :: Alex a
+happyError = parseErr "."
 
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either String
