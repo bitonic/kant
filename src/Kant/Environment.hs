@@ -152,13 +152,18 @@ addCtx env@Env{envCtx = ctx} v₁ it =
         Nothing -> Just (env{envCtx = \v₂ -> if v₁ == v₂ then Just it else ctx v₂})
         Just _  -> Nothing
 
--- | Adds an abstracted variable to an environment.
+-- | Adds an abstracted variable to an environment, 'Nothing' if the name is
+--   already present.
 addAbst :: Eq a => EnvT a -> a -> TermT a -> Maybe (EnvT a)
 addAbst env v₁ t = addCtx env v₁ (Abstract t)
 
+-- | Adds a value definition to an environment, 'Nothing' if the name is already
+--   present.
 addVal :: Env -> Val -> Maybe Env
 addVal env (Val n ty t) = addCtx env n (DeclVal ty t)
 
+-- | Adds the type constructors and the data declarations as abstracted variable
+--   to an environment, @'Left' n@ if name @n@ is already present.
 addData :: Env -> Data -> Either Id Env
 addData env dat =
     let (tyc, cons) = dataDecl dat
