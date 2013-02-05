@@ -32,7 +32,6 @@ module Kant.Syntax
     , valDecl
     , dataDecl
       -- * Utilities
-    , uniquify
     , unrollApp
     , instantiateList
     , scopeVars
@@ -220,11 +219,6 @@ dataDecl (Data c pars l cons) =
   where
     resTy = app (Var c : map (Var . fst) pars)
 
--- TODO: Define this
--- | Makes all the 'Name's unique
-uniquify :: TermT a -> TermT a
-uniquify = id
-
 unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
@@ -244,11 +238,6 @@ scopeVar = listToMaybe . scopeVars
 arrV :: Eq a => (Id -> a) -> TermT a -> ArrV a
 arrV f (App (App t₁ t₂) (Lam t₃ s)) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
 arrV _ _ = NoArr
-
--- unrollArr :: TermT a -> ([(a, TermT a)], TermT a)
--- unrollArr = go []
---   where
---     go ts (App
 
 -- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
 --   the element at index 'n' in the provided list.

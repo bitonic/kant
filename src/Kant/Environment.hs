@@ -126,6 +126,7 @@ newEnv ctx = Env{ envCtx   = ctx
 isTop :: Eq a => EnvT a -> a -> Bool
 isTop env v = envNest env (envPull env v) == v
 
+-- TODO remove duplicates in bound names
 -- | Slams a @'TermT' a@ back to a 'Term', by replacing all the abstracted
 --   variables with identifiers.  Distinguishes duplicate names while keeping
 --   top level names alone.
