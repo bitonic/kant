@@ -125,9 +125,10 @@ isTop env v = envNest env (envPull env v) == v
 
 -- TODO remove duplicates in bound names
 -- | Slams a @'TermT' a@ back to a 'Term', by replacing all the abstracted
---   variables with identifiers.  Distinguishes duplicate names while keeping
---   top level names alone.
-pullTerm :: Ord a => EnvT a -> TermT a -> Term
+--   variables with identifiers.  Distinguishes duplicate names while keeping top
+--   level names alone.  It's called 'pullTerm' but it really works with any
+--   'Foldable'.
+pullTerm :: (Ord a, Functor f, Foldable f) => EnvT a -> f a -> f Id
 pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
   where
     format 0 n = n
