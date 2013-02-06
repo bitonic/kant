@@ -17,7 +17,6 @@ import           Text.PrettyPrint.Leijen
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
-import           Kant.Environment
 import           Kant.TyCheck
 
 
@@ -131,13 +130,6 @@ instance Pretty Decl where
 
 instance Pretty Module where
     pretty = prettyList . unModule
-
-instance a ~ Id => Pretty (ItemT a) where
-    pretty (Constr _ _)   = undefined
-    pretty (TyConstr _ _) = undefined
-    pretty (DeclVal ty t) = group (nest ("Value" <$> pretty t) <$>
-                                   nest ("of type" <$> pretty ty))
-    pretty (Abstract ty)  = group (nest ("Abstract value of type" <$> pretty ty))
 
 instance Pretty TyCheckError where
     pretty TyCheckError = "fixme"

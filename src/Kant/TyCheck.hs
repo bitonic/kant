@@ -5,7 +5,6 @@ module Kant.TyCheck
     , TyCheckM
     , TyCheck(..)
     , tyCheck'
-    , basicEnv
     ) where
 
 import           Control.Applicative ((<$>), (<$))
@@ -17,7 +16,7 @@ import           Bound
 import           Bound.Name
 
 import qualified Kant.Environment as Env
-import           Kant.Environment hiding (lookupTy, addAbst, addVal, addData)
+import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
 import           Kant.Syntax
 
@@ -71,7 +70,7 @@ instance TyCheck Module where
 instance TyCheck Decl where
     tyCheck env (ValDecl val)   = tyCheck env val
     tyCheck env (Postulate n t) =
-        case Env.lookupTy env n of
+        case Env.envTy env n of
             Just _ -> throwError (DuplicateName n)
             _      -> addAbst env n t
     tyCheck env (DataDecl dat)  = tyCheck env dat
@@ -102,11 +101,11 @@ addVal env vd@(Val n _ _) = dupMaybe n (Env.addVal env vd)
 addData :: Env -> Data -> TyCheckM Env
 addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 
-lookupTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
-lookupTy env v = maybe (outOfBounds env v) return (Env.lookupTy env v)
+envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
+envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
 tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
-tyCheck' env (Var v) = lookupTy env v
+tyCheck' env (Var v) = envTy env v
 tyCheck' _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
 -- some kind of level polymorphism so that the arrow operator can be postulated
@@ -139,5 +138,3 @@ tyCheckEq env ty t =
     do ty' <- tyCheck' env t
        unless (defeq env ty ty') (mismatch env ty t ty')
 
-basicEnv :: Env
-basicEnv = newEnv (const Nothing)

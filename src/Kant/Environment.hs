@@ -20,8 +20,8 @@ module Kant.Environment
     , Env
       -- * Utilities
     , nestEnv
-    , lookupTy
-    , lookupDef
+    , envTy
+    , envDef
     , newEnv
     , pullTerm
     , addAbst
@@ -30,6 +30,7 @@ module Kant.Environment
     ) where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad (join)
 import           Data.Foldable (Foldable)
 import           Data.Foldable (foldr)
 import           Data.Maybe (fromMaybe)
@@ -46,8 +47,8 @@ import           Kant.Syntax
 
 -- | The inhabitants of our environment
 data ItemT a
-    = Constr Constr Term        -- ^ Constructor with its type.
-    | TyConstr Term [Constr]    -- ^ Type constructor and associated data
+    = Constr [Param]            -- ^ Data constructor
+    | TyConstr [Param] [Constr] -- ^ Type constructor and associated data
                                 --   constructors.
     | DeclVal Term Term         -- ^ Declared value, type and value - the value
                                 --   will be the 'Var' itself for postulated
@@ -56,24 +57,29 @@ data ItemT a
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 type Item = ItemT Id
 
--- | Given a bound name, returns the matching 'ItemT', if present.
-type CtxT a = (a -> Maybe (ItemT a))
+type CtxItemT a = (TermT a, Maybe (TermT a))
+type CtxItem = CtxItemT Id
+
+type CtxT a = (a -> Maybe (CtxItemT a))
 type Ctx = CtxT Id
+
+type CtxData = Map Id Data
 
 -- | Nests an 'Id' the required amount of times to turn it into a top level
 --   variable.
 type NestT a = Id -> a
 type Nest = NestT Id
 
--- | Extracts the name out of the bound variable, and the how nested it is.
+-- | Extracts the name out of the bound variable.
 type PullT a = a -> Id
 type Pull = PullT Id
 
 -- | Bringing it all together
 data EnvT a = Env
-    { envCtx   :: CtxT a
-    , envNest  :: NestT a
-    , envPull  :: PullT a
+    { envCtx  :: CtxT a
+    , envData :: CtxData
+    , envNest :: NestT a
+    , envPull :: PullT a
     }
 type Env = EnvT Id
 
@@ -82,42 +88,31 @@ type Env = EnvT Id
 nestEnv :: EnvT a
         -> (b -> Maybe (TermT a))
         -> EnvT (Var (Name Id b) a)
-nestEnv Env{envCtx = ctx, envNest = nest, envPull = pull} f =
-    Env { envCtx  = \v -> case v of
-                              B (Name _ n) -> fmap (Abstract . fmap F) (f n)
-                              F v'         -> (F <$>) <$> ctx v'
-        , envNest = F . nest
-        , envPull = \v -> case v of
-                              B b  -> name b
-                              F v' -> pull v'
-        }
+nestEnv env@Env{envCtx = ctx, envNest = nest, envPull = pull} f =
+    env{ envCtx =
+         \v -> case v of
+                  B (Name _ n) -> (\t      -> (F <$> t, Nothing))       <$> f n
+                  F v'         -> (\(t, m) -> (F <$> t, (F <$>) <$> m)) <$> ctx v'
+       , envNest = F . nest
+       , envPull = \v -> case v of
+                             B b  -> name b
+                             F v' -> pull v'
+       }
 
 -- | Looks up the type of a variable.
-lookupTy :: EnvT a -> a -> Maybe (TermT a)
-lookupTy Env{envCtx = ctx, envNest = nest} v =
-    case ctx v of
-        Nothing              -> Nothing
-        Just (Constr _ ty)   -> nest' ty
-        Just (TyConstr ty _) -> nest' ty
-        Just (DeclVal ty _)  -> nest' ty
-        Just (Abstract ty)   -> Just ty
-  where nest' ty = Just (nest <$> ty)
+envTy :: EnvT a -> a -> Maybe (TermT a)
+envTy Env{envCtx = ctx} v = fst <$> ctx v
 
 -- | Looks up the body of a definition.
-lookupDef :: a -> EnvT a -> Maybe (TermT a)
-lookupDef v Env{envCtx = ctx, envNest = nest} =
-    case ctx v of
-        Nothing            -> Nothing
-        Just (DeclVal _ t) -> Just (nest <$> t)
-        _                  -> Nothing
+envDef :: EnvT a -> a -> Maybe (TermT a)
+envDef Env{envCtx = ctx} v = join (snd <$> ctx v)
 
--- | Creates a new environment given a lookup function for top level
---   declarations.
-newEnv :: (Id -> Maybe Item) -> Env
-newEnv ctx = Env{ envCtx   = ctx
-                , envNest  = id
-                , envPull  = id
-                }
+newEnv :: Env
+newEnv = Env{ envCtx  = const Nothing
+            , envData = Map.empty
+            , envNest = id
+            , envPull = id
+            }
 
 -- | Checks if a variable refers to a top level thing
 isTop :: Eq a => EnvT a -> a -> Bool
@@ -150,7 +145,7 @@ pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
     (_, mn') = foldr collect2
                      (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
 
-addCtx :: Eq a => EnvT a -> a -> ItemT a -> Maybe (EnvT a)
+addCtx :: Eq a => EnvT a -> a -> CtxItemT a -> Maybe (EnvT a)
 addCtx env@Env{envCtx = ctx} v₁ it =
     case ctx v₁ of
         Nothing -> Just (env{envCtx = \v₂ -> if v₁ == v₂ then Just it else ctx v₂})
@@ -159,19 +154,22 @@ addCtx env@Env{envCtx = ctx} v₁ it =
 -- | Adds an abstracted variable to an environment, 'Nothing' if the name is
 --   already present.
 addAbst :: Eq a => EnvT a -> a -> TermT a -> Maybe (EnvT a)
-addAbst env v₁ t = addCtx env v₁ (Abstract t)
+addAbst env v₁ t = addCtx env v₁ (t, Nothing)
 
 -- | Adds a value definition to an environment, 'Nothing' if the name is already
 --   present.
 addVal :: Env -> Val -> Maybe Env
-addVal env (Val n ty t) = addCtx env n (DeclVal ty t)
+addVal env (Val n ty t) = addCtx env n (ty, Just t)
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
 addData :: Env -> Data -> Either Id Env
-addData env dat =
-    let (tyc, cons) = dataDecl dat
-    in foldr (\(c, ty) enve ->
-               do env' <- enve;
-                  maybe (Left c) Right (addCtx env' c (Abstract ty)))
-             (Right env) (tyc : cons)
+addData env@Env{envData = dat} dd@(Data c₁ _ _ _) =
+    do env' <- if Map.member c₁ dat
+               then Left c₁
+               else Right (env{envData = Map.insert c₁ dd dat})
+       let (tyc, cons) = dataDecl dd
+       foldr (\(c₂, ty) enve ->
+               do env'' <- enve;
+                  maybe (Left c₂) Right (addCtx env'' c₂ (ty, Nothing)))
+             (Right env') (tyc : cons)

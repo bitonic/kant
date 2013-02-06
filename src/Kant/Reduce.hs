@@ -8,7 +8,6 @@ module Kant.Reduce
     , defeq
     ) where
 
-import           Data.Maybe (fromMaybe)
 import           Data.Function (on)
 
 import           Bound
@@ -28,7 +27,7 @@ type Reducer = forall a. Eq a => EnvT a -> TermT a -> TermT a
 --   * When it encounters an out of bounds definition it simply leaves the
 --     variable there.
 reduce :: Reducer -> Reducer
-reduce _ env t@(Var v) = fromMaybe t (lookupDef v env)
+reduce r env t@(Var v) = maybe t (r env) (envDef env v)
 reduce _ _ (Type l) = Type l
 reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
