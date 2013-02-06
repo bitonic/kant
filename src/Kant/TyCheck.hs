@@ -30,6 +30,23 @@ data TyCheckError
     | ExpectingType Term Term
     deriving (Eq, Show)
 
+-- `envPull env v' will be consistent with whatever `pullTerm' returns since
+-- outer bounds variables are the top level ones, and so the name will be
+-- preserved.
+outOfBounds :: EnvT a -> a -> TyCheckM b
+outOfBounds env n = throwError (OutOfBounds (envPull env n))
+
+mismatch :: Ord a => EnvT a -> TermT a -> TermT a -> TermT a -> TyCheckM b
+mismatch env ty₁ t ty₂ =
+    throwError (Mismatch (pullTerm env ty₁) (pullTerm env t) (pullTerm env ty₂))
+
+expectingFunction, expectingType ::
+     Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM b
+expectingFunction env t ty =
+    throwError (ExpectingFunction (pullTerm env t) (pullTerm env ty))
+expectingType env t ty =
+    throwError (ExpectingType (pullTerm env t) (pullTerm env ty))
+
 instance Error TyCheckError where
     noMsg = TyCheckError
 
@@ -86,14 +103,9 @@ addData :: Env -> Data -> TyCheckM Env
 addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 
 lookupTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
-lookupTy env v = case Env.lookupTy env v of
-                     Nothing -> throwError (OutOfBounds (Env.envPull env v))
-                     Just ty -> return ty
+lookupTy env v = maybe (outOfBounds env v) return (Env.lookupTy env v)
 
 tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
--- `envPull env v' will be consistent with whatever `pullTerm' returns since
--- outer bounds variables are the top level ones, and so the name will be
--- preserved.
 tyCheck' env (Var v) = lookupTy env v
 tyCheck' _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -107,30 +119,25 @@ tyCheck' env (arrV (envNest env) -> IsArr ty s) =
                   tys <- tyCheck' env' (fromScope s)
                   case nf env' tys of
                       Type l₂ -> return (Type (max l₁ l₂))
-                      _       -> expty env' (fromScope s) tys
-           _ -> expty env ty ty'
-  where
-    expty e t ty' = throwError (ExpectingType (pullTerm e t) (pullTerm e ty'))
+                      _       -> expectingType env' (fromScope s) tys
+           _ -> expectingType env ty ty'
 tyCheck' env (App t₁ t₂) =
     do ty₁ <- tyCheck' env t₁
        case arrV (envNest env) (nf env ty₁) of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
-           NoArr       -> throwError $
-                          ExpectingFunction (pullTerm env t₁) (pullTerm env ty₁)
+           NoArr _     -> expectingFunction env t₁ ty₁
 tyCheck' env (Lam ty s) =
     do let ar = envNest env <$> arrow
        tyCheck' env ty
        tys <- toScope <$> nestTyCheckM env s ty tyCheck'
        return (App (App ar ty) (Lam ty tys))
-tyCheck' _ (Case _ _) = undefined
+tyCheck' env ct@(Case t ty brs) = undefined
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()
 tyCheckEq env ty t =
     do ty' <- tyCheck' env t
-       unless (defeq env ty ty')
-              (throwError (Mismatch (pullTerm env ty) (pullTerm env t)
-                                    (pullTerm env ty')))
+       unless (defeq env ty ty') (mismatch env ty t ty')
 
 basicEnv :: Env
 basicEnv = newEnv (const Nothing)
