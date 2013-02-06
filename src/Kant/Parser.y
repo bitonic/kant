@@ -90,7 +90,7 @@ DataCon : name Params                        { ($1, $2) }
 Term :: { Term }
 Term
     : '\\' Seq(Param) '=>' Term              { lams (concat $2) $4 }
-    | 'case' Term 'return' Term '{' Bar(Branch) '}'
+    | 'case' name 'return' Term '{' Bar(Branch) '}'
       {% checkCase $2 $4 $6 }
     | Arr                                    { $1 }
 
@@ -116,11 +116,11 @@ App : Seq(SingleTerm)                        { foldl1 App $1 }
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
-checkCase :: Term -> Term -> [(ConId, [Id], Term)] -> Alex Term
-checkCase t₁ ty brs =
-    case case_ t₁ ty brs of
-        Left n   -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
-        Right t₂ -> return t₂
+checkCase :: Id -> Term -> [(ConId, [Id], Term)] -> Alex Term
+checkCase n ty brs =
+    case case_ n ty brs of
+        Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
+        Right t -> return t
 
 parseErr :: String -> Alex a
 parseErr err =

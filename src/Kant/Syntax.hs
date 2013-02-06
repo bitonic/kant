@@ -156,17 +156,17 @@ lams = params lam
 
 -- | Pattern matching.  Returns a formed term ('Right') or the name of a
 --   duplicated variable ('Left'), if there is one.
-case_ :: Term
+case_ :: Id
       -> Term
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
       -> Either Id Term
-case_ t ty brs =
-    Case t ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
-              | (c, vs, t') <- brs ]
-    <$ mapM (foldr (\n se -> se >>= \s ->
-                     if Set.member n s then Left n
-                     else Right (Set.insert n s))
+case_ n₁ ty brs =
+    Case (Var n₁) ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
+                     | (c, vs, t') <- brs ]
+    <$ mapM (foldr (\n₂ se -> se >>= \s ->
+                     if Set.member n₂ s then Left n₂
+                     else Right (Set.insert n₂ s))
                    (Right Set.empty))
             [ ns | (_, ns, _) <- brs ]
 
