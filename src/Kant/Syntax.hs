@@ -228,7 +228,7 @@ unrollApp t           = (t, [])
 data ArrV a
     = IsArr (TermT a)      -- To the left of the arrow
             (TScope a)     -- The scope to the right
-    | NoArr
+    | NoArr (TermT a)
 
 scopeVars :: (Monad f, Foldable f, Ord n) => Scope (Name n b) f a -> [n]
 scopeVars s = Set.toList (Set.fromList (map name (bindings s)))
@@ -239,7 +239,7 @@ scopeVar = listToMaybe . scopeVars
 -- This should have knowledge of 'PullT', maybe I should move it to Environment.
 arrV :: Eq a => (Id -> a) -> TermT a -> ArrV a
 arrV f (App (App t₁ t₂) (Lam t₃ s)) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
-arrV _ _ = NoArr
+arrV _ t = NoArr t
 
 -- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
 --   the element at index 'n' in the provided list.
