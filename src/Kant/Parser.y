@@ -42,6 +42,7 @@ import           Kant.Syntax
     'data'              { DATA }
     'case'              { CASE }
     'postulate'         { POSTULATE }
+    'return'            { RETURN }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -89,7 +90,8 @@ DataCon : name Params                        { ($1, $2) }
 Term :: { Term }
 Term
     : '\\' Seq(Param) '=>' Term              { lams (concat $2) $4 }
-    | 'case' Term '{' Bar(Branch) '}'        {% checkCase $2 $4 }
+    | 'case' Term 'return' Term '{' Bar(Branch) '}'
+      {% checkCase $2 $4 $6 }
     | Arr                                    { $1 }
 
 Branch :: { (ConId, [Id], Term) }
@@ -114,9 +116,9 @@ App : Seq(SingleTerm)                        { foldl1 App $1 }
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
-checkCase :: Term -> [(ConId, [Id], Term)] -> Alex Term
-checkCase t₁ brs =
-    case case_ t₁ brs of
+checkCase :: Term -> Term -> [(ConId, [Id], Term)] -> Alex Term
+checkCase t₁ ty brs =
+    case case_ t₁ ty brs of
         Left n   -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
         Right t₂ -> return t₂
 

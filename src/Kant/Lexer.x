@@ -36,6 +36,7 @@ tokens :-
     "data"                                { simpleTok DATA }
     "case"                                { simpleTok CASE }
     "postulate"                           { simpleTok POSTULATE }
+    "return"                              { simpleTok RETURN }
     "Type" $digit*                        { typeTok }
     $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
 
@@ -60,6 +61,7 @@ data Token
     | NAME Id
     | TYPE Int
     | EOF
+    | RETURN
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r

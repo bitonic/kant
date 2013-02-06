@@ -60,8 +60,9 @@ instance a ~ Id => Pretty (TermT a) where
                  _ | ty₁ == ty₂     -> go (ty₁, n : ns) t
                  _ | otherwise      -> flush <> go (ty₂, [n]) t
         go (ty, ns) t = prettyPars' (zip ns (repeat ty)) <> "=>" <$> align (pretty t)
-    pretty (Case t₁ brs) =
-        group (nest ("case" <+> pretty t₁ <$> (align (prettyBarred pbranch brs))))
+    pretty (Case t₁ ty brs) =
+        group (nest ("case" <+> pretty t₁ <+> "return" <+> pretty ty <$>
+                     (align (prettyBarred pbranch brs))))
       where
         pbranch (c, i, s) = let (ns, t₂) = freshScopeI s i
                             in group (align (pretty c <> spaceIfCons ns <>

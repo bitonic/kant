@@ -119,12 +119,12 @@ data TermT a
     | Type Level
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
-    | Case (TermT a) [BranchT a]
+    | Case (TermT a) (TermT a) [BranchT a]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
 
-type BranchT a = (Id, Int, TScopeT a Int)
+type BranchT a = (ConId, Int, TScopeT a Int)
 type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
@@ -136,11 +136,12 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v      >>= f = f v
-    Type l     >>= _ = Type l
-    App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Lam t s    >>= f = Lam (t >>= f) (s >>>= f)
-    Case t brs >>= f = Case (t >>= f) (map (\(c, i, s) -> (c, i, s >>>= f)) brs)
+    Var v         >>= f = f v
+    Type l        >>= _ = Type l
+    App t₁ t₂     >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Lam t s       >>= f = Lam (t >>= f) (s >>>= f)
+    Case t ty brs >>= f = Case (t >>= f) (ty >>= f)
+                               [(c, i, s >>>= f) | (c, i, s) <- brs]
 
 -- | Good 'ol lambda abstraction.
 lam :: Id -> Term -> Term -> Term
@@ -156,12 +157,13 @@ lams = params lam
 -- | Pattern matching.  Returns a formed term ('Right') or the name of a
 --   duplicated variable ('Left'), if there is one.
 case_ :: Term
+      -> Term
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
       -> Either Id Term
-case_ t brs =
-    Case t [ (c, length vs, (abstractName (`elemIndex` vs) t'))
-           | (c, vs, t') <- brs ]
+case_ t ty brs =
+    Case t ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
+              | (c, vs, t') <- brs ]
     <$ mapM (foldr (\n se -> se >>= \s ->
                      if Set.member n s then Left n
                      else Right (Set.insert n s))

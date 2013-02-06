@@ -34,7 +34,7 @@ reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
         Lam _ s -> reduce r env (instantiate1 t₂ s)
         t₁'     -> App (r env t₁') (r env t₂)
-reduce r env (Case t brs) =
+reduce r env (Case t ty brs) =
     case unrollApp t' of
         (Var v, ts) ->
             case [ s | (n, i, s) <- brs, v == envNest env n, length ts == i ] of
@@ -43,7 +43,7 @@ reduce r env (Case t brs) =
         _ -> stuck
   where
     t'    = reduce r env t
-    stuck = Case t' [ (n, i, reduceScope r env s) | (n, i, s) <- brs ]
+    stuck = Case t' (r env ty) [(n, i, reduceScope r env s) | (n, i, s) <- brs]
 reduce r env (Lam t s) =
     Lam (reduce r env t) (reduceScope r env s)
 
