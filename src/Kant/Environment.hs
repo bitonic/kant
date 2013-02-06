@@ -5,9 +5,7 @@
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
-    ( ItemT(..)
-    , Item
-    , CtxT
+    ( CtxT
     , Ctx
     , NestT
     , Nest
@@ -34,7 +32,6 @@ import           Control.Monad (join)
 import           Data.Foldable (Foldable)
 import           Data.Foldable (foldr)
 import           Data.Maybe (fromMaybe)
-import           Data.Traversable (Traversable)
 import           Prelude hiding (foldr)
 
 import           Data.Map (Map)
@@ -45,22 +42,9 @@ import           Bound.Name
 
 import           Kant.Syntax
 
--- | The inhabitants of our environment
-data ItemT a
-    = Constr [Param]            -- ^ Data constructor
-    | TyConstr [Param] [Constr] -- ^ Type constructor and associated data
-                                --   constructors.
-    | DeclVal Term Term         -- ^ Declared value, type and value - the value
-                                --   will be the 'Var' itself for postulated
-                                --   variables.
-    | Abstract (TermT a)        -- ^ Abstracted variable, with its type.
-    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
-type Item = ItemT Id
+type ItemT a = (TermT a, Maybe (TermT a))
 
-type CtxItemT a = (TermT a, Maybe (TermT a))
-type CtxItem = CtxItemT Id
-
-type CtxT a = (a -> Maybe (CtxItemT a))
+type CtxT a = (a -> Maybe (ItemT a))
 type Ctx = CtxT Id
 
 type CtxData = Map Id Data
@@ -145,7 +129,7 @@ pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
     (_, mn') = foldr collect2
                      (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
 
-addCtx :: Eq a => EnvT a -> a -> CtxItemT a -> Maybe (EnvT a)
+addCtx :: Eq a => EnvT a -> a -> ItemT a -> Maybe (EnvT a)
 addCtx env@Env{envCtx = ctx} v₁ it =
     case ctx v₁ of
         Nothing -> Just (env{envCtx = \v₂ -> if v₁ == v₂ then Just it else ctx v₂})
