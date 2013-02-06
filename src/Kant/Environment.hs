@@ -80,12 +80,12 @@ type Env = EnvT Id
 -- | To be used when we enter a 'Scope', it adjust the environment functions to
 --   work with the new level of boundness.
 nestEnv :: EnvT a
-        -> Maybe (TermT a)
+        -> (b -> Maybe (TermT a))
         -> EnvT (Var (Name Id b) a)
-nestEnv Env{envCtx = ctx, envNest = nest, envPull = pull} ty =
+nestEnv Env{envCtx = ctx, envNest = nest, envPull = pull} f =
     Env { envCtx  = \v -> case v of
-                              B _  -> fmap (Abstract . (F <$>)) ty
-                              F v' -> (F <$>) <$> ctx v'
+                              B (Name _ n) -> fmap (Abstract . fmap F) (f n)
+                              F v'         -> (F <$>) <$> ctx v'
         , envNest = F . nest
         , envPull = \v -> case v of
                               B b  -> name b

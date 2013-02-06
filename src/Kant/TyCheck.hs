@@ -54,10 +54,10 @@ type TyCheckM = Either TyCheckError
 
 nestTyCheckM :: EnvT a
              -> TScopeT a b
-             -> TermT a
+             -> (b -> TermT a)
              -> (EnvT (Var (Name Id b) a) -> TermT (Var (Name Id b) a) -> TyCheckM c)
              -> TyCheckM c
-nestTyCheckM env s ty f = f (nestEnv env (Just ty)) (fromScope s)
+nestTyCheckM env s ty f = f (nestEnv env (Just . ty)) (fromScope s)
 
 class TyCheck a where
     tyCheck :: Env -> a -> TyCheckM Env
@@ -115,7 +115,7 @@ tyCheck' env (arrV (envNest env) -> IsArr ty s) =
     do ty' <- tyCheck' env ty
        case nf env ty' of
            Type l₁ ->
-               do let env' = nestEnv env (Just ty)
+               do let env' = nestEnv env (const (Just ty))
                   tys <- tyCheck' env' (fromScope s)
                   case nf env' tys of
                       Type l₂ -> return (Type (max l₁ l₂))
@@ -129,7 +129,7 @@ tyCheck' env (App t₁ t₂) =
 tyCheck' env (Lam ty s) =
     do let ar = envNest env <$> arrow
        tyCheck' env ty
-       tys <- toScope <$> nestTyCheckM env s ty tyCheck'
+       tys <- toScope <$> nestTyCheckM env s (const ty) tyCheck'
        return (App (App ar ty) (Lam ty tys))
 tyCheck' env ct@(Case t ty brs) = undefined
 
