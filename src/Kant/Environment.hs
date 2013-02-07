@@ -86,6 +86,8 @@ nestEnv env@Env{envCtx = ctx, envNest = nest, envPull = pull} f =
                              F v' -> pull v'
        }
 
+-- | Like 'nestEnv' but accepts a function that returns terms of the outer
+-- scope, and automatically nests them.
 nestEnv' :: EnvT a
          -> (b -> Maybe (TermT a))
          -> EnvT (Var (Name Id b) a)
