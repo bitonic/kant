@@ -1,5 +1,4 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Kant.TyCheck
     ( TyCheckError(..)
@@ -122,7 +121,7 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheck' :: forall a. Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
 tyCheck' env (Var v) = envTy env v
 tyCheck' _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -179,7 +178,6 @@ tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
                                            (app (map Var (envNest env' c : pars₂')))
                    tyCheckEq env'' (F <$> ty₁) (fromScope s)
             Just _ -> wrongArity env br
-    prepareVars :: [Param] -> [TermT a] -> [Param] -> EnvT (Var (Name Id Int) a)
     prepareVars pars₁ args pars₂ =
          let -- First, bring all the types of the parameters of the data
              -- constructor to the right level of boundness

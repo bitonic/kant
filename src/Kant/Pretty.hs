@@ -61,11 +61,7 @@ instance a ~ Id => Pretty (TermT a) where
         go (ty, ns) t = prettyPars' (zip ns (repeat ty)) <> "=>" <$> align (pretty t)
     pretty (Case t₁ ty brs) =
         group (nest ("case" <+> pretty t₁ <+> "return" <+> pretty ty <$>
-                     (align (prettyBarred pbranch brs))))
-      where
-        pbranch (c, i, s) = let (ns, t₂) = freshScopeI s i
-                            in group (align (pretty c <> spaceIfCons ns <>
-                                             hsep' ns <+> "=>" <$> pretty t₂))
+                     (align (prettyBarred prettyBranch brs))))
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
@@ -104,6 +100,11 @@ prettyPars' pars = prettyPars pars <> spaceIfCons pars
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
+
+prettyBranch :: Branch -> Doc
+prettyBranch (c, i, s) =
+    group (align (pretty c <> spaceIfCons ns <> hsep' ns <+> "=>" <$> pretty t₂))
+  where (ns, t₂) = freshScopeI s i
 
 typed :: Id -> Term -> Doc
 typed n ty = pretty n <+> ":" <+> pretty ty
@@ -145,3 +146,15 @@ instance Pretty TyCheckError where
     pretty (ExpectingType t ty) =
         group (nest ("Expecting a Type for term" <$> pretty t) <$>
                nest ("instead of" <$> pretty ty))
+    pretty (ExpectingCanonical t ty) =
+        group (nest ("Expecting canonical (non-arrow) type for term" <$>
+                     pretty t) <$>
+               nest ("instead of" <$> pretty ty))
+    pretty (WrongBranchNumber t) =
+        group (nest ("Too few or too many branches in term" <$> pretty t))
+    pretty (NotConstructor br) =
+        group (nest ("Pattern matching on a non-constructor in branch" <$>
+                     prettyBranch br))
+    pretty (WrongArity br) =
+        group (nest ("Branch gives wrong number of arguments to constructor" <$>
+                     prettyBranch br))
