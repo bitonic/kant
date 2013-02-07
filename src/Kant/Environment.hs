@@ -11,10 +11,7 @@ module Kant.Environment
     , Nest
     , PullT
     , Pull
-    , EnvT
-    , envNest
-    , envPull
-    , envCtx
+    , EnvT(..)
     , Env
       -- * Utilities
     , nestEnv
@@ -88,9 +85,7 @@ nestEnv env@Env{envCtx = ctx, envNest = nest, envPull = pull} f =
 
 -- | Like 'nestEnv' but accepts a function that returns terms of the outer
 -- scope, and automatically nests them.
-nestEnv' :: EnvT a
-         -> (b -> Maybe (TermT a))
-         -> EnvT (Var (Name Id b) a)
+nestEnv' :: EnvT a -> (b -> Maybe (TermT a)) -> EnvT (Var (Name Id b) a)
 nestEnv' env f = nestEnv env (\n -> (F <$>) <$> f n)
 
 -- | Looks up the type of a variable.

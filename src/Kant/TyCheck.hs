@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Kant.TyCheck
     ( TyCheckError(..)
@@ -121,7 +122,7 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheck' :: forall a. Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
 tyCheck' env (Var v) = envTy env v
 tyCheck' _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -147,7 +148,7 @@ tyCheck' env (Lam ty s) =
        tyCheck' env ty
        tys <- toScope <$> nestTyCheckM env s (const ty) tyCheck'
        return (App (App ar ty) (Lam ty tys))
-tyCheck' env ct@(Case t@(Var v) ty₁ brs) =
+tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
     do ty₂ <- tyCheck' env t
        -- Check if the scrutined's type is canonical, which amounts to checking
        -- that it is an application, we can find a matching type constructor,
@@ -158,10 +159,10 @@ tyCheck' env ct@(Case t@(Var v) ty₁ brs) =
                    -- Check that the number of branches is just right
                    if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
                    then wrongBranchNumber env ct
-                   else ty₁ <$ forM_ brs (checkBr cons ty₂)
+                   else ty₁ <$ forM_ brs (checkBr pars₁ args cons ty₂)
            _ -> expectingCanonical env t ty₂
   where
-    checkBr cons ty₂ br@(c, i, s) =
+    checkBr pars₁ args cons ty₂ br@(c, i, s) =
         -- Check that each constructor is indeed a constructor for our datatype
         case lookup c cons of
             Nothing -> notConstructor env br
@@ -170,7 +171,7 @@ tyCheck' env ct@(Case t@(Var v) ty₁ brs) =
             Just pars₂ | length pars₂ == i ->
                 do let -- Get the new environment with the types for the newly
                        -- bound variables
-                       env'   = prepareVars pars₂
+                       env'   = prepareVars pars₁ args pars₂
                        -- Change the type of the scrutined to an application of
                        -- the constructor to the variables.
                        pars₂' = map B (zipWith Name (map fst pars₂) [0..])
@@ -178,8 +179,27 @@ tyCheck' env ct@(Case t@(Var v) ty₁ brs) =
                                            (app (map Var (envNest env' c : pars₂')))
                    tyCheckEq env'' (F <$> ty₁) (fromScope s)
             Just _ -> wrongArity env br
---    prepareVars :: [Param] -> EnvT (Var (Name Id Int) a)
-    prepareVars = undefined
+    prepareVars :: [Param] -> [TermT a] -> [Param] -> EnvT (Var (Name Id Int) a)
+    prepareVars pars₁ args pars₂ =
+         let -- First, bring all the types of the parameters of the data
+             -- constructor to the right level of boundness
+             nested₁ = [(n, (F . nest) <$> t') | (n, t') <- pars₂]
+             -- Then the tricky part: for each parameter of the data
+             -- constructor, replace the variables that represent previous
+             -- arguments with the variables that will represent them in the
+             -- current scope.
+             nested₂ = [ foldr (\(n, j) t' -> substitute (F (nest n))
+                                                         (Var (B (Name n j))) t')
+                               (snd (nested₁ !! i))
+                               (zip (map fst nested₁) [0..(i-1)])
+                       | i <- [0..length nested₁]
+                       ]
+             -- Finally, we replace the arguments of the type constructor with
+             -- the actual terms.
+             nested₃ = [ substitute (F (nest n)) (F <$> arg) t'
+                       | t' <- nested₂, ((n, _), arg) <- zip pars₁ args
+                       ]
+         in nestEnv env (\i -> Just (nested₃ !! i))
 
 tyCheck' _ (Case _ _ _) =
     error "tyCheck' got a case with a non-variable, this should not happen"
