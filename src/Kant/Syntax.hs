@@ -168,7 +168,7 @@ case_ n₁ ty brs =
                      if Set.member n₂ s then Left n₂
                      else Right (Set.insert n₂ s))
                    (Right Set.empty))
-            [ ns | (_, ns, _) <- brs ]
+            [ns | (_, ns, _) <- brs]
 
 -- | A binding/pattern match that we are not going to use.
 discarded :: Id
@@ -196,7 +196,7 @@ arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 --   to @b@ applied to @c@.  Fails with empty lists.
-app :: [Term] -> Term
+app :: [TermT a] -> TermT a
 app = foldl1 App
 
 valDecl :: Id                   -- ^ Value name

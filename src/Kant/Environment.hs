@@ -20,11 +20,13 @@ module Kant.Environment
     , nestEnv
     , envTy
     , envDef
+    , envData'
     , newEnv
     , pullTerm
     , addAbst
     , addVal
     , addData
+    , caseRefine
     ) where
 
 import           Control.Applicative ((<$>))
@@ -90,6 +92,10 @@ envTy Env{envCtx = ctx} v = fst <$> ctx v
 -- | Looks up the body of a definition.
 envDef :: EnvT a -> a -> Maybe (TermT a)
 envDef Env{envCtx = ctx} v = join (snd <$> ctx v)
+
+envData' :: Eq a => EnvT a -> a -> Maybe Data
+envData' env@Env{envData = dat, envPull = pull} v =
+    if isTop env v then Map.lookup (pull v) dat else Nothing
 
 newEnv :: Env
 newEnv = Env{ envCtx  = const Nothing
@@ -157,3 +163,7 @@ addData env@Env{envData = dat} dd@(Data c₁ _ _ _) =
                do env'' <- enve;
                   maybe (Left c₂) Right (addCtx env'' c₂ (ty, Nothing)))
              (Right env') (tyc : cons)
+
+caseRefine :: Eq a => EnvT a -> a -> TermT a -> TermT a -> EnvT a
+caseRefine env@Env{envCtx = ctx} v₁ ty t =
+    env{envCtx = \v₂ -> if v₁ == v₂ then Just (ty, Just t) else ctx v₂}

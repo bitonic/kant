@@ -8,9 +8,10 @@ module Kant.TyCheck
     ) where
 
 import           Control.Applicative ((<$>), (<$))
-import           Control.Monad (unless)
+import           Control.Monad (unless, forM_)
 
 import           Control.Monad.Error (Error(..), MonadError(..))
+import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -27,6 +28,11 @@ data TyCheckError
     | Mismatch Term Term Term
     | ExpectingFunction Term Term
     | ExpectingType Term Term
+    | ExpectingCanonical Term Term
+      -- TODO report if there are too few or too many branches
+    | WrongBranchNumber Term
+    | NotConstructor Branch
+    | WrongArity Branch
     deriving (Eq, Show)
 
 -- `envPull env v' will be consistent with whatever `pullTerm' returns since
@@ -39,12 +45,23 @@ mismatch :: Ord a => EnvT a -> TermT a -> TermT a -> TermT a -> TyCheckM b
 mismatch env ty₁ t ty₂ =
     throwError (Mismatch (pullTerm env ty₁) (pullTerm env t) (pullTerm env ty₂))
 
-expectingFunction, expectingType ::
+expectingFunction, expectingType, expectingCanonical ::
      Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM b
 expectingFunction env t ty =
     throwError (ExpectingFunction (pullTerm env t) (pullTerm env ty))
 expectingType env t ty =
     throwError (ExpectingType (pullTerm env t) (pullTerm env ty))
+expectingCanonical env t ty =
+    throwError (ExpectingType (pullTerm env t) (pullTerm env ty))
+
+wrongBranchNumber :: Ord a => EnvT a -> TermT a -> TyCheckM b
+wrongBranchNumber env t = throwError (WrongBranchNumber (pullTerm env t))
+
+notConstructor :: Ord a => EnvT a -> BranchT a -> TyCheckM b
+notConstructor env (c, i, s) = throwError (NotConstructor (c, i, pullTerm env s))
+
+wrongArity :: Ord a => EnvT a -> BranchT a -> TyCheckM b
+wrongArity env (c, i, s) = throwError (WrongArity (c, i, pullTerm env s))
 
 instance Error TyCheckError where
     noMsg = TyCheckError
@@ -130,7 +147,43 @@ tyCheck' env (Lam ty s) =
        tyCheck' env ty
        tys <- toScope <$> nestTyCheckM env s (const ty) tyCheck'
        return (App (App ar ty) (Lam ty tys))
-tyCheck' env ct@(Case t ty brs) = undefined
+tyCheck' env ct@(Case t@(Var v) ty₁ brs) =
+    do ty₂ <- tyCheck' env t
+       -- Check if the scrutined's type is canonical, which amounts to checking
+       -- that it is an application, we can find a matching type constructor,
+       -- and the arguments are all there.
+       case unrollApp ty₂ of
+           (Var (envData' env -> Just (Data _ pars₁ _ cons)), args)
+               | length pars₁ == length args ->
+                   -- Check that the number of branches is just right
+                   if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
+                   then wrongBranchNumber env ct
+                   else ty₁ <$ forM_ brs (checkBr cons ty₂)
+           _ -> expectingCanonical env t ty₂
+  where
+    checkBr cons ty₂ br@(c, i, s) =
+        -- Check that each constructor is indeed a constructor for our datatype
+        case lookup c cons of
+            Nothing -> notConstructor env br
+            -- Check that the number of arguments given to the constructor are
+            -- all there
+            Just pars₂ | length pars₂ == i ->
+                do let -- Get the new environment with the types for the newly
+                       -- bound variables
+                       env'   = prepareVars pars₂
+                       -- Change the type of the scrutined to an application of
+                       -- the constructor to the variables.
+                       pars₂' = map B (zipWith Name (map fst pars₂) [0..])
+                       env''  = caseRefine env' (F v) (F <$> ty₂)
+                                           (app (map Var (envNest env' c : pars₂')))
+                   tyCheckEq env'' (F <$> ty₁) (fromScope s)
+            Just _ -> wrongArity env br
+--    prepareVars :: [Param] -> EnvT (Var (Name Id Int) a)
+    prepareVars = undefined
+
+tyCheck' _ (Case _ _ _) =
+    error "tyCheck' got a case with a non-variable, this should not happen"
+
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()
