@@ -18,6 +18,7 @@ module Kant.Environment
     , Env
       -- * Utilities
     , nestEnv
+    , nestEnv'
     , envTy
     , envDef
     , envData'
@@ -72,18 +73,23 @@ type Env = EnvT Id
 -- | To be used when we enter a 'Scope', it adjust the environment functions to
 --   work with the new level of boundness.
 nestEnv :: EnvT a
-        -> (b -> Maybe (TermT a))
+        -> (b -> Maybe (TermT (Var (Name Id b) a)))
         -> EnvT (Var (Name Id b) a)
 nestEnv env@Env{envCtx = ctx, envNest = nest, envPull = pull} f =
     env{ envCtx =
          \v -> case v of
-                  B (Name _ n) -> (\t      -> (F <$> t, Nothing))       <$> f n
+                  B (Name _ n) -> (\t      -> (t,       Nothing))       <$> f n
                   F v'         -> (\(t, m) -> (F <$> t, (F <$>) <$> m)) <$> ctx v'
        , envNest = F . nest
        , envPull = \v -> case v of
                              B b  -> name b
                              F v' -> pull v'
        }
+
+nestEnv' :: EnvT a
+         -> (b -> Maybe (TermT a))
+         -> EnvT (Var (Name Id b) a)
+nestEnv' env f = nestEnv env (\n -> (F <$>) <$> f n)
 
 -- | Looks up the type of a variable.
 envTy :: EnvT a -> a -> Maybe (TermT a)
