@@ -161,6 +161,10 @@ tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
                    else ty₁ <$ forM_ brs (checkBr pars₁ args cons ty₂)
            _ -> expectingCanonical env t ty₂
   where
+    -- TODO this is quite messy.  The main culprit is the type-silent invariant
+    -- that all the lists are of the same length, and thus all the unsafe
+    -- indexing.  It would be nice to have it to be safer and more "obviously
+    -- correct".
     checkBr pars₁ args cons ty₂ br@(c, i, s) =
         -- Check that each constructor is indeed a constructor for our datatype
         case lookup c cons of
@@ -190,12 +194,14 @@ tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
                                                          (Var (B (Name n j))) t')
                                (snd (nested₁ !! i))
                                (zip (map fst nested₁) [0..(i-1)])
-                       | i <- [0..length nested₁]
+                       | i <- [0..(length nested₁ - 1)]
                        ]
              -- Finally, we replace the arguments of the type constructor with
              -- the actual terms.
-             nested₃ = [ substitute (F (nest n)) (F <$> arg) t'
-                       | t' <- nested₂, ((n, _), arg) <- zip pars₁ args
+             nested₃ = [ foldr (\((n, _), arg) t'' -> substitute (F (nest n))
+                                                                 (F <$> arg) t'')
+                               t' (zip pars₁ args)
+                       | t' <- nested₂
                        ]
          in nestEnv env (\i -> Just (nested₃ !! i))
 

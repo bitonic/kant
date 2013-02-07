@@ -2,6 +2,8 @@
 data Nat : Type { zero | suc Nat }
 
 one : Nat => (suc zero)
+two : Nat => (suc one)
+three : Nat => (suc two)
 
 plus [x y : Nat] : Nat => (
   case x return Nat
@@ -17,14 +19,35 @@ times [x y : Nat] : Nat => (
     }
 )
 
-data List [A : Type] : Type
-  { nil | cons A (List A) }
+data List [A : Type] : Type { nil | cons A (List A) }
 
-app [xs ys : List A] : List A => (
+app [A : Type] [xs ys : List A] : List A => (
   case xs return List A
     { nil        => ys
-    | cons x xs' => cons x (app xs' ys)
+    | cons x xs' => cons A x (app A xs' ys)
     }
+)
+
+map [A B : Type] [f : A -> B] [xs : List A] : List B => (
+  case xs return List B
+    { nil        => nil B
+    | cons x xs' => cons B (f x) (map A B f xs')
+    }
+)
+
+upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
+
+upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
+
+data Sigma [A : Type] [B : A -> Type] : Type
+  { si [x : A] (B x) }
+
+fst [A : Type] [B : A -> Type] [x : Sigma A B] : A => (
+  case x return A { si y _ => y }
+)
+
+snd [A : Type] [B : A -> Type] [x : Sigma A B] : B (fst A B x) => (
+  case x return B (fst A B x) { si _ y => y }
 )
 
 id [A : Type] [x : A] : A => x
@@ -37,8 +60,8 @@ ite [A : Type] [B : Bool -> Type] [b : Bool] [x : B true] [y : B false] : B b =>
     { true => x | false => y }
 )
 
-ite' [A : Type] [B : Type] [b : Bool] [x y : B] : B => (
-  ite A (const A) b x y
+ite' [A : Type] [B : Type] : Bool -> B -> B -> B => (
+  ite A (\[_ : Bool] => B)
 )
 
 data Empty : Type { }
