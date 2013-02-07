@@ -38,7 +38,6 @@ import           Kant.Syntax
     '->'                { ARROW }
     '=>'                { DARROW }
     '\\'                { LAMBDA }
-    ':='                { ASSIGN }
     'data'              { DATA }
     'case'              { CASE }
     'postulate'         { POSTULATE }
@@ -74,7 +73,7 @@ Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
        { Data $2 $3 $5 $7 }
 
 Val :: { Val }
-Val : name Params ':' Term ':=' SingleTerm   { valDecl $1 $2 $4 $6 }
+Val : name Params ':' Term '=>' SingleTerm   { valDecl $1 $2 $4 $6 }
 
 Params :: { [Param] }
 Params : Seq0(Param)                         { concat $1 }

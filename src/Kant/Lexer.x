@@ -31,7 +31,6 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
-    ":="                                  { simpleTok ASSIGN }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "case"                                { simpleTok CASE }
@@ -57,7 +56,6 @@ data Token
     | DARROW
     | CASE
     | POSTULATE
-    | ASSIGN
     | NAME Id
     | TYPE Int
     | EOF
