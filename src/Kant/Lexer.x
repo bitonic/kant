@@ -7,6 +7,7 @@ module Kant.Lexer
     , lineCol
     , Token(..)
     , runAlex
+    , alexError
     ) where
 
 import Kant.Syntax

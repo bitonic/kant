@@ -125,7 +125,7 @@ checkCase n ty brs =
 parseErr :: String -> Alex a
 parseErr err =
     do (l, c) <- lineCol `liftM` alexGetInput
-       fail ("Parse error at line " ++ show l ++ ", column " ++ show c ++ err)
+       alexError ("Parse error at line " ++ show l ++ ", column " ++ show c ++ err)
 
 -- TODO find a way to find more info, e.g. tokens we were expecting or stuff
 -- like this.
