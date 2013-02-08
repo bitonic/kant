@@ -175,8 +175,8 @@ case_ n₁ ty brs =
 discarded :: Id
 discarded = "_"
 
--- | The constructor for arrow types, of type @(A : Type) -> (A -> Type) ->
---   Type@.
+-- | The constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
+--   Type (n ⊔ m)@.
 arrow :: Term
 arrow = Var "(->)"
 
