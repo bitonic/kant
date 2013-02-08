@@ -1,7 +1,7 @@
 -- TODO write usage
 module Kant.REPL (main) where
 
-import           Control.Applicative ((*>), (<$>), (<*), (<|>))
+import           Control.Applicative ((*>), (<$>), (<|>), (<$))
 import           Control.Arrow (left)
 import           Control.Monad (msum)
 
@@ -27,20 +27,19 @@ data Input
     | IEval String
     | IDecl String
     | IQuit
+    | ISkip
 
 parseInput :: String -> Either Error Input
 parseInput =
     either (Left . CmdParse) Right . Parsec.parse (Parsec.spaces *> go) ""
   where
-    go       =     lex_ ":" *>
-                   msum (map (\(ch, p) -> char ch *> p) commands)
+    go       =     Parsec.string ":" *> msum [char ch *> p | (ch, p) <- commands]
+               <|> ISkip <$ Parsec.eof
                <|> IDecl <$> Parsec.many anyChar
     rest     = Parsec.many anyChar
-    spaces p = p <* Parsec.spaces
-    lex_ s   = spaces (Parsec.string s)
-    commands = [ ('e', IEval    <$> rest)
+    commands = [ ('e', IEval <$> rest)
                , ('t', ITyCheck <$> rest)
-               , ('q', spaces (return IQuit))
+               , ('q', IQuit <$ Parsec.eof)
                ]
 
 replOutput :: Env -> String -> Either Error (Output, Env)
@@ -57,6 +56,7 @@ replOutput env s₁ =
                              env' <- left TyCheck (tyCheck env d)
                              return (ODecl, env')
            IQuit       -> return (OQuit, env)
+           ISkip       -> return (OSkip, env)
   where
     parse = left TermParse . parseTerm
     tyct  = left TyCheck . tyCheckT env
@@ -66,7 +66,7 @@ repl env input =
     case replOutput env input of
         Left err          -> do liftIO (putPretty err); return (Just env)
         Right (out, env') -> do liftIO (putPretty out); quit out env'
-  where quit OQuit _ = return (Nothing)
+  where quit OQuit _ = return Nothing
         quit _     e = return (Just e)
 
 run :: Env -> REPL ()

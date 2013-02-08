@@ -168,6 +168,7 @@ instance Pretty Output where
     pretty (OEval t)     = pretty t
     pretty ODecl         = "OK"
     pretty OQuit         = "Bye!"
+    pretty OSkip         = ""
 
 instance Pretty Error where
     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))

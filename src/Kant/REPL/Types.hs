@@ -14,6 +14,7 @@ data Output
     | OEval Term                -- Normal form of term
     | ODecl
     | OQuit
+    | OSkip
 
 data Error
     = CmdParse Parsec.ParseError
