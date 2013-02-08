@@ -15,7 +15,7 @@ import Kant.Syntax
 
 %wrapper "monad"
 
-$digit = 0-9
+$digit = [0-9]
 $alpha = [a-zA-Z]
 $syms  = ['_]
 
@@ -58,7 +58,7 @@ data Token
     | CASE
     | POSTULATE
     | NAME Id
-    | TYPE Int
+    | TYPE Level
     | EOF
     | RETURN
     deriving (Show, Eq, Ord)
@@ -75,10 +75,8 @@ stringTok :: (String -> Token) -> Action Token
 stringTok f inp len = return (f (getS inp len))
 
 typeTok :: Action Token
-typeTok inp len =
-    return (TYPE (if length s > len then read (drop len s) else 0))
-  where len = length "Type"
-        s   = getS inp len
+typeTok inp len = return (TYPE (if null ns then 0 else read ns))
+  where ns = drop (length "Type") (getS inp len)
 
 alexEOF :: Alex Token
 alexEOF = return EOF
