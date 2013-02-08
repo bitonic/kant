@@ -91,8 +91,8 @@ alexMonadScan' = do
     case alexScan inp sc of
         AlexEOF -> alexEOF
         AlexError inp' ->
-            let (l, c) = lineCol inp'
-            in alexError ("Lexical error at line " ++ show l ++ ", column " ++ show c)
+            let (l, c) = lineCol inp' in
+            alexError ("Lexical error at line " ++ show l ++ ", column " ++ show c)
         AlexSkip  inp' len ->
             alexSetInput inp' >> alexMonadScan'
         AlexToken inp' len action ->
