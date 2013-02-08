@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Kant.Pretty (pretty, putPretty) where
+-- | Defines instances of 'Pretty' for most types defined.  Exports convenient
+--   functions.
+module Kant.Pretty (Pretty(..), putPretty) where
 
 import           Data.List (groupBy, intersperse)
 import           Data.Maybe (fromMaybe)
@@ -21,6 +23,7 @@ import           Kant.TyCheck
 import           Kant.REPL.Types
 
 
+-- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
 putPretty :: Pretty a => a -> IO ()
 putPretty = putStrLn . show . pretty
 
