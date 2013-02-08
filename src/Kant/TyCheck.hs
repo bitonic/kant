@@ -207,9 +207,15 @@ tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
 tyCheckT _ (Case _ _ _) =
     error "tyCheckT got a case with a non-variable, this should not happen"
 
-
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()
 tyCheckEq env ty t =
     do ty' <- tyCheckT env t
-       unless (defeq env ty ty') (mismatch env ty t ty')
+       unless (eqCum env ty' ty) (mismatch env ty t ty')
+
+-- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
+--   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
+--   ('Type' 4) ('Type' 1)@ will fail.
+eqCum :: Ord a => EnvT a -> TermT a -> TermT a -> Bool
+eqCum env (nf env -> Type l₁) (nf env -> Type l₂) = l₁ <= l₂
+eqCum env (nf env -> ty₁)     (nf env -> ty₂)     = ty₁ == ty₂

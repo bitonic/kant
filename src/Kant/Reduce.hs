@@ -2,13 +2,8 @@
 module Kant.Reduce
     ( Reducer
     , nf
-    , nf'
     , whnf
-    , whnf'
-    , defeq
     ) where
-
-import           Data.Function (on)
 
 import           Bound
 
@@ -55,18 +50,6 @@ reduceScope r env = toScope . reduce r (nestEnv env (const Nothing)) . fromScope
 nf :: Reducer
 nf = reduce nf
 
--- | Same as 'nf' but for closed 'Term's.
-nf' :: Env -> Term -> Term
-nf' env = nf env
-
+-- | Reduces to weak head normal form: that is, does not reduce under binders.
 whnf :: Reducer
 whnf = reduce (\_ t -> t)
-
-whnf' :: Env -> Term -> Term
-whnf' env = whnf env
-
--- TODO eta expansion, congruence, blah blah.
--- | Definitional equality: reduce two terms to their normal forms, and then
---   check if they are equal.
-defeq :: Eq a => EnvT a -> TermT a -> TermT a -> Bool
-defeq env = (==) `on` nf env
