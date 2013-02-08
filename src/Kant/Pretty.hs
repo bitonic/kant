@@ -169,11 +169,12 @@ instance Pretty TyCheckError where
 instance Pretty Output where
     pretty (OTyCheck ty) = pretty ty
     pretty (OEval t)     = pretty t
-    pretty ODecl         = "OK"
+    pretty OOK           = "OK"
     pretty OQuit         = "Bye!"
     pretty OSkip         = ""
 
-instance Pretty Error where
+instance Pretty REPLError where
     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
     pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
     pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
+    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))

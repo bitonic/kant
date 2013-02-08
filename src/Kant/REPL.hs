@@ -4,7 +4,11 @@ module Kant.REPL (main) where
 import           Control.Applicative ((*>), (<$>), (<|>), (<$))
 import           Control.Arrow (left)
 import           Control.Monad (msum)
+import           Control.Exception (catch)
+import           Data.Char (isSpace)
+import           Prelude hiding (catch)
 
+import           Control.Monad.Error (ErrorT(..))
 import           Control.Monad.IO.Class (liftIO)
 import qualified Text.Parsec as Parsec
 import           Text.Parsec.Char (anyChar, char)
@@ -26,10 +30,14 @@ data Input
     = ITyCheck String
     | IEval String
     | IDecl String
+    | ILoad FilePath
     | IQuit
     | ISkip
 
-parseInput :: String -> Either Error Input
+trim :: String -> String
+trim = reverse . f . reverse . f where f = dropWhile isSpace
+
+parseInput :: String -> Either REPLError Input
 parseInput =
     either (Left . CmdParse) Right . Parsec.parse (Parsec.spaces *> go) ""
   where
@@ -39,12 +47,13 @@ parseInput =
     rest     = Parsec.many anyChar
     commands = [ ('e', IEval <$> rest)
                , ('t', ITyCheck <$> rest)
+               , ('l', ILoad . trim <$> rest)
                , ('q', IQuit <$ Parsec.eof)
                ]
 
-replOutput :: Env -> String -> Either Error (Output, Env)
+replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
 replOutput env s₁ =
-    do c <- parseInput s₁
+    do c <- ret (parseInput s₁)
        case c of
            ITyCheck s₂ -> do t <- parse s₂
                              ty <- tyct t
@@ -52,20 +61,29 @@ replOutput env s₁ =
            IEval s₂    -> do t <- parse s₂
                              tyct t
                              return (OEval (nf env t), env)
-           IDecl s₂    -> do d <- left TermParse (parseDecl s₂)
-                             env' <- left TyCheck (tyCheck env d)
-                             return (ODecl, env')
+           IDecl s₂    -> do d <- parseE (parseDecl s₂)
+                             env' <- tyE (tyCheck env d)
+                             return (OOK, env')
+           ILoad fp    -> do s <- readSafe fp
+                             m <- parseE (parseModule s)
+                             env' <- tyE (tyCheck env m)
+                             return (OOK, env')
            IQuit       -> return (OQuit, env)
            ISkip       -> return (OSkip, env)
   where
-    parse = left TermParse . parseTerm
-    tyct  = left TyCheck . tyCheckT env
+    ret     = ErrorT . return
+    parseE  = ret . left TermParse
+    tyE     = ret . left TyCheck
+    parse   = parseE . parseTerm
+    tyct    = tyE . tyCheckT env
+    readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
 
 repl :: Env -> String -> REPL (Maybe Env)
 repl env input =
-    case replOutput env input of
-        Left err          -> do liftIO (putPretty err); return (Just env)
-        Right (out, env') -> do liftIO (putPretty out); quit out env'
+    do res <- liftIO (runErrorT (replOutput env input))
+       case res of
+           Left err          -> do liftIO (putPretty err); return (Just env)
+           Right (out, env') -> do liftIO (putPretty out); quit out env'
   where quit OQuit _ = return Nothing
         quit _     e = return (Just e)
 

@@ -1,9 +1,10 @@
 module Kant.REPL.Types
     ( Output(..)
-    , Error(..)
+    , REPLError(..)
     ) where
 
 import qualified Text.Parsec as Parsec
+import           Control.Monad.Error (Error(..))
 
 import           Kant.Syntax
 import           Kant.Parser
@@ -12,11 +13,15 @@ import           Kant.TyCheck
 data Output
     = OTyCheck Term             -- Type of term
     | OEval Term                -- Normal form of term
-    | ODecl
+    | OOK
     | OQuit
     | OSkip
 
-data Error
+data REPLError
     = CmdParse Parsec.ParseError
     | TermParse ParseError
     | TyCheck TyCheckError
+    | IOError IOError
+
+instance Error REPLError where
+    strMsg = undefined          -- I don't care, I want the 'Error' instance
