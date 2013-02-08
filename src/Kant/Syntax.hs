@@ -38,6 +38,7 @@ module Kant.Syntax
     , scopeVar
     , ArrV(..)
     , arrV
+    , moduleNames
     ) where
 
 import           Control.Applicative (Applicative(..), (<$))
@@ -248,3 +249,10 @@ arrV _ t = NoArr t
 --   all the indices in the term.
 instantiateList :: Monad f => [f a] -> Scope (Name n Int) f a -> f a
 instantiateList ts = instantiateName (ts !!)
+
+moduleNames :: Module -> [Id]
+moduleNames = concatMap go . unModule
+  where
+    go (ValDecl (Val n _ _))          = [n]
+    go (Postulate n _)                = [n]
+    go (DataDecl (Data tyc _ _ cons)) = tyc : map fst cons

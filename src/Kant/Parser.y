@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -w #-}
 
 module Kant.Parser
-    ( ParseResult
+    ( ParseError
+    , ParseResult
     , parseModule
     , parseFile
     , parseDecl
@@ -131,8 +132,10 @@ parseErr err =
 happyError :: Alex a
 happyError = parseErr "."
 
+type ParseError = String
+
 -- | 'Left' for an error 'String', 'Right' for a result.
-type ParseResult = Either String
+type ParseResult = Either ParseError
 
 parseModule :: String -> ParseResult Module
 parseModule s = runAlex s parseModule_

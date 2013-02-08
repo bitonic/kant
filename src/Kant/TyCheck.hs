@@ -1,10 +1,9 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , TyCheckM
     , TyCheck(..)
-    , tyCheck'
+    , tyCheckT
     ) where
 
 import           Control.Applicative ((<$>), (<$))
@@ -100,9 +99,9 @@ instance TyCheck Val where
 instance TyCheck Data where
     tyCheck env dd =
         do let ((c, ty), cons) = dataDecl dd
-           tyCheck' env ty
+           tyCheckT env ty
            env' <- addAbst env c ty
-           mapM_ (tyCheck' env') (map snd cons)
+           mapM_ (tyCheckT env') (map snd cons)
            addData env dd
 
 dupMaybe :: Id -> Maybe b -> TyCheckM b
@@ -121,34 +120,34 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheck' :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
-tyCheck' env (Var v) = envTy env v
-tyCheck' _ (Type l) = return (Type (l + 1))
+tyCheckT :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheckT env (Var v) = envTy env v
+tyCheckT _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
 -- some kind of level polymorphism so that the arrow operator can be postulated
 -- like any other.
-tyCheck' env (arrV (envNest env) -> IsArr ty s) =
-    do ty' <- tyCheck' env ty
+tyCheckT env (arrV (envNest env) -> IsArr ty s) =
+    do ty' <- tyCheckT env ty
        case nf env ty' of
            Type l₁ ->
                do let env' = nestEnv' env (const (Just ty))
-                  tys <- tyCheck' env' (fromScope s)
+                  tys <- tyCheckT env' (fromScope s)
                   case nf env' tys of
                       Type l₂ -> return (Type (max l₁ l₂))
                       _       -> expectingType env' (fromScope s) tys
            _ -> expectingType env ty ty'
-tyCheck' env (App t₁ t₂) =
-    do ty₁ <- tyCheck' env t₁
+tyCheckT env (App t₁ t₂) =
+    do ty₁ <- tyCheckT env t₁
        case arrV (envNest env) (nf env ty₁) of
            IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
            NoArr _     -> expectingFunction env t₁ ty₁
-tyCheck' env (Lam ty s) =
+tyCheckT env (Lam ty s) =
     do let ar = envNest env <$> arrow
-       tyCheck' env ty
-       tys <- toScope <$> nestTyCheckM env s (const ty) tyCheck'
+       tyCheckT env ty
+       tys <- toScope <$> nestTyCheckM env s (const ty) tyCheckT
        return (App (App ar ty) (Lam ty tys))
-tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
-    do ty₂ <- tyCheck' env t
+tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
+    do ty₂ <- tyCheckT env t
        -- Check if the scrutined's type is canonical, which amounts to checking
        -- that it is an application, we can find a matching type constructor,
        -- and the arguments are all there.
@@ -205,13 +204,12 @@ tyCheck' env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
                        ]
          in nestEnv env (\i -> Just (nested₃ !! i))
 
-tyCheck' _ (Case _ _ _) =
-    error "tyCheck' got a case with a non-variable, this should not happen"
+tyCheckT _ (Case _ _ _) =
+    error "tyCheckT got a case with a non-variable, this should not happen"
 
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()
 tyCheckEq env ty t =
-    do ty' <- tyCheck' env t
+    do ty' <- tyCheckT env t
        unless (defeq env ty ty') (mismatch env ty t ty')
-

@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Kant.Pretty (pretty) where
+module Kant.Pretty (pretty, putPretty) where
 
 import           Data.List (groupBy, intersperse)
 import           Data.Maybe (fromMaybe)
@@ -18,7 +18,11 @@ import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Syntax
 import           Kant.TyCheck
+import           Kant.REPL.Types
 
+
+putPretty :: Pretty a => a -> IO ()
+putPretty = putStrLn . show . pretty
 
 hsep' :: Pretty a => [a] -> Doc
 hsep' = hsep . map pretty
@@ -158,3 +162,14 @@ instance Pretty TyCheckError where
     pretty (WrongArity br) =
         group (nest ("Branch gives wrong number of arguments to constructor" <$>
                      prettyBranch br))
+
+instance Pretty Output where
+    pretty (OTyCheck ty) = pretty ty
+    pretty (OEval t)     = pretty t
+    pretty ODecl         = "OK"
+    pretty OQuit         = "Bye!"
+
+instance Pretty Error where
+    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
+    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
+    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)

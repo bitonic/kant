@@ -27,11 +27,14 @@ Library
                       array,
                       mtl,
                       wl-pprint,
-                      containers
+                      containers,
+                      haskeline,
+                      parsec,
+                      transformers
 
     Build-Tools:      alex, happy
 
-    GHC-Options:      -Wall -O2
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant,
                       Kant.Syntax,
@@ -39,6 +42,15 @@ Library
                       Kant.Pretty,
                       Kant.Reduce,
                       Kant.Environment,
-                      Kant.TyCheck
+                      Kant.TyCheck,
+                      Kant.REPL
 
-    Other-Modules:    Kant.Lexer
+    Other-Modules:    Kant.Lexer,
+                      Kant.REPL.Types
+
+executable kant
+    Main-Is:          kant.hs
+
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+
+    Build-Depends:    base, kant
