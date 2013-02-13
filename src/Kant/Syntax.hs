@@ -56,6 +56,8 @@ import           Bound.Name
 import           Bound.Scope
 import           Prelude.Extras
 
+import           Kant.Common
+
 {-
 t     Term
 ty    Terms that are types
@@ -72,9 +74,6 @@ d     Data
 env   Env
 -}
 
-type Id = String
-type ConId = Id
-type Level  = Int
 newtype Module = Module {unModule :: [Decl]}
     deriving (Show, Eq)
 

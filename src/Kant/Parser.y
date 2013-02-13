@@ -14,7 +14,7 @@ import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
 import           Kant.Lexer
-import           Kant.Syntax
+import           Kant.Sugar
 
 }
 
@@ -61,66 +61,67 @@ Bar(X)
     | X                                      { [$1] }
     | X '|' Bar(X)                           { $1 : $3 }
 
-Module :: { Module }
-Module : Seq0(Decl)                          { Module $1 }
+Module :: { SModule }
+Module : Seq0(Decl)                          { SModule $1 }
 
-Decl :: { Decl }
-Decl : Val                                   { ValDecl $1 }
-     | 'postulate' name ':' SingleTerm       { Postulate $2 $4}
-     | Data                                  { DataDecl $1 }
+Decl :: { SDecl }
+Decl : Val                                   { $1 }
+     | 'postulate' name ':' SingleTerm       { SPostulate $2 $4}
+     | Data                                  { $1 }
 
-Data :: { Data }
+Data :: { SDecl }
 Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
-       { Data $2 $3 $5 $7 }
+       { SData $2 $3 $5 $7 }
 
-Val :: { Val }
-Val : name Params ':' Term '=>' SingleTerm   { valDecl $1 $2 $4 $6 }
+Val :: { SDecl }
+Val : name Params ':' Term '=>' SingleTerm   { SVal $1 $2 $4 $6 }
 
-Params :: { [Param] }
+Params :: { [SParam] }
 Params : Seq0(Param)                         { concat $1 }
 
-Param :: { [Param] }
+Param :: { [SParam] }
 Param
-    : '[' Seq(name) ':' Term ']'             { zip $2 (repeat $4) }
-    | SingleTerm                             { [(discarded, $1)] }
+    : '[' Seq(name) ':' Term ']'             { zip (map Just $2) (repeat $4) }
+    | SingleTerm                             { [(Nothing, $1)] }
 
-DataCon :: { Constr }
+DataCon :: { SConstr }
 DataCon : name Params                        { ($1, $2) }
 
-Term :: { Term }
+Term :: { STerm }
 Term
-    : '\\' Seq(Param) '=>' Term              { lams (concat $2) $4 }
+    : '\\' Seq(Param) '=>' Term              { SLam (concat $2) $4 }
     | 'case' name 'return' Term '{' Bar(Branch) '}'
-      {% checkCase $2 $4 $6 }
+      { SCase $2 $4 $6 }
     | Arr                                    { $1 }
 
-Branch :: { (ConId, [Id], Term) }
+Branch :: { SBranch }
 Branch : name Seq0(name) '=>' Term           { ($1, $2, $4) }
 
-SingleTerm :: { Term }
+SingleTerm :: { STerm }
 SingleTerm
-    : name                                   { Var $1 }
-    | type                                   { Type $1 }
+    : name                                   { SVar $1 }
+    | type                                   { SType $1 }
     | '(' Term ')'                           { $2 }
 
-Arr :: { Term }
-Arr : App '->' Arr                           { arr $1 $3 }
-    | '(' name ':' Term ')' '->' Arr         { pi_ $2 $4 $7 }
+Arr :: { STerm }
+Arr : App '->' Arr                           { SArr Nothing $1 $3 }
+    | '(' name ':' Term ')' '->' Arr         { SArr (Just $2) $4 $7 }
     | App                                    { $1 }
 
-App :: { Term }
-App : Seq(SingleTerm)                        { foldl1 App $1 }
+App :: { STerm }
+App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 
 {
 
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
-checkCase :: Id -> Term -> [(ConId, [Id], Term)] -> Alex Term
-checkCase n ty brs =
-    case case_ n ty brs of
-        Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
-        Right t -> return t
+-- TODO move this in the desugaring place
+-- checkCase :: Id -> Term -> [(ConId, [Id], Term)] -> Alex Term
+-- checkCase n ty brs =
+--     case case_ n ty brs of
+--         Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
+--         Right t -> return t
 
 parseErr :: String -> Alex a
 parseErr err =
@@ -137,17 +138,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult Module
+parseModule :: String -> ParseResult SModule
 parseModule s = runAlex s parseModule_
 
-parseDecl :: String -> ParseResult Decl
+parseDecl :: String -> ParseResult SDecl
 parseDecl s = runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult Term
+parseTerm :: String -> ParseResult STerm
 parseTerm s = runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO Module
+parseFile :: FilePath -> IO SModule
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 }

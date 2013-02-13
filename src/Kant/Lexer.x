@@ -10,7 +10,7 @@ module Kant.Lexer
     , alexError
     ) where
 
-import Kant.Syntax
+import Kant.Sugar
 }
 
 %wrapper "monad"

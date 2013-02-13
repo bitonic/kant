@@ -38,19 +38,21 @@ Library
 
     Exposed-Modules:  Kant,
                       Kant.Syntax,
+                      Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty,
                       Kant.Reduce,
                       Kant.Environment,
-                      Kant.TyCheck,
-                      Kant.REPL
+                      Kant.TyCheck
+--                      Kant.REPL
 
-    Other-Modules:    Kant.Lexer,
-                      Kant.REPL.Types
+    Other-Modules:    Kant.Common,
+                      Kant.Lexer
+--                      Kant.REPL.Types
 
-executable kant
-    Main-Is:          kant.hs
+-- executable kant
+--     Main-Is:          kant.hs
 
-    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+--     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
-    Build-Depends:    base, kant
+--     Build-Depends:    base, kant
