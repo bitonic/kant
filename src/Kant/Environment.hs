@@ -40,7 +40,7 @@ import qualified Data.Map as Map
 import           Bound
 import           Bound.Name
 
-import           Kant.Syntax
+import           Kant.Term
 
 type ItemT a = (TermT a, Maybe (TermT a))
 

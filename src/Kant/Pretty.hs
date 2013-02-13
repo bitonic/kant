@@ -18,7 +18,7 @@ import           Text.PrettyPrint.Leijen
                   (<$>), vsep, group, (<$$>))
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
-import           Kant.Syntax
+import           Kant.Term
 import           Kant.TyCheck
 import           Kant.REPL.Types
 

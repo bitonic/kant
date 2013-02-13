@@ -18,7 +18,7 @@ import           Bound.Name
 import qualified Kant.Environment as Env
 import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
-import           Kant.Syntax
+import           Kant.Term
 
 data TyCheckError
     = TyCheckError

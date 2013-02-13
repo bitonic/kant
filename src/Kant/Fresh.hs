@@ -14,7 +14,7 @@ import           Control.Monad.State (State, MonadState(..), evalState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
-import           Kant.Syntax
+import           Kant.Term
 
 newtype Fresh a = Fresh (State (Map Id Int) a)
     deriving (Functor, Applicative, Monad)

@@ -6,7 +6,7 @@ module Kant.REPL.Types
 import qualified Text.Parsec as Parsec
 import           Control.Monad.Error (Error(..))
 
-import           Kant.Syntax
+import           Kant.Term
 import           Kant.Parser
 import           Kant.TyCheck
 

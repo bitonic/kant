@@ -1,5 +1,6 @@
 module Kant
-    ( module Kant.Syntax
+    ( module Kant.Term
+    , module Kant.Sugar
     , module Kant.Parser
     , module Kant.Pretty
     , module Kant.Reduce
@@ -7,8 +8,9 @@ module Kant
     , module Kant.TyCheck
     ) where
 
+import Kant.Term
+import Kant.Sugar
 import Kant.Parser
-import Kant.Syntax
 import Kant.Pretty
 import Kant.Reduce
 import Kant.Environment

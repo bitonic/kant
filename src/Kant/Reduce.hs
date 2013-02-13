@@ -7,7 +7,7 @@ module Kant.Reduce
 
 import           Bound
 
-import           Kant.Syntax
+import           Kant.Term
 import           Kant.Environment
 
 

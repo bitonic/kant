@@ -37,7 +37,7 @@ Library
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant,
-                      Kant.Syntax,
+                      Kant.Term,
                       Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty,

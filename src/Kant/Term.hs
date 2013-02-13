@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-module Kant.Syntax
+module Kant.Term
     ( -- * Abstract syntax tree
       Id
     , ConId
