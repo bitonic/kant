@@ -14,7 +14,7 @@ module Kant.Sugar
      , discarded
      ) where
 
-import           Control.Arrow ((***))
+import           Control.Arrow ((***), second)
 import           Control.Applicative ((<$))
 import           Data.Maybe (fromMaybe)
 
@@ -66,8 +66,9 @@ instance Desugar SDecl Decl where
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars
         in ValD (Val n (pis pars' (desugar ty)) (lams pars' (desugar t)))
-    desugar (SPostulate n ty) = undefined
-    desugar (SData c pars l cons) = undefined
+    desugar (SPostulate n ty) = Postulate n (desugar ty)
+    desugar (SData c pars l cons) =
+        DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
     distill (ValD (Val n ty t)) = undefined
     distill (Postulate n ty) = undefined
