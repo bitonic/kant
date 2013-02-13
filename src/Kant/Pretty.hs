@@ -130,9 +130,9 @@ instance Pretty Val where
                      singleTerm ("(" <$$>) t) <$$> ")")
 
 instance Pretty Decl where
-    pretty (ValDecl val)    = pretty val
+    pretty (ValD val)       = pretty val
+    pretty (DataD d)        = pretty d
     pretty (Postulate n ty) = "postulate" <+> typed n ty
-    pretty (DataDecl d)     = pretty d
 
     prettyList = vcat . intersperse "" . map pretty
 

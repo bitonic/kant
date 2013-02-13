@@ -84,12 +84,12 @@ instance TyCheck Module where
         go (decl : decls) env = tyCheck env decl >>= go decls
 
 instance TyCheck Decl where
-    tyCheck env (ValDecl val)   = tyCheck env val
+    tyCheck env (ValD val)      = tyCheck env val
+    tyCheck env (DataD dat)      = tyCheck env dat
     tyCheck env (Postulate n t) =
         case Env.envTy env n of
             Just _ -> throwError (DuplicateName n)
             _      -> addAbst env n t
-    tyCheck env (DataDecl dat)  = tyCheck env dat
 
 instance TyCheck Val where
     tyCheck env vd@(Val _ ty t) =

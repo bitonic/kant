@@ -79,11 +79,11 @@ newtype Module = Module {unModule :: [Decl]}
 
 -- | Value or datatype declaration
 data Decl
-    = ValDecl Val
+    = ValD Val
+    | DataD Data
     | Postulate
           Id                    -- Name
           Term                  -- Type
-    | DataDecl Data
     deriving (Show, Eq)
 
 data Val = Val Id               -- Name
@@ -254,6 +254,6 @@ instantiateList ts = instantiateName (ts !!)
 moduleNames :: Module -> [Id]
 moduleNames = concatMap go . unModule
   where
-    go (ValDecl (Val n _ _))          = [n]
-    go (Postulate n _)                = [n]
-    go (DataDecl (Data tyc _ _ cons)) = tyc : map fst cons
+    go (ValD (Val n _ _))          = [n]
+    go (Postulate n _)             = [n]
+    go (DataD (Data tyc _ _ cons)) = tyc : map fst cons
