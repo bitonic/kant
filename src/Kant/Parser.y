@@ -91,7 +91,7 @@ Term :: { STerm }
 Term
     : '\\' Seq(Param) '=>' Term              { SLam (concat $2) $4 }
     | 'case' name 'return' Term '{' Bar(Branch) '}'
-      { SCase $2 $4 $6 }
+      {% checkCase $2 $4 $6 }
     | Arr                                    { $1 }
 
 Branch :: { SBranch }
@@ -116,12 +116,11 @@ App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
--- TODO move this in the desugaring place
--- checkCase :: Id -> Term -> [(ConId, [Id], Term)] -> Alex Term
--- checkCase n ty brs =
---     case case_ n ty brs of
---         Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
---         Right t -> return t
+checkCase :: Id -> STerm -> [SBranch] -> Alex STerm
+checkCase n ty brs =
+    case scase n ty brs of
+        Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
+        Right t -> return t
 
 parseErr :: String -> Alex a
 parseErr err =

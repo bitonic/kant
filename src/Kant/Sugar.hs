@@ -9,8 +9,16 @@ module Kant.Sugar
      , SParam
      , SConstr
      , STerm(..)
+     , scase
      , SBranch
+     , discarded
      ) where
+
+import           Control.Arrow ((***))
+import           Control.Applicative ((<$))
+import           Data.Maybe (fromMaybe)
+
+import qualified Data.Set as Set
 
 import           Kant.Common
 import           Kant.Term
@@ -35,7 +43,14 @@ data STerm
 --    | SLet Id STerm STerm STerm
     | SCase Id STerm [SBranch]
 
-type SBranch = (ConId, [Id], STerm)
+scase :: Id -> STerm -> [SBranch] -> Either Id STerm
+scase n₁ ty brs =
+    SCase n₁ ty brs
+    <$ mapM (foldr (\n₂ se -> se >>= \s ->
+                     if Set.member n₂ s then Left n₂
+                     else Right (Set.insert n₂ s))
+                   (Right Set.empty))
+            [ns | (_, ns, _) <- brs]
 
 data DesugarError
     = RepeatedVariable Id
