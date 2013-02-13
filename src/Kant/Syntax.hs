@@ -121,6 +121,7 @@ data TermT a
     | App (TermT a) (TermT a)
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TermT a) [BranchT a]
+    | Constr ConId [TermT a] [TermT a]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -137,12 +138,13 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v         >>= f = f v
-    Type l        >>= _ = Type l
-    App t₁ t₂     >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Lam t s       >>= f = Lam (t >>= f) (s >>>= f)
-    Case t ty brs >>= f = Case (t >>= f) (ty >>= f)
-                               [(c, i, s >>>= f) | (c, i, s) <- brs]
+    Var v           >>= f = f v
+    Type l          >>= _ = Type l
+    App t₁ t₂       >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Lam t s         >>= f = Lam (t >>= f) (s >>>= f)
+    Case t ty brs   >>= f = Case (t >>= f) (ty >>= f)
+                                 [(c, i, s >>>= f) | (c, i, s) <- brs]
+    Constr c tys ts >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
 
 -- | Good 'ol lambda abstraction.
 lam :: Id -> Term -> Term -> Term
