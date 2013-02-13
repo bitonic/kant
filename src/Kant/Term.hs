@@ -39,7 +39,7 @@ module Kant.Term
     , moduleNames
     ) where
 
-import           Control.Applicative (Applicative(..), (<$))
+import           Control.Applicative (Applicative(..))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
@@ -154,22 +154,15 @@ params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 lams :: [Param] -> Term -> Term
 lams = params lam
 
--- TODO remove this
--- | Pattern matching.  Returns a formed term ('Right') or the name of a
---   duplicated variable ('Left'), if there is one.
+-- | Pattern matching.
 case_ :: Id
       -> Term
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
-      -> Either Id Term
+      -> Term
 case_ n₁ ty brs =
     Case (Var n₁) ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
                      | (c, vs, t') <- brs ]
-    <$ mapM (foldr (\n₂ se -> se >>= \s ->
-                     if Set.member n₂ s then Left n₂
-                     else Right (Set.insert n₂ s))
-                   (Right Set.empty))
-            [ns | (_, ns, _) <- brs]
 
 -- | The constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
 --   Type (n ⊔ m)@.

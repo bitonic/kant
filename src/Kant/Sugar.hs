@@ -78,12 +78,14 @@ desugarPars :: [SParam] -> [Param]
 desugarPars = map (fromMaybe discarded *** desugar)
 
 instance Desugar STerm (TermT Id) where
-    desugar (SVar n)         = undefined
-    desugar (SType l)        = Type l
-    desugar (SLam pars t)    = undefined
-    desugar (SApp t₁ t₂)     = undefined
-    desugar (SArr mn ty t)   = undefined
-    desugar (SCase n ty brs) = undefined
+    desugar (SVar n)             = Var n
+    desugar (SType l)            = Type l
+    desugar (SLam pars t)        = lams (desugarPars pars) (desugar t)
+    desugar (SApp t₁ t₂)         = App (desugar t₁) (desugar t₂)
+    desugar (SArr Nothing ty t)  = arr (desugar ty) (desugar t)
+    desugar (SArr (Just n) ty t) = pi_ n (desugar ty) (desugar t)
+    desugar (SCase n ty brs)     = case_ n (desugar ty)
+                                         [(c, ns, desugar t) | (c, ns, t) <- brs]
 
     distill (Var n) = undefined
     distill (Type l) = SType l
