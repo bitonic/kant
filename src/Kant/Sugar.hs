@@ -52,15 +52,20 @@ scase n₁ ty brs =
                    (Right Set.empty))
             [ns | (_, ns, _) <- brs]
 
-data DesugarError
-    = RepeatedVariable Id
+type SBranch = (ConId, [Id], STerm)
 
 class Desugar a b where
-    desugar :: a -> Either DesugarError b
+    desugar :: a -> b
     distill :: b -> a
 
+-- | A binding/pattern match that we are not going to use.
+discarded :: Id
+discarded = "_"
+
 instance Desugar SDecl Decl where
-    desugar (SVal n pars ty t) = undefined
+    desugar (SVal n pars ty t) =
+        let pars' = desugarPars pars
+        in ValD (Val n (pis pars' (desugar ty)) (lams pars' (desugar t)))
     desugar (SPostulate n ty) = undefined
     desugar (SData c pars l cons) = undefined
 
@@ -68,9 +73,12 @@ instance Desugar SDecl Decl where
     distill (Postulate n ty) = undefined
     distill (DataD (Data c pars l cons)) = undefined
 
+desugarPars :: [SParam] -> [Param]
+desugarPars = map (fromMaybe discarded *** desugar)
+
 instance Desugar STerm (TermT Id) where
     desugar (SVar n)         = undefined
-    desugar (SType l)        = return (Type l)
+    desugar (SType l)        = Type l
     desugar (SLam pars t)    = undefined
     desugar (SApp t₁ t₂)     = undefined
     desugar (SArr mn ty t)   = undefined

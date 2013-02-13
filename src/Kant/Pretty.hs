@@ -19,6 +19,7 @@ import           Text.PrettyPrint.Leijen
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
+import           Kant.Sugar
 import           Kant.TyCheck
 import           Kant.REPL.Types
 

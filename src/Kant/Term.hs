@@ -20,7 +20,6 @@ module Kant.Term
     , TScope
       -- * Commonly used things
     , arrow
-    , discarded
       -- * Smart constructors
     , lam
     , lams
@@ -29,7 +28,6 @@ module Kant.Term
     , arr
     , case_
     , app
-    , valDecl
       -- * Utilities
     , dataDecl
     , unrollApp
@@ -156,6 +154,7 @@ params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 lams :: [Param] -> Term -> Term
 lams = params lam
 
+-- TODO remove this
 -- | Pattern matching.  Returns a formed term ('Right') or the name of a
 --   duplicated variable ('Left'), if there is one.
 case_ :: Id
@@ -171,10 +170,6 @@ case_ n₁ ty brs =
                      else Right (Set.insert n₂ s))
                    (Right Set.empty))
             [ns | (_, ns, _) <- brs]
-
--- | A binding/pattern match that we are not going to use.
-discarded :: Id
-discarded = "_"
 
 -- | The constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
 --   Type (n ⊔ m)@.
@@ -200,13 +195,6 @@ arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
 --   to @b@ applied to @c@.  Fails with empty lists.
 app :: [TermT a] -> TermT a
 app = foldl1 App
-
-valDecl :: Id                   -- ^ Value name
-        -> [Param]              -- ^ Function arguments
-        -> Term                 -- ^ Return type
-        -> Term                 -- ^ Body
-        -> Val
-valDecl n pars ty t = Val n (pis pars ty) (lams pars t)
 
 -- | Extracts the types out of a data declaration.
 --
