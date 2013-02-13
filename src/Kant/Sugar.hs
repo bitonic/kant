@@ -72,10 +72,15 @@ instance Desugar SDecl Decl where
 
     distill (ValD (Val n ty t)) = undefined
     distill (Postulate n ty) = undefined
-    distill (DataD (Data c pars l cons)) = undefined
+    distill (DataD (Data c pars l cons)) =
+        SData c (distillPars pars) l (map (second distillPars) cons)
 
 desugarPars :: [SParam] -> [Param]
 desugarPars = map (fromMaybe discarded *** desugar)
+
+distillPars :: [Param] -> [SParam]
+distillPars pars = [ (if n == discarded then Nothing else Just n, distill t)
+                   | (n, t) <- pars ]
 
 instance Desugar STerm (TermT Id) where
     desugar (SVar n)             = Var n
