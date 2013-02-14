@@ -18,8 +18,6 @@ module Kant.Term
     , Branch
     , TScopeT
     , TScope
-      -- * Commonly used things
-    , arrow
       -- * Smart constructors
     , lam
     , lams
@@ -34,12 +32,10 @@ module Kant.Term
     , instantiateList
     , scopeVars
     , scopeVar
-    , ArrV(..)
-    , arrV
     , moduleNames
     ) where
 
-import           Control.Applicative (Applicative(..))
+import           Control.Applicative (Applicative(..), (<$>))
 import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
@@ -116,6 +112,9 @@ data TermT a
     = Var a
     | Type Level
     | App (TermT a) (TermT a)
+      -- | The constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
+      --   Type (n ⊔ m)@.
+    | Arr (TermT a) (TScope a)
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TermT a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
@@ -138,6 +137,7 @@ instance Monad TermT where
     Var v           >>= f = f v
     Type l          >>= _ = Type l
     App t₁ t₂       >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Arr ty s        >>= f = Arr (ty >>= f) (s >>>= f)
     Lam t s         >>= f = Lam (t >>= f) (s >>>= f)
     Case t ty brs   >>= f = Case (t >>= f) (ty >>= f)
                                  [(c, i, s >>>= f) | (c, i, s) <- brs]
@@ -164,17 +164,12 @@ case_ n₁ ty brs =
     Case (Var n₁) ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
                      | (c, vs, t') <- brs ]
 
--- | The constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
---   Type (n ⊔ m)@.
-arrow :: Term
-arrow = Var "(->)"
-
 -- | Dependent function, @(x : A) -> B@.
 pi_ :: Id                       -- ^ Abstracting an @x@...
     -> Term                     -- ^ ...of type @A@..
     -> Term                     -- ^ ...over type @B@
     -> Term
-pi_ v ty₁ ty₂ = app [arrow, ty₁, lam v ty₁ ty₂]
+pi_ v ty₁ ty₂ = Arr ty₁ (abstract1Name v ty₂)
 
 -- | @lam : lams = pi_ : pis@.
 pis :: [Param] -> Term -> Term
@@ -182,7 +177,7 @@ pis = params pi_
 
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term
-arr ty₁ ty₂ = app [arrow, ty₁, lam "_" ty₁ ty₂]
+arr ty₁ ty₂ = Arr ty₁ (toScope (F <$> ty₂))
 
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 --   to @b@ applied to @c@.  Fails with empty lists.
@@ -208,21 +203,11 @@ unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
 
-data ArrV a
-    = IsArr (TermT a)      -- To the left of the arrow
-            (TScope a)     -- The scope to the right
-    | NoArr (TermT a)
-
 scopeVars :: (Monad f, Foldable f, Ord n) => Scope (Name n b) f a -> [n]
 scopeVars s = Set.toList (Set.fromList (map name (bindings s)))
 
 scopeVar :: (Monad f, Foldable f, Ord n) => Scope (Name n ()) f a -> Maybe n
 scopeVar = listToMaybe . scopeVars
-
--- This should have knowledge of 'PullT', maybe I should move it to Environment.
-arrV :: Eq a => (Id -> a) -> TermT a -> ArrV a
-arrV f (App (App t₁ t₂) (Lam t₃ s)) | t₁ == fmap f arrow && t₂ == t₃ = IsArr t₂ s
-arrV _ t = NoArr t
 
 -- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
 --   the element at index 'n' in the provided list.

@@ -126,7 +126,7 @@ tyCheckT _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
 -- some kind of level polymorphism so that the arrow operator can be postulated
 -- like any other.
-tyCheckT env (arrV (envNest env) -> IsArr ty s) =
+tyCheckT env (Arr ty s) =
     do ty' <- tyCheckT env ty
        case nf env ty' of
            Type l₁ ->
@@ -138,14 +138,13 @@ tyCheckT env (arrV (envNest env) -> IsArr ty s) =
            _ -> expectingType env ty ty'
 tyCheckT env (App t₁ t₂) =
     do ty₁ <- tyCheckT env t₁
-       case arrV (envNest env) (nf env ty₁) of
-           IsArr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
-           NoArr _     -> expectingFunction env t₁ ty₁
+       case nf env ty₁ of
+           Arr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
+           _         -> expectingFunction env t₁ ty₁
 tyCheckT env (Lam ty s) =
-    do let ar = envNest env <$> arrow
-       tyCheckT env ty
+    do tyCheckT env ty
        tys <- toScope <$> nestTyCheckM env s (const ty) tyCheckT
-       return (App (App ar ty) (Lam ty tys))
+       return (Arr ty tys)
 tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
     do ty₂ <- tyCheckT env t
        -- Check if the scrutined's type is canonical, which amounts to checking

@@ -98,7 +98,7 @@ instance Desugar STerm (TermT Id) where
 
     distill (Var n) = SVar n
     distill (Type l) = SType l
-    distill (arrV id -> IsArr ty s) =
+    distill (Arr ty s) =
         SArr par (distill ty) (distill (instantiate1 (Var n) s))
       where (par, n) = case scopeVar s of
                            Nothing -> (Nothing, discarded)
