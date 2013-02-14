@@ -121,7 +121,8 @@ instance a ~ (TermT Id) => Desugar STerm a where
            in ((n, ty) : pars, t')
          go t = ([], t)
     distill (Case t ty brs) = undefined
-    distill (Constr c tys ts) = undefined
+    distill (Constr c tys ts) =
+        foldl1 SApp (SVar c : map distill tys ++ map distill ts)
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
