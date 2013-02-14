@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Sugar
      ( Id
      , ConId
@@ -14,11 +15,13 @@ module Kant.Sugar
      , discarded
      ) where
 
-import           Control.Arrow ((***), second)
+import           Control.Arrow ((***), second, first)
 import           Control.Applicative ((<$))
 import           Data.Maybe (fromMaybe)
 
 import qualified Data.Set as Set
+
+import           Bound
 
 import           Kant.Common
 import           Kant.Term
@@ -70,8 +73,9 @@ instance Desugar SDecl Decl where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (ValD (Val n ty t)) = undefined
-    distill (Postulate n ty) = undefined
+    distill (ValD (Val _ _ _)) = undefined
+    distill (Postulate n ty) =
+        SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =
         SData c (distillPars pars) l (map (second distillPars) cons)
 
@@ -94,7 +98,15 @@ instance Desugar STerm (TermT Id) where
 
     distill (Var n) = undefined
     distill (Type l) = SType l
-    distill (App t₁ t₂) = undefined
+    distill to@(App _ _) = uncurry SLam (go to)
+      where
+        go :: Term -> ([SParam], STerm)
+        go (arrV id -> IsArr t s) =
+            let (par, n) = case scopeVar s of
+                               Nothing -> (Nothing, discarded)
+                               Just n' -> (Just n', n')
+            in first ((par, distill t) :) (go (instantiate1 (Var n) s))
+        go t = ([], distill t)
     distill (Lam ty t)  = undefined
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) = undefined
