@@ -17,11 +17,9 @@ module Kant.Sugar
      ) where
 
 import           Control.Applicative ((<$))
-import           Control.Arrow ((***), second, first)
-import           Data.Function (on)
+import           Control.Arrow (second)
 import           Data.List (groupBy)
 import           Data.Maybe (fromMaybe, isJust)
-import           Data.Monoid (mconcat)
 
 import qualified Data.Set as Set
 
@@ -114,15 +112,14 @@ instance a ~ (TermT Id) => Desugar STerm a where
                            Nothing -> (Nothing, discarded)
                            Just n' -> (Just n', n')
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
-    distill to@(Lam ty _)  = undefined
-      -- where
-      --   go :: Term -> Term -> ([SParam], STerm)
-      --   go ty₁ (Lam ty₂ s) =
-      --       let (n, t) = freshScope s
-      --       in case () of
-      --            _ | n == discarded -> Nothing
-      --            _ | ty₁ == ty₂
-      --   go t          = ([], distill t)
+    distill to@(Lam _ _)  =
+        let (pars, t) = go to in SLam (distillPars pars) (distill t)
+      where
+         go (Lam ty s) =
+           let (n, t)     = freshScope s
+               (pars, t') = go t
+           in ((n, ty) : pars, t')
+         go t = ([], t)
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) = undefined
 
