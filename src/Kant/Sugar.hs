@@ -103,6 +103,7 @@ instance Desugar STerm (TermT Id) where
       where (par, n) = case scopeVar s of
                            Nothing -> (Nothing, discarded)
                            Just n' -> (Just n', n')
+    distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
     distill (Lam ty t)  = undefined
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) = undefined
