@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 module Kant.Sugar
      ( Id
@@ -15,9 +16,12 @@ module Kant.Sugar
      , discarded
      ) where
 
-import           Control.Arrow ((***), second, first)
 import           Control.Applicative ((<$))
-import           Data.Maybe (fromMaybe)
+import           Control.Arrow ((***), second, first)
+import           Data.Function (on)
+import           Data.List (groupBy)
+import           Data.Maybe (fromMaybe, isJust)
+import           Data.Monoid (mconcat)
 
 import qualified Data.Set as Set
 
@@ -32,8 +36,9 @@ data SDecl
     = SVal Id [SParam] STerm STerm
     | SPostulate Id STerm
     | SData ConId [SParam] Level [SConstr]
+    deriving (Eq, Show)
 
-type SParam = (Maybe Id, STerm)
+type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
 
 data STerm
@@ -45,6 +50,7 @@ data STerm
 -- TODO add this, desugaring to 'case'
 --    | SLet Id STerm STerm STerm
     | SCase Id STerm [SBranch]
+    deriving (Eq, Show)
 
 scase :: Id -> STerm -> [SBranch] -> Either Id STerm
 scase n₁ ty brs =
@@ -65,7 +71,7 @@ class Desugar a b where
 discarded :: Id
 discarded = "_"
 
-instance Desugar SDecl Decl where
+instance a ~ Decl => Desugar SDecl a where
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars
         in ValD (Val n (pis pars' (desugar ty)) (lams pars' (desugar t)))
@@ -80,13 +86,17 @@ instance Desugar SDecl Decl where
         SData c (distillPars pars) l (map (second distillPars) cons)
 
 desugarPars :: [SParam] -> [Param]
-desugarPars = map (fromMaybe discarded *** desugar)
+desugarPars pars =
+    concat [zip (fromMaybe [discarded] mns) (repeat (desugar t)) | (mns, t) <- pars]
 
 distillPars :: [Param] -> [SParam]
-distillPars pars = [ (if n == discarded then Nothing else Just n, distill t)
-                   | (n, t) <- pars ]
+distillPars pars =
+    [(sequence (map fst pars'), ty) | pars'@((_, ty):_) <- go]
+  where
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
+         [(if n == discarded then Nothing else Just n, distill t) | (n, t) <- pars]
 
-instance Desugar STerm (TermT Id) where
+instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SVar n)             = Var n
     desugar (SType l)            = Type l
     desugar (SLam pars t)        = lams (desugarPars pars) (desugar t)
@@ -104,7 +114,18 @@ instance Desugar STerm (TermT Id) where
                            Nothing -> (Nothing, discarded)
                            Just n' -> (Just n', n')
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
-    distill (Lam ty t)  = undefined
+    distill to@(Lam ty _)  = undefined
+      -- where
+      --   go :: Term -> Term -> ([SParam], STerm)
+      --   go ty₁ (Lam ty₂ s) =
+      --       let (n, t) = freshScope s
+      --       in case () of
+      --            _ | n == discarded -> Nothing
+      --            _ | ty₁ == ty₂
+      --   go t          = ([], distill t)
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) = undefined
 
+freshScope :: TScope Id -> (Id, Term)
+freshScope s = (n, instantiate1 (Var n) s)
+  where n = fromMaybe discarded (scopeVar s)
