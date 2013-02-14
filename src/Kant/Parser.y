@@ -77,19 +77,19 @@ Val :: { SDecl }
 Val : name Params ':' Term '=>' SingleTerm   { SVal $1 $2 $4 $6 }
 
 Params :: { [SParam] }
-Params : Seq0(Param)                         { concat $1 }
+Params : Seq0(Param)                         { $1 }
 
-Param :: { [SParam] }
+Param :: { SParam }
 Param
-    : '[' Seq(name) ':' Term ']'             { zip (map Just $2) (repeat $4) }
-    | SingleTerm                             { [(Nothing, $1)] }
+    : '[' Seq(name) ':' Term ']'             { (Just $2, $4) }
+    | SingleTerm                             { (Nothing, $1) }
 
 DataCon :: { SConstr }
 DataCon : name Params                        { ($1, $2) }
 
 Term :: { STerm }
 Term
-    : '\\' Seq(Param) '=>' Term              { SLam (concat $2) $4 }
+    : '\\' Seq(Param) '=>' Term              { SLam $2 $4 }
     | 'case' name 'return' Term '{' Bar(Branch) '}'
       {% checkCase $2 $4 $6 }
     | Arr                                    { $1 }
