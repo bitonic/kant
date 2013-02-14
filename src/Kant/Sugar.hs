@@ -96,17 +96,13 @@ instance Desugar STerm (TermT Id) where
     desugar (SCase n ty brs)     = case_ n (desugar ty)
                                          [(c, ns, desugar t) | (c, ns, t) <- brs]
 
-    distill (Var n) = undefined
+    distill (Var n) = SVar n
     distill (Type l) = SType l
-    distill to@(App _ _) = uncurry SLam (go to)
-      where
-        go :: Term -> ([SParam], STerm)
-        go (arrV id -> IsArr t s) =
-            let (par, n) = case scopeVar s of
-                               Nothing -> (Nothing, discarded)
-                               Just n' -> (Just n', n')
-            in first ((par, distill t) :) (go (instantiate1 (Var n) s))
-        go t = ([], distill t)
+    distill (arrV id -> IsArr ty s) =
+        SArr par (distill ty) (distill (instantiate1 (Var n) s))
+      where (par, n) = case scopeVar s of
+                           Nothing -> (Nothing, discarded)
+                           Just n' -> (Just n', n')
     distill (Lam ty t)  = undefined
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) = undefined
