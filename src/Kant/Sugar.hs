@@ -76,7 +76,22 @@ instance a ~ Decl => Desugar SDecl a where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (ValD (Val _ _ _)) = undefined
+    distill (ValD (Val no tyo to)) =
+        let (pars, ty', t') = go tyo to
+        in  SVal no (distillPars pars) (distill ty') (distill t')
+      where
+        go tyo'@(Arr ty₁ s₁) to'@(Lam ty₂ s₂) =
+            if ty₁ == ty₂
+            then let n = case (scopeVar s₁, scopeVar s₂) of
+                             (Nothing, Nothing) -> discarded
+                             (Just n', _)       -> n'
+                             (_,       Just n') -> n'
+                     inst = instantiate1 (Var n)
+                     (pars, ty', t') = go (inst s₁) (inst s₂)
+                 in ((n, ty₁) : pars, ty', t')
+            else ([], tyo', to')
+        go ty t = ([], ty, t)
+
     distill (Postulate n ty) =
         SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =
