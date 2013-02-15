@@ -172,7 +172,7 @@ dataDecl (Data c pars l cons) =
      | (c', pars') <- cons ])
   where
     resTy = app (Var c : map (Var . fst) pars)
-    conFun c' pars' = lams pars' (app (Var c' : map (Var . fst) pars'))
+    conFun c' pars' = lams pars' (Constr c' (map snd pars) (map snd pars'))
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
