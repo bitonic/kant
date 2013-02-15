@@ -21,6 +21,8 @@ import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
 import           Kant.Term
 
+import Debug.Trace
+
 data TyCheckError
     = TyCheckError
     | OutOfBounds Id
@@ -119,7 +121,7 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheckT :: forall a. Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheckT :: forall a. (Ord a) => EnvT a -> TermT a -> TyCheckM (TermT a)
 tyCheckT env (Var v) = envTy env v
 tyCheckT _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -182,7 +184,7 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
                        ty' = instantiate1 cont (F <$> tys)
                        -- Remove the branch scope's inner scope
                        s' = toScope (instantiate1 cont (fromScope ss))
-                   tyCheckEq env' (fromScope s') ty'
+                   tyCheckEq env' ty' (fromScope s')
             Just _ -> wrongArity env c ct
     prepareVars :: [Param] -> EnvT (Var (TName Int) a)
     prepareVars pars =
@@ -197,12 +199,11 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
                                                         (Var (B (Name n j))) t')
                               (snd (nested₁ !! i))
                               (zip (map fst nested₁) [0..(i-1)])
-                      | i <- [0..(length nested₁ - 1)]
-                      ]
+                      | i <- [0..(length nested₁ - 1)] ]
         in nestEnv env (\i -> Just (nested₂ !! i))
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()
+tyCheckEq :: (Ord a) => EnvT a -> TermT a -> TermT a -> TyCheckM ()
 tyCheckEq env ty t =
     do ty' <- tyCheckT env t
        unless (eqCum env ty' ty) (mismatch env ty t ty')
