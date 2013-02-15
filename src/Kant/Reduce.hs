@@ -29,21 +29,35 @@ reduce r env (App t₁ t₂) =
         Lam _ s -> reduce r env (instantiate1 t₂ s)
         t₁'     -> App (r env t₁') (r env t₂)
 reduce r env (Case t ty brs) =
-    case unrollApp t' of
-        (Var v, ts) ->
-            case [ s | (n, i, s) <- brs, v == envNest env n, length ts == i ] of
-                []      -> stuck
-                (s : _) -> instantiateList ts s
+    case t' of
+        Constr c _ ts ->
+            case [ss | (c', i, ss) <- brs, c == c', length ts == i] of
+                [] -> stuck
+                (ss : _) -> instantiate1 t'
+                            (instantiateList (map (toScope . fmap F) ts) ss)
         _ -> stuck
   where
     t'    = reduce r env t
-    stuck = Case t' (r env ty) [(n, i, reduceScope r env s) | (n, i, s) <- brs]
+    stuck = Case t' (reduceScope r env ty)
+                 [(c, i, reduceScope2 r env ss) | (c, i, ss) <- brs]
 reduce r env (Lam t s) =
     Lam (reduce r env t) (reduceScope r env s)
+reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
+reduce r env (Constr c pars ts) = Constr c (map (r env) pars) (map (r env) ts)
+
+nestNothing :: EnvT a -> EnvT (Var (TName b) a)
+nestNothing env = nestEnv env (const Nothing)
 
 reduceScope :: (Eq b, Eq a)
             => Reducer -> EnvT a -> TScopeT a b -> TScopeT a b
-reduceScope r env = toScope . reduce r (nestEnv env (const Nothing)) . fromScope
+reduceScope r env = toScope . reduce r (nestNothing env) . fromScope
+
+reduceScope2 :: (Eq b, Eq c, Eq a)
+             => Reducer -> EnvT a
+             -> Scope (TName b) (Scope (TName c) TermT) a
+             -> Scope (TName b) (Scope (TName c) TermT) a
+reduceScope2 r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
+                     fromScope . fromScope
 
 -- | Reduces a term to its normal form - computes under binders, if you only
 --   want canonical constructors see 'whnf'.

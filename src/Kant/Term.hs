@@ -16,6 +16,7 @@ module Kant.Term
     , Term
     , BranchT
     , Branch
+    , TName
     , TScopeT
     , TScope
       -- * Smart constructors
