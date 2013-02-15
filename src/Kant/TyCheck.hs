@@ -98,10 +98,10 @@ instance TyCheck Val where
 
 instance TyCheck Data where
     tyCheck env dd =
-        do let ((c, ty), cons) = dataDecl dd
+        do let ((c, (ty, _)), cons) = dataDecl dd
            tyCheckT env ty
            env' <- addAbst env c ty
-           mapM_ (tyCheckT env') (map snd cons)
+           mapM_ (tyCheckT env') (map (\(_, (ty', _)) -> ty') cons)
            addData env dd
 
 dupMaybe :: Id -> Maybe b -> TyCheckM b
@@ -145,63 +145,7 @@ tyCheckT env (Lam ty s) =
     do tyCheckT env ty
        tys <- toScope <$> nestTyCheckM env s (const ty) tyCheckT
        return (Arr ty tys)
-tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) =
-    do ty₂ <- tyCheckT env t
-       -- Check if the scrutined's type is canonical, which amounts to checking
-       -- that it is an application, we can find a matching type constructor,
-       -- and the arguments are all there.
-       case unrollApp ty₂ of
-           (Var (envData' env -> Just (Data _ pars₁ _ cons)), args)
-               | length pars₁ == length args ->
-                   -- Check that the number of branches is just right
-                   if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
-                   then wrongBranchNumber env ct
-                   else ty₁ <$ forM_ brs (checkBr pars₁ args cons ty₂)
-           _ -> expectingCanonical env t ty₂
-  where
-    -- TODO this is quite messy.  The main culprit is the type-silent invariant
-    -- that all the lists are of the same length, and thus all the unsafe
-    -- indexing.  It would be nice to have it to be safer and more "obviously
-    -- correct".
-    checkBr pars₁ args cons ty₂ br@(c, i, s) =
-        -- Check that each constructor is indeed a constructor for our datatype
-        case lookup c cons of
-            Nothing -> notConstructor env br
-            -- Check that the number of arguments given to the constructor are
-            -- all there
-            Just pars₂ | length pars₂ == i ->
-                do let -- Get the new environment with the types for the newly
-                       -- bound variables
-                       env'   = prepareVars pars₁ args pars₂
-                       -- Change the type of the scrutined to an application of
-                       -- the constructor to the variables.
-                       pars₂' = map B (zipWith Name (map fst pars₂) [0..])
-                       env''  = caseRefine env' (F v) (F <$> ty₂)
-                                           (app (map Var (envNest env' c : pars₂')))
-                   tyCheckEq env'' (F <$> ty₁) (fromScope s)
-            Just _ -> wrongArity env br
-    prepareVars pars₁ args pars₂ =
-         let -- First, bring all the types of the parameters of the data
-             -- constructor to the right level of boundness
-             nested₁ = [(n, (F . nest) <$> t') | (n, t') <- pars₂]
-             -- Then the tricky part: for each parameter of the data
-             -- constructor, replace the variables that represent previous
-             -- arguments with the variables that will represent them in the
-             -- current scope.
-             nested₂ = [ foldr (\(n, j) t' -> substitute (F (nest n))
-                                                         (Var (B (Name n j))) t')
-                               (snd (nested₁ !! i))
-                               (zip (map fst nested₁) [0..(i-1)])
-                       | i <- [0..(length nested₁ - 1)]
-                       ]
-             -- Finally, we replace the arguments of the type constructor with
-             -- the actual terms.
-             nested₃ = [ foldr (\((n, _), arg) t'' -> substitute (F (nest n))
-                                                                 (F <$> arg) t'')
-                               t' (zip pars₁ args)
-                       | t' <- nested₂
-                       ]
-         in nestEnv env (\i -> Just (nested₃ !! i))
+tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) = undefined
 
 tyCheckT _ (Case _ _ _) =
     error "tyCheckT got a case with a non-variable, this should not happen"
