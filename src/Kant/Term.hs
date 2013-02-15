@@ -105,6 +105,7 @@ data Data = Data ConId            -- Name
 type Constr = (ConId, [Param])
 type Param = (Id, Term)
 
+type TName a = Name Id a
 type TScopeT a b = Scope (Name Id b) TermT a
 type TScope a    = TScopeT a ()
 
@@ -116,13 +117,15 @@ data TermT a
       --   Type (n ⊔ m)@.
     | Arr (TermT a) (TScope a)
     | Lam (TermT a) (TScope a)
-    | Case (TermT a) (TermT a) [BranchT a]
+    | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
 
-type BranchT a = (ConId, Int, TScopeT a Int)
+-- | Each branch is scoped with the matched variable, and the arguments to the
+--   constructors.
+type BranchT a = (ConId, Int, Scope (TName Int) (Scope (TName ()) TermT) a)
 type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
@@ -134,13 +137,14 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v           >>= f = f v
-    Type l          >>= _ = Type l
-    App t₁ t₂       >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Arr ty s        >>= f = Arr (ty >>= f) (s >>>= f)
-    Lam t s         >>= f = Lam (t >>= f) (s >>>= f)
-    Case t ty brs   >>= f = Case (t >>= f) (ty >>= f)
-                                 [(c, i, s >>>= f) | (c, i, s) <- brs]
+    Var v            >>= f = f v
+    Type l           >>= _ = Type l
+    App t₁ t₂        >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Arr ty s         >>= f = Arr (ty >>= f) (s >>>= f)
+    Lam t s          >>= f = Lam (t >>= f) (s >>>= f)
+    Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
+                                  [ (c, i, Scope (fmap (>>>= f) <$> s))
+                                  | (c, i, Scope s) <- brs ]
     Constr c tys ts >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
 
 -- | Good 'ol lambda abstraction.
@@ -155,14 +159,16 @@ lams :: [Param] -> Term -> Term
 lams = params lam
 
 -- | Pattern matching.
-case_ :: Id
+case_ :: Term
+      -> Id
       -> Term
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
       -> Term
-case_ n₁ ty brs =
-    Case (Var n₁) ty [ (c, length vs, (abstractName (`elemIndex` vs) t'))
-                     | (c, vs, t') <- brs ]
+case_ t n ty brs =
+    Case t (abstract1Name n ty)
+         [ (c, length vs, (abstractName (`elemIndex` vs) (abstract1Name n t')))
+         | (c, vs, t') <- brs ]
 
 -- | Dependent function, @(x : A) -> B@.
 pi_ :: Id                       -- ^ Abstracting an @x@...
