@@ -40,7 +40,7 @@ Library
                       Kant.Term,
                       Kant.Sugar,
                       Kant.Parser,
---                      Kant.Pretty,
+                      Kant.Pretty,
                       Kant.Reduce,
                       Kant.Environment,
                       Kant.TyCheck
