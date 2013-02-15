@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , TyCheckM
@@ -30,8 +31,8 @@ data TyCheckError
     | ExpectingCanonical Term Term
       -- TODO report if there are too few or too many branches
     | WrongBranchNumber Term
-    | NotConstructor Branch
-    | WrongArity Branch
+    | NotConstructor Id Term
+    | WrongArity Id Term
     deriving (Eq, Show)
 
 -- `envPull env v' will be consistent with whatever `pullTerm' returns since
@@ -56,11 +57,9 @@ expectingCanonical env t ty =
 wrongBranchNumber :: Ord a => EnvT a -> TermT a -> TyCheckM b
 wrongBranchNumber env t = throwError (WrongBranchNumber (pullTerm env t))
 
-notConstructor :: Ord a => EnvT a -> BranchT a -> TyCheckM b
-notConstructor env (c, i, s) = throwError (NotConstructor (c, i, pullTerm env s))
-
-wrongArity :: Ord a => EnvT a -> BranchT a -> TyCheckM b
-wrongArity env (c, i, s) = throwError (WrongArity (c, i, pullTerm env s))
+notConstructor, wrongArity :: Ord a => EnvT a -> Id -> TermT a -> TyCheckM b
+notConstructor env c t = throwError (NotConstructor c (pullTerm env t))
+wrongArity env c t = throwError (WrongArity c (pullTerm env t))
 
 instance Error TyCheckError where
     noMsg = TyCheckError
@@ -120,7 +119,7 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheckT :: Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheckT :: forall a. Ord a => EnvT a -> TermT a -> TyCheckM (TermT a)
 tyCheckT env (Var v) = envTy env v
 tyCheckT _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -147,10 +146,60 @@ tyCheckT env (Lam ty s) =
        return (Arr ty tys)
 tyCheckT env@Env{envNest = nest} (Constr c pars args) =
     tyCheckT env (app (Var (nest c) : pars ++ args))
-tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) = undefined
-
-tyCheckT _ (Case _ _ _) =
-    error "tyCheckT got a case with a non-variable, this should not happen"
+tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
+    do ty <- tyCheckT env t
+       -- Check if the scrutined's type is canonical, which amounts to checking
+       -- that it is an application, we can find a matching type constructor,
+       -- and the arguments are all there.
+       case unrollApp ty of
+           (Var (envData' env -> Just (Data _ pars _ cons)), args)
+               | length pars == length args ->
+                   -- Check that the number of branches is just right
+                   if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
+                   then wrongBranchNumber env ct
+                   else instantiate1 t s <$ forM_ brs (checkBr args cons s)
+           _ -> expectingCanonical env t ty
+  where
+    -- TODO this is quite messy. The main culprit is the type-silent invariant
+    -- that all the lists are of the same length, and thus all the unsafe
+    -- indexing. It would be nice to have it to be safer and more "obviously
+    -- correct".
+    checkBr :: [TermT a] -> [Constr] -> TScope a -> BranchT a -> TyCheckM ()
+    checkBr args cons tys (c, i, ss) =
+        -- Check that each constructor is indeed a constructor for our datatype
+        case lookup c cons of
+            Nothing -> notConstructor env c ct
+            -- Check that the number of arguments given to the constructor are
+            -- all there
+            Just pars | length pars == i ->
+                do let -- Get the new environment with the types for the bound
+                       -- variables
+                       env' = prepareVars pars
+                       -- Prepare the term for this branch
+                       cont = Constr c (map (fmap F) args)
+                              (map (Var . B) (zipWith Name (map fst pars) [0..]))
+                       -- The type that we'd expect for the body
+                       ty' = instantiate1 cont (F <$> tys)
+                       -- Remove the branch scope's inner scope
+                       s' = toScope (instantiate1 cont (fromScope ss))
+                   tyCheckEq env' (fromScope s') ty'
+            Just _ -> wrongArity env c ct
+    prepareVars :: [Param] -> EnvT (Var (TName Int) a)
+    prepareVars pars =
+        let -- First, bring all the types of the parameters of the data
+            -- constructor to the right level of boundness
+            nested₁ = [(n, (F . nest) <$> t') | (n, t') <- pars]
+            -- Then the tricky part: for each parameter of the data
+            -- constructor, replace the variables that represent previous
+            -- arguments with the variables that will represent them in the
+            -- current scope.
+            nested₂ = [ foldr (\(n, j) t' -> substitute (F (nest n))
+                                                        (Var (B (Name n j))) t')
+                              (snd (nested₁ !! i))
+                              (zip (map fst nested₁) [0..(i-1)])
+                      | i <- [0..(length nested₁ - 1)]
+                      ]
+        in nestEnv env (\i -> Just (nested₂ !! i))
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Ord a => EnvT a -> TermT a -> TermT a -> TyCheckM ()

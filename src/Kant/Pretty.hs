@@ -142,12 +142,13 @@ instance Pretty TyCheckError where
                nest ("instead of" <$> pretty ty))
     pretty (WrongBranchNumber t) =
         group (nest ("Too few or too many branches in term" <$> pretty t))
-    -- pretty (NotConstructor br) =
-    --     group (nest ("Pattern matching on a non-constructor in branch" <$>
-    --                  prettyBranch br))
-    -- pretty (WrongArity br) =
-    --     group (nest ("Branch gives wrong number of arguments to constructor" <$>
-    --                  prettyBranch br))
+    pretty (NotConstructor c t) =
+        group (nest ("Pattern matching on non-constructor '" <> pretty c <>
+                     "' in term" <$>
+                     pretty t))
+    pretty (WrongArity c t) =
+        group (nest ("Branch gives wrong number of arguments to constructor `" <>
+                     pretty c <> "' in term" <$> pretty t))
 
 instance Pretty Output where
     pretty (OTyCheck ty) = pretty ty
