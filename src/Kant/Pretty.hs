@@ -42,11 +42,14 @@ instance Pretty STerm where
     pretty (SVar v) = pretty v
     pretty (SType 0) = "Type"
     pretty (SType l) = "Type" <> pretty (show l)
-    pretty (SArr mn ty₁ ty₂) = l <+> "->" <+> noArr ty₂
+    pretty to@(SArr _ _ _) = go to
       where
-        l = case mn of
-                Nothing -> noArr ty₁
-                Just n  -> "(" <> typed n ty₁ <> ")"
+        go (SArr mn ty₁ ty₂) =
+            let l = case mn of
+                        Nothing -> noArr ty₁
+                        Just n  -> "(" <> typed n ty₁ <> ")"
+            in l <+> "->" <+> go ty₂
+        go t = noArr t
         noArr t@(SApp _ _) = pretty t
         noArr t            = singleParens t
     pretty to@(SApp _ _) = go to
@@ -61,9 +64,9 @@ nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
 
 singleTerm :: STerm -> Bool
-singleTerm t@(SVar _)  = True
-singleTerm t@(SType _) = True
-singleTerm t           = False
+singleTerm (SVar _)  = True
+singleTerm (SType _) = True
+singleTerm _         = False
 
 singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
