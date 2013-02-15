@@ -33,7 +33,7 @@ data SDecl
     = SVal Id [SParam] STerm STerm
     | SPostulate Id STerm
     | SData ConId [SParam] Level [SConstr]
-    deriving (Eq, Show)
+    deriving (Show)
 
 type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
@@ -47,7 +47,7 @@ data STerm
 -- TODO add this, desugaring to 'case'
 --    | SLet Id STerm STerm STerm
     | SCase Id STerm [SBranch]
-    deriving (Eq, Show)
+    deriving (Show)
 
 scase :: Id -> STerm -> [SBranch] -> Either Id STerm
 scase n₁ ty brs =
@@ -103,10 +103,10 @@ desugarPars pars =
 
 distillPars :: [Param] -> [SParam]
 distillPars pars =
-    [(sequence (map fst pars'), ty) | pars'@((_, ty):_) <- go]
+    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
   where
     go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
-         [(if n == discarded then Nothing else Just n, distill t) | (n, t) <- pars]
+         [(if n == discarded then Nothing else Just n, t) | (n, t) <- pars]
 
 instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SVar n)             = Var n
