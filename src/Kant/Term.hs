@@ -27,7 +27,6 @@ module Kant.Term
     , arr
     , case_
     , app
-    , params
       -- * Utilities
     , unrollApp
     , instantiateList
@@ -160,9 +159,9 @@ lams :: [Param] -> Term -> Term
 lams = params lam
 
 -- | Pattern matching.
-case_ :: Term
-      -> Id
-      -> Term
+case_ :: Term                   -- ^ The scrutined
+      -> Id                     -- ^ The abstracted var
+      -> Term                   -- ^ The return type
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
       -> Term
