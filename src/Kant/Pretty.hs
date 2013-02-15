@@ -58,7 +58,9 @@ instance Pretty STerm where
         go t           = singleParens t
     pretty (SLam pars t) =
         "\\" <> group (align (prettyPars' pars <> "=>" <$> align (pretty t)))
-    pretty (SCase _ _ _) = undefined
+    pretty (SCase n ty brs) =
+        group (nest ("case" <+> pretty n <+> "return" <+> pretty ty <$>
+                     (align (prettyBarred prettyBranch brs))))
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
@@ -86,6 +88,10 @@ prettyPars' pars = prettyPars pars <> spaceIfCons pars
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
+
+prettyBranch :: SBranch -> Doc
+prettyBranch (c, ns, t) =
+    group (align (pretty c <> spaceIfCons ns <> hsep' ns <+> "=>" <$> pretty t))
 
 typed :: Id -> STerm -> Doc
 typed n ty = pretty n <+> ":" <+> pretty ty
