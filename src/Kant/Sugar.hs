@@ -13,6 +13,7 @@ module Kant.Sugar
      , scase
      , SBranch
      , discarded
+     , Desugar(..)
      ) where
 
 import           Control.Applicative ((<$))

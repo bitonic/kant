@@ -1,5 +1,6 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Defines instances of 'Pretty' for most types defined.  Exports convenient
@@ -14,8 +15,9 @@ import           Text.PrettyPrint.Leijen
                   (<$>), vsep, group, (<$$>))
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
+import           Kant.Term
 import           Kant.Sugar
---import           Kant.TyCheck
+import           Kant.TyCheck
 --import           Kant.REPL.Types
 
 
@@ -97,32 +99,35 @@ instance Pretty SDecl where
 instance Pretty SModule where
     pretty = prettyList . unSModule
 
--- instance Pretty TyCheckError where
---     pretty TyCheckError = "fixme"
---     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
---     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
---     pretty (Mismatch ty₁ t ty₂) =
---         group (nest ("Expecting type" <$> pretty ty₁) <$>
---                nest ("for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty₂))
---     pretty (ExpectingFunction t ty) =
---         group (nest ("Expecting function type for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (ExpectingType t ty) =
---         group (nest ("Expecting a Type for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (ExpectingCanonical t ty) =
---         group (nest ("Expecting canonical (non-arrow) type for term" <$>
---                      pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (WrongBranchNumber t) =
---         group (nest ("Too few or too many branches in term" <$> pretty t))
---     pretty (NotConstructor br) =
---         group (nest ("Pattern matching on a non-constructor in branch" <$>
---                      prettyBranch br))
---     pretty (WrongArity br) =
---         group (nest ("Branch gives wrong number of arguments to constructor" <$>
---                      prettyBranch br))
+pdist :: Term -> Doc
+pdist = pretty . (distill :: Term -> STerm)
+
+instance Pretty TyCheckError where
+    pretty TyCheckError = "fixme"
+    pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
+    pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
+    pretty (Mismatch ty₁ t ty₂) =
+        group (nest ("Expecting type" <$> pdist ty₁) <$>
+               nest ("for term" <$> pdist t) <$>
+               nest ("instead of" <$> pdist ty₂))
+    pretty (ExpectingFunction t ty) =
+        group (nest ("Expecting function type for term" <$> pdist t) <$>
+               nest ("instead of" <$> pdist ty))
+    pretty (ExpectingType t ty) =
+        group (nest ("Expecting a Type for term" <$> pdist t) <$>
+               nest ("instead of" <$> pdist ty))
+    pretty (ExpectingCanonical t ty) =
+        group (nest ("Expecting canonical (non-arrow) type for term" <$>
+                     pdist t) <$>
+               nest ("instead of" <$> pdist ty))
+    pretty (WrongBranchNumber t) =
+        group (nest ("Too few or too many branches in term" <$> pdist t))
+    -- pretty (NotConstructor br) =
+    --     group (nest ("Pattern matching on a non-constructor in branch" <$>
+    --                  prettyBranch br))
+    -- pretty (WrongArity br) =
+    --     group (nest ("Branch gives wrong number of arguments to constructor" <$>
+    --                  prettyBranch br))
 
 -- instance Pretty Output where
 --     pretty (OTyCheck ty) = pretty ty
