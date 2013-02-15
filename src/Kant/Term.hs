@@ -27,6 +27,7 @@ module Kant.Term
     , arr
     , case_
     , app
+    , params
       -- * Utilities
     , unrollApp
     , instantiateList
