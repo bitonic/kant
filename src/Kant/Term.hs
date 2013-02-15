@@ -27,8 +27,8 @@ module Kant.Term
     , arr
     , case_
     , app
+    , params
       -- * Utilities
-    , dataDecl
     , unrollApp
     , instantiateList
     , scopeVars
@@ -190,21 +190,6 @@ arr ty₁ ty₂ = Arr ty₁ (toScope (F <$> ty₂))
 --   to @b@ applied to @c@.  Fails with empty lists.
 app :: [TermT a] -> TermT a
 app = foldl1 App
-
--- | Extracts the types out of a data declaration.
---
---   A type function will be generated as type constructor, taking the
---   parameters as arguments and returning someting of @Type l@, where @l@ is
---   the level specified in the declaration.
---
---   Another function will be generated for each data constructor, taking all
---   the parameters of the type constructor plus its own parameter.
-dataDecl :: Data -> ((Id, Term), [(Id, Term)])
-dataDecl (Data c pars l cons) =
-    ((c, params pi_ pars (Type l)),
-     map (\(c', pars') -> (c', params pi_ (pars ++ pars') resTy)) cons)
-  where
-    resTy = app (Var c : map (Var . fst) pars)
 
 unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)

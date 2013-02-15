@@ -23,6 +23,7 @@ module Kant.Environment
     , pullTerm
     , addAbst
     , addVal
+    , dataDecl
     , addData
     , caseRefine
     ) where
@@ -43,6 +44,7 @@ import           Bound.Name
 import           Kant.Term
 
 type ItemT a = (TermT a, Maybe (TermT a))
+type Item = ItemT Id
 
 type CtxT a = (a -> Maybe (ItemT a))
 type Ctx = CtxT Id
@@ -154,6 +156,24 @@ addAbst env v₁ t = addCtx env v₁ (t, Nothing)
 addVal :: Env -> Val -> Maybe Env
 addVal env (Val n ty t) = addCtx env n (ty, Just t)
 
+-- | Extracts the types out of a data declaration.
+--
+--   A type function will be generated as type constructor, taking the
+--   parameters as arguments and returning someting of @Type l@, where @l@ is
+--   the level specified in the declaration.
+--
+--   Another function will be generated for each data constructor, taking all
+--   the parameters of the type constructor plus its own parameter.
+dataDecl :: Data -> ((Id, Item), [(Id, Item)])
+dataDecl (Data c pars l cons) =
+    ((c, (params pi_ pars (Type l), Nothing)),
+     [ let pars'' = pars ++ pars'
+       in (c', (params pi_ pars'' resTy, Just (conFun c' pars'')))
+     | (c', pars') <- cons ])
+  where
+    resTy = app (Var c : map (Var . fst) pars)
+    conFun c' pars' = lams pars' (app (Var c' : map (Var . fst) pars'))
+
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
 addData :: Env -> Data -> Either Id Env
@@ -162,10 +182,11 @@ addData env@Env{envData = dat} dd@(Data c₁ _ _ _) =
                then Left c₁
                else Right (env{envData = Map.insert c₁ dd dat})
        let (tyc, cons) = dataDecl dd
-       foldr (\(c₂, ty) enve ->
+       foldr (\(c₂, item) enve ->
                do env'' <- enve;
-                  maybe (Left c₂) Right (addCtx env'' c₂ (ty, Nothing)))
+                  maybe (Left c₂) Right (addCtx env'' c₂ item))
              (Right env') (tyc : cons)
+
 
 caseRefine :: Eq a => EnvT a -> a -> TermT a -> TermT a -> EnvT a
 caseRefine env@Env{envCtx = ctx} v₁ ty t =

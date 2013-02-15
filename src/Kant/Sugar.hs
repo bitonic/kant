@@ -120,8 +120,9 @@ instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SApp t₁ t₂)         = App (desugar t₁) (desugar t₂)
     desugar (SArr Nothing ty t)  = arr (desugar ty) (desugar t)
     desugar (SArr (Just n) ty t) = pi_ n (desugar ty) (desugar t)
-    desugar (SCase n ty brs)     = case_ n (desugar ty)
-                                         [(c, ns, desugar t) | (c, ns, t) <- brs]
+    desugar (SCase n ty brs)     = undefined
+    -- desugar (SCase n ty brs)     = case_ n (desugar ty)
+    --                                      [(c, ns, desugar t) | (c, ns, t) <- brs]
 
     -- TODO make names unique
     distill (Var n) = SVar n
