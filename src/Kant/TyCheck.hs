@@ -145,6 +145,8 @@ tyCheckT env (Lam ty s) =
     do tyCheckT env ty
        tys <- toScope <$> nestTyCheckM env s (const ty) tyCheckT
        return (Arr ty tys)
+tyCheckT env@Env{envNest = nest} (Constr c pars args) =
+    tyCheckT env (app (Var (nest c) : pars ++ args))
 tyCheckT env@Env{envNest = nest} ct@(Case t@(Var v) ty₁ brs) = undefined
 
 tyCheckT _ (Case _ _ _) =
