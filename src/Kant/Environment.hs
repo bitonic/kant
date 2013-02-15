@@ -167,12 +167,12 @@ addVal env (Val n ty t) = addCtx env n (ty, Just t)
 dataDecl :: Data -> ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
     ((c, (params pi_ pars (Type l), Nothing)),
-     [ let pars'' = pars ++ pars'
-       in (c', (params pi_ pars'' resTy, Just (conFun c' pars'')))
+     [ (c', (params pi_ (pars ++ pars') resTy, Just (conFun c' pars')))
      | (c', pars') <- cons ])
   where
     resTy = app (Var c : map (Var . fst) pars)
-    conFun c' pars' = lams pars' (Constr c' (map snd pars) (map snd pars'))
+    conFun c' pars' = lams (pars ++ pars')
+                           (Constr c' (map (Var . fst) pars) (map (Var . fst) pars'))
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
