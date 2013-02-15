@@ -69,6 +69,10 @@ class Desugar a b where
 discarded :: Id
 discarded = "_"
 
+instance a ~ Module => Desugar SModule a where
+    desugar (SModule decls) = Module (map desugar decls)
+    distill (Module decls)  = SModule (map distill decls)
+
 instance a ~ Decl => Desugar SDecl a where
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars

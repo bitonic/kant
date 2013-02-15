@@ -13,3 +13,5 @@ depcomp [A : Type][B : A -> Type][C : (x : A) -> B x -> Type]
   (f x (g x))
 
 notnice [A : Type] : A => (notnice A)
+
+foo : Bar => baz

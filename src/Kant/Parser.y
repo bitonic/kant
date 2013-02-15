@@ -10,9 +10,11 @@ module Kant.Parser
     , parseTerm
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
+import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
 
@@ -137,17 +139,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult SModule
-parseModule s = runAlex s parseModule_
+parseModule :: String -> ParseResult Module
+parseModule s = desugar <$> runAlex s parseModule_
 
-parseDecl :: String -> ParseResult SDecl
-parseDecl s = runAlex s parseDecl_
+parseDecl :: String -> ParseResult Decl
+parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult STerm
-parseTerm s = runAlex s parseTerm_
+parseTerm :: String -> ParseResult Term
+parseTerm s = desugar <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO SModule
+parseFile :: FilePath -> IO Module
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 }
