@@ -118,6 +118,7 @@ instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SCase n ty brs)     = case_ n (desugar ty)
                                          [(c, ns, desugar t) | (c, ns, t) <- brs]
 
+    -- TODO make names unique
     distill (Var n) = SVar n
     distill (Type l) = SType l
     distill (Arr ty s) =
