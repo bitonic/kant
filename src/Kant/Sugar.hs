@@ -129,11 +129,10 @@ instance a ~ (TermT Id) => Desugar STerm a where
     distill to@(Lam _ _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
       where
-         go (Lam ty s) =
-           let (n, t)     = freshScope s
-               (pars, t') = go t
-           in ((n, ty) : pars, t')
-         go t = ([], t)
+         go (Lam ty s) = let (n, t)     = freshScope s
+                             (pars, t') = go t
+                         in ((n, ty) : pars, t')
+         go t          = ([], t)
     distill (Case t ty brs) = undefined
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
