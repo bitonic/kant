@@ -18,12 +18,15 @@ module Kant.Sugar
 
 import           Control.Applicative ((<$))
 import           Control.Arrow (second)
+import           Data.Foldable (Foldable)
 import           Data.List (groupBy)
 import           Data.Maybe (fromMaybe, isJust)
 
 import qualified Data.Set as Set
 
 import           Bound
+import           Bound.Name
+import           Bound.Scope
 
 import           Kant.Common
 import           Kant.Term
@@ -139,10 +142,22 @@ instance a ~ (TermT Id) => Desugar STerm a where
                              (pars, t') = go t
                          in ((n, ty) : pars, t')
          go t          = ([], t)
-    distill (Case t ty brs) = undefined
+    distill (Case v@(Var n) s brs) =
+        SCase n (distill (instantiate1 v s))
+              [ let (ns, s') = freshScopeI ss i
+                in (c, ns, distill (instantiate1 v s'))
+              | (c, i, ss) <- brs ]
+    distill (Case _ _ _) = error "distill: panic, got a non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
   where n = fromMaybe discarded (scopeVar s)
+
+-- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
+-- in the branch body.
+freshScopeI :: (Monad f, Foldable f) => Scope (TName Int) f Id -> Int -> ([Id], f Id)
+freshScopeI s i = (vars', instantiateList (map return vars') s)
+  where vars = [ (ix, n) | Name n ix <- bindings s ]
+        vars' = [ fromMaybe discarded (lookup ix vars) | ix <- [0..(i-1)] ]
