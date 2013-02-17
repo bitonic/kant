@@ -21,8 +21,6 @@ import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
 import           Kant.Term
 
-import Debug.Trace
-
 data TyCheckError
     = TyCheckError
     | OutOfBounds Id
