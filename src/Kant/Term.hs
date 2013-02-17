@@ -41,6 +41,7 @@ module Kant.Term
     , scopeVars
     , scopeVar
     , moduleNames
+    , discardedM
     ) where
 
 import           Control.Applicative (Applicative(..), (<$>))
@@ -48,7 +49,7 @@ import           Control.Arrow (first, second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
 import           Data.List (elemIndex)
-import           Data.Maybe (listToMaybe)
+import           Data.Maybe (listToMaybe, fromMaybe)
 import           Data.Traversable (Traversable)
 
 import qualified Data.Set as Set
@@ -261,3 +262,6 @@ moduleNames = concatMap go . unModule
     go (ValD (Val n _ _))          = [n]
     go (Postulate n _)             = [n]
     go (DataD (Data tyc _ _ cons)) = tyc : map fst cons
+
+discardedM :: Maybe Id -> Id
+discardedM = fromMaybe discarded

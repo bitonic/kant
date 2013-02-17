@@ -12,7 +12,6 @@ module Kant.Sugar
      , STerm(..)
      , scase
      , SBranch
-     , discarded
      , Desugar(..)
      ) where
 
@@ -94,9 +93,6 @@ instance a ~ Decl => Desugar SDecl a where
         SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =
         SData c (distillPars pars) l (map (second distillPars) cons)
-
-discardedM :: Maybe Id -> Id
-discardedM = fromMaybe discarded
 
 desugarPars :: [SParam] -> [Param]
 desugarPars pars =
