@@ -26,7 +26,7 @@ module Kant.Term
     , lams
     , pi_
     , pis
---    , fix
+    , fix
     , arr
     , case_
     , app
@@ -201,12 +201,13 @@ pi_ v ty₁ ty₂ = Arr ty₁ (abstract1Name v ty₂)
 pis :: [Param] -> Term -> Term
 pis = params pi_
 
--- fix :: Id                       -- ^ Name of the recursor
---     -> [Param]                  -- ^ Arguments
---     -> Term                     -- ^ Return type
---     -> Term                     -- ^ Body
---     -> Term
--- fix n pars ty t = Fix (length pars) (pis pars ty) (abstract1Name n t)
+fix :: Id                       -- ^ Name of the recursor
+    -> [Param]                  -- ^ Arguments
+    -> Term                     -- ^ Return type
+    -> Term                     -- ^ Body
+    -> Term
+fix n pars ty t = Fix (pis pars ty)
+                  (abstractName (`elemIndex` map fst pars) (abstract1Name n t))
 
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term
