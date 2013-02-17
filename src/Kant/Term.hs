@@ -18,6 +18,7 @@ module Kant.Term
     , Branch
     , TName
     , TScopeT
+    , TScopeT²
     , TScope
     , discarded
       -- * Smart constructors
@@ -25,7 +26,7 @@ module Kant.Term
     , lams
     , pi_
     , pis
-    , fix
+--    , fix
     , arr
     , case_
     , app
@@ -110,9 +111,10 @@ data Data = Data ConId            -- Name
 type Constr = (ConId, [Param])
 type Param = (Id, Term)
 
-type TName a = Name Id a
-type TScopeT a b = Scope (Name Id b) TermT a
-type TScope a    = TScopeT a ()
+type TName a        = Name Id a
+type TScopeT b a    = Scope (Name Id b) TermT a
+type TScopeT² b c a = Scope (TName b) (Scope (TName c) TermT) a
+type TScope a       = TScopeT () a
 
 data TermT a
     = Var a
@@ -124,14 +126,19 @@ data TermT a
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
-    | Fix Int (TermT a) (TScope a)
+    | Fix [(Id, TermT a)]             -- The types of the arguments
+          (TermT a)                   -- The return type
+          (TScopeT² Int () a)         -- The body, scoped with the arguments
+                                      -- (there should be as many as the length
+                                      -- of the list) and the recursive
+                                      -- function.
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
 
 -- | Each branch is scoped with the matched variable, and the arguments to the
 --   constructors.
-type BranchT a = (ConId, Int, Scope (TName Int) (Scope (TName ()) TermT) a)
+type BranchT a = (ConId, Int, TScopeT² Int () a)
 type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
@@ -149,10 +156,12 @@ instance Monad TermT where
     Arr ty s         >>= f = Arr (ty >>= f) (s >>>= f)
     Lam t s          >>= f = Lam (t >>= f) (s >>>= f)
     Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
-                                  [ (c, i, Scope (fmap (>>>= f) <$> s))
-                                  | (c, i, Scope s) <- brs ]
+                                  [(c, i, s >>>>= f) | (c, i, s) <- brs]
     Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
-    Fix i ty s       >>= f = Fix i (ty >>= f) (s >>>= f)
+    Fix pars ty s    >>= f = Fix (map (second (>>= f)) pars) (ty >>= f) (s >>>>= f)
+
+(>>>>=) :: TScopeT² b c a -> (a -> TermT d) -> TScopeT² b c d
+Scope s >>>>= f = Scope (fmap (>>>= f) <$> s)
 
 -- | A binding/pattern match that we are not going to use.
 discarded :: Id
@@ -192,12 +201,12 @@ pi_ v ty₁ ty₂ = Arr ty₁ (abstract1Name v ty₂)
 pis :: [Param] -> Term -> Term
 pis = params pi_
 
-fix :: Id                       -- ^ Name of the recursor
-    -> [Param]                  -- ^ Arguments
-    -> Term                     -- ^ Return type
-    -> Term                     -- ^ Body
-    -> Term
-fix n pars ty t = Fix (length pars) (pis pars ty) (abstract1Name n t)
+-- fix :: Id                       -- ^ Name of the recursor
+--     -> [Param]                  -- ^ Arguments
+--     -> Term                     -- ^ Return type
+--     -> Term                     -- ^ Body
+--     -> Term
+-- fix n pars ty t = Fix (length pars) (pis pars ty) (abstract1Name n t)
 
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term

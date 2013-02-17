@@ -39,7 +39,7 @@ reduce r env (Case t ty brs) =
   where
     t'    = reduce r env t
     stuck = Case t' (reduceScope r env ty)
-                 [(c, i, reduceScope2 r env ss) | (c, i, ss) <- brs]
+                 [(c, i, reduceScope² r env ss) | (c, i, ss) <- brs]
 reduce r env (Lam t s) =
     Lam (reduce r env t) (reduceScope r env s)
 reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
@@ -49,14 +49,12 @@ nestNothing :: EnvT a -> EnvT (Var (TName b) a)
 nestNothing env = nestEnv env (const Nothing)
 
 reduceScope :: (Eq b, Eq a)
-            => Reducer -> EnvT a -> TScopeT a b -> TScopeT a b
+            => Reducer -> EnvT a -> TScopeT b a -> TScopeT b a
 reduceScope r env = toScope . reduce r (nestNothing env) . fromScope
 
-reduceScope2 :: (Eq b, Eq c, Eq a)
-             => Reducer -> EnvT a
-             -> Scope (TName b) (Scope (TName c) TermT) a
-             -> Scope (TName b) (Scope (TName c) TermT) a
-reduceScope2 r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
+reduceScope² :: (Eq b, Eq c, Eq a)
+             => Reducer -> EnvT a -> TScopeT² b c a -> TScopeT² b c a
+reduceScope² r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
                      fromScope . fromScope
 
 -- | Reduces a term to its normal form - computes under binders, if you only
