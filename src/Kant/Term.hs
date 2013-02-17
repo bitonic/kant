@@ -34,6 +34,7 @@ module Kant.Term
       -- * Utilities
     , unrollApp
     , unrollArr
+    , arrLen
     , instantiateList
     , scopeVars
     , scopeVar
@@ -226,6 +227,10 @@ unrollArr (Arr ty s) = first ((n, ty) :) (unrollArr (instantiate1 (Var n) s))
                 []     -> discarded
                 (n':_) -> n'
 unrollArr t = ([], t)
+
+arrLen :: TermT a -> Int
+arrLen (Arr _ s) = 1 + arrLen (fromScope s)
+arrLen _         = 0
 
 scopeVars :: (Monad f, Foldable f, Ord n) => Scope (Name n b) f a -> [n]
 scopeVars s = Set.toList (Set.fromList (map name (bindings s)))
