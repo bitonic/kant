@@ -32,6 +32,7 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
+    "_"                                   { simpleTok UNDERSCORE }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "case"                                { simpleTok CASE }
@@ -61,6 +62,7 @@ data Token
     | TYPE Level
     | EOF
     | RETURN
+    | UNDERSCORE
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r
