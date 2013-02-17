@@ -32,7 +32,8 @@ reduce r env (App t₁ t₂) =
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
             let (fargs, rest) = splitAt i args
-            in if i > length args || not (all canonical fargs) then t₁'
+            in if i > length args || not (all canonical fargs)
+               then App (r env t₁') (r env t₂)
                else app (instantiateIntU ft fargs fss : rest)
         t₁'     -> App (r env t₁') (r env t₂)
 reduce r env (Case t ty brs) =
