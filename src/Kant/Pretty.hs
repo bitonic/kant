@@ -61,6 +61,9 @@ instance Pretty STerm where
     pretty (SCase n ty brs) =
         group (nest ("case" <+> pretty n <+> "return" <+> pretty ty <$>
                      (align (prettyBarred prettyBranch brs))))
+    pretty (SFix nm pars ty t) =
+        "fix" <+> group (align (prettyValTy (discardedM nm) pars ty <+> "=>" <$>
+                                align (pretty t)))
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
@@ -101,8 +104,8 @@ instance Pretty Decl where
 
 instance Pretty SDecl where
     pretty (SVal n pars ty t) =
-        group (end (nest (pretty n <+> prettyPars pars <> ":" <+> pretty ty
-                          <+> "=>" <+> if single then pt else "(" <$$> pt)))
+        group (end (nest (prettyValTy n pars ty <+> "=>" <+>
+                          if single then pt else "(" <$$> pt)))
       where
         single = singleTerm t
         pt     = pretty t
@@ -115,6 +118,9 @@ instance Pretty SDecl where
     pretty (SPostulate n ty) = "postulate" <+> typed n ty
 
     prettyList = vcat . intersperse "" . map pretty
+
+prettyValTy :: Id -> [SParam] -> STerm -> Doc
+prettyValTy n pars ty = pretty n <+> prettyPars pars <> ":" <+> pretty ty
 
 instance Pretty Module where
     pretty = pretty . (distill :: Module -> SModule)
