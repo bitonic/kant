@@ -44,6 +44,7 @@ reduce r env (Lam t s) =
     Lam (reduce r env t) (reduceScope r env s)
 reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
 reduce r env (Constr c pars ts) = Constr c (map (r env) pars) (map (r env) ts)
+reduce r env (Fix ty ss) = Fix (r env ty) (reduceScope² r env ss)
 
 nestNothing :: EnvT a -> EnvT (Var (TName b) a)
 nestNothing env = nestEnv env (const Nothing)
