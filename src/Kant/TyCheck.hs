@@ -67,7 +67,7 @@ instance Error TyCheckError where
 type TyCheckM = Either TyCheckError
 
 nestTyCheckM :: EnvT a
-             -> TScopeT a b
+             -> TScopeT b a
              -> (b -> TermT a)
              -> (EnvT (Var (Name Id b) a) -> TermT (Var (Name Id b) a) -> TyCheckM c)
              -> TyCheckM c
