@@ -72,6 +72,7 @@ env   Env
 newtype Module = Module {unModule :: [Decl]}
     deriving (Show, Eq)
 
+-- TODO we can remove the type in ValD, since Fix include the recursive type
 -- | Value or datatype declaration
 data Decl
     = ValD Val
@@ -120,6 +121,7 @@ data TermT a
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
+    | Fix (TermT a) (TScope a)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -146,7 +148,8 @@ instance Monad TermT where
     Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
                                   [ (c, i, Scope (fmap (>>>= f) <$> s))
                                   | (c, i, Scope s) <- brs ]
-    Constr c tys ts >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
+    Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
+    Fix ty s         >>= f = Fix (ty >>= f) (s >>>= f)
 
 -- | Good 'ol lambda abstraction.
 lam :: Id -> Term -> Term -> Term
