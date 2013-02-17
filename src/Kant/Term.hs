@@ -36,6 +36,7 @@ module Kant.Term
     , unrollArr
     , arrLen
     , instantiateList
+    , instantiateIntU
     , scopeVars
     , scopeVar
     , moduleNames
@@ -128,6 +129,7 @@ data TermT a
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
     | Fix (TermT a)                   -- The type of the rec function.
+          Int                         -- The number of arguments.
           (TScopeT² Int () a)         -- The body, scoped with the arguments
                                       -- (there should be as many as the length
                                       -- of the list) and the recursive
@@ -158,7 +160,7 @@ instance Monad TermT where
     Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
                                   [(c, i, s >>>>= f) | (c, i, s) <- brs]
     Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
-    Fix ty s         >>= f = Fix (ty >>= f) (s >>>>= f)
+    Fix ty i s       >>= f = Fix (ty >>= f) i (s >>>>= f)
 
 (>>>>=) :: TScopeT² b c a -> (a -> TermT d) -> TScopeT² b c d
 Scope s >>>>= f = Scope (fmap (>>>= f) <$> s)
@@ -206,7 +208,7 @@ fix :: Id                       -- ^ Name of the recursor
     -> Term                     -- ^ Return type
     -> Term                     -- ^ Body
     -> Term
-fix n pars ty t = Fix (pis pars ty)
+fix n pars ty t = Fix (pis pars ty) (length pars)
                   (abstractName (`elemIndex` map fst pars) (abstract1Name n t))
 
 -- | Non-dependent function, @A -> B@
@@ -246,6 +248,10 @@ scopeVar = listToMaybe . scopeVars
 --   all the indices in the term.
 instantiateList :: Monad f => [f a] -> Scope (Name n Int) f a -> f a
 instantiateList ts = instantiateName (ts !!)
+
+instantiateIntU :: TermT a -> [TermT a] -> TScopeT² Int () a -> TermT a
+instantiateIntU t ts ss =
+    instantiate1 t (instantiateList (map (toScope . fmap F) ts) ss)
 
 moduleNames :: Module -> [Id]
 moduleNames = concatMap go . unModule

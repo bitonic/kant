@@ -73,6 +73,8 @@ instance a ~ Module => Desugar SModule a where
     distill (Module decls)  = SModule (map distill decls)
 
 instance a ~ Decl => Desugar SDecl a where
+    -- TODO make the fix machinery more flexible, we want to be able to fix only
+    -- certain arguments.
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars
             ty'   = desugar ty
@@ -81,26 +83,14 @@ instance a ~ Decl => Desugar SDecl a where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (ValD (Val n ty₁ (Fix _ ty₁' t))) | ty₁ == ty₁' =
-        let (pars, ty) = unrollArr ty₁
-        in SVal n (distillPars pars) (distill ty) (distill (instantiate1 (Var n) t))
+    distill (ValD (Val n ty₁ (Fix ty₁' i ss))) | ty₁ == ty₁' =
+        let (pars, ty)    = unrollArr ty₁
+            (pars', rest) = splitAt i pars
+            ty'           = pis rest ty
+        in SVal n (distillPars pars') (distill ty')
+                  (distill (instantiateIntU (Var n) (map (Var . fst) pars') ss))
     distill (ValD (Val n ty t)) =
         SVal n [] (distill ty) (distill t)
-    distill (ValD (Val no tyo to)) =
-        let (pars, ty', t') = go tyo to
-        in SVal no (distillPars pars) (distill ty') (distill t')
-      where
-        go tyo'@(Arr ty₁ s₁) to'@(Lam ty₂ s₂) =
-            if ty₁ == ty₂
-            then let n = case (scopeVar s₁, scopeVar s₂) of
-                             (Nothing, Nothing) -> discarded
-                             (Just n', _)       -> n'
-                             (_,       Just n') -> n'
-                     inst = instantiate1 (Var n)
-                     (pars, ty', t') = go (inst s₁) (inst s₂)
-                 in ((n, ty₁) : pars, ty', t')
-            else ([], tyo', to')
-        go ty t = ([], ty, t)
 
     distill (Postulate n ty) =
         SPostulate n (distill ty)
