@@ -112,7 +112,7 @@ type Constr = (ConId, [Param])
 type Param = (Id, Term)
 
 type TName a        = Name Id a
-type TScopeT b a    = Scope (Name Id b) TermT a
+type TScopeT b a    = Scope (TName b) TermT a
 type TScopeT² b c a = Scope (TName b) (Scope (TName c) TermT) a
 type TScope a       = TScopeT () a
 
@@ -126,8 +126,7 @@ data TermT a
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
-    | Fix [(Id, TermT a)]             -- The types of the arguments
-          (TermT a)                   -- The return type
+    | Fix (TermT a)                   -- The type of the rec function.
           (TScopeT² Int () a)         -- The body, scoped with the arguments
                                       -- (there should be as many as the length
                                       -- of the list) and the recursive
@@ -158,7 +157,7 @@ instance Monad TermT where
     Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
                                   [(c, i, s >>>>= f) | (c, i, s) <- brs]
     Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
-    Fix pars ty s    >>= f = Fix (map (second (>>= f)) pars) (ty >>= f) (s >>>>= f)
+    Fix ty s         >>= f = Fix (ty >>= f) (s >>>>= f)
 
 (>>>>=) :: TScopeT² b c a -> (a -> TermT d) -> TScopeT² b c d
 Scope s >>>>= f = Scope (fmap (>>>= f) <$> s)
