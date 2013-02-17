@@ -87,8 +87,14 @@ instance a ~ Decl => Desugar SDecl a where
         let (pars, ty)    = unrollArr ty₁
             (pars', rest) = splitAt i pars
             ty'           = pis rest ty
-        in SVal n (distillPars pars') (distill ty')
-                  (distill (instantiateIntU (Var n) (map (Var . fst) pars') ss))
+            ns            = [(j, n') | Name n' j <- bindings ss]
+            pars''        = mergeBi pars' ns
+        in SVal n (distillPars pars'') (distill ty')
+                  (distill (instantiateIntU (Var n) (map (Var . fst) pars'') ss))
+      where
+        mergeBi pars ns =
+            [ (if n' == discarded then fromMaybe discarded (lookup j ns) else n', ty')
+            | (j, (n', ty')) <- zip [0..] pars ]
     distill (ValD (Val n ty t)) =
         SVal n [] (distill ty) (distill t)
 
