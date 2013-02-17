@@ -19,17 +19,20 @@ module Kant.Term
     , TName
     , TScopeT
     , TScope
+    , discarded
       -- * Smart constructors
     , lam
     , lams
     , pi_
     , pis
+    , fix
     , arr
     , case_
     , app
     , params
       -- * Utilities
     , unrollApp
+    , unrollArr
     , instantiateList
     , scopeVars
     , scopeVar
@@ -37,7 +40,7 @@ module Kant.Term
     ) where
 
 import           Control.Applicative (Applicative(..), (<$>))
-import           Control.Arrow (second)
+import           Control.Arrow (first, second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
 import           Data.List (elemIndex)
@@ -121,7 +124,7 @@ data TermT a
     | Lam (TermT a) (TScope a)
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
-    | Fix (TermT a) (TScope a)
+    | Fix Int (TermT a) (TScope a)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
@@ -149,7 +152,11 @@ instance Monad TermT where
                                   [ (c, i, Scope (fmap (>>>= f) <$> s))
                                   | (c, i, Scope s) <- brs ]
     Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
-    Fix ty s         >>= f = Fix (ty >>= f) (s >>>= f)
+    Fix i ty s       >>= f = Fix i (ty >>= f) (s >>>= f)
+
+-- | A binding/pattern match that we are not going to use.
+discarded :: Id
+discarded = "_"
 
 -- | Good 'ol lambda abstraction.
 lam :: Id -> Term -> Term -> Term
@@ -185,6 +192,13 @@ pi_ v ty₁ ty₂ = Arr ty₁ (abstract1Name v ty₂)
 pis :: [Param] -> Term -> Term
 pis = params pi_
 
+fix :: Id                       -- ^ Name of the recursor
+    -> [Param]                  -- ^ Arguments
+    -> Term                     -- ^ Return type
+    -> Term                     -- ^ Body
+    -> Term
+fix n pars ty t = Fix (length pars) (pis pars ty) (abstract1Name n t)
+
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term
 arr ty₁ ty₂ = Arr ty₁ (toScope (F <$> ty₂))
@@ -197,6 +211,13 @@ app = foldl1 App
 unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
+
+unrollArr :: Term -> ([Param], Term)
+unrollArr (Arr ty s) = first ((n, ty) :) (unrollArr (instantiate1 (Var n) s))
+  where n = case scopeVars s of
+                []     -> discarded
+                (n':_) -> n'
+unrollArr t = ([], t)
 
 scopeVars :: (Monad f, Foldable f, Ord n) => Scope (Name n b) f a -> [n]
 scopeVars s = Set.toList (Set.fromList (map name (bindings s)))

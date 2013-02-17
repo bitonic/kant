@@ -68,10 +68,6 @@ class Desugar a b where
     desugar :: a -> b
     distill :: b -> a
 
--- | A binding/pattern match that we are not going to use.
-discarded :: Id
-discarded = "_"
-
 instance a ~ Module => Desugar SModule a where
     desugar (SModule decls) = Module (map desugar decls)
     distill (Module decls)  = SModule (map distill decls)
@@ -79,14 +75,20 @@ instance a ~ Module => Desugar SModule a where
 instance a ~ Decl => Desugar SDecl a where
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars
-        in ValD (Val n (pis pars' (desugar ty)) (lams pars' (desugar t)))
+            ty'   = desugar ty
+        in ValD (Val n (pis pars' ty') (fix n pars' ty' (desugar t)))
     desugar (SPostulate n ty) = Postulate n (desugar ty)
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
+    distill (ValD (Val n ty₁ (Fix _ ty₁' t))) | ty₁ == ty₁' =
+        let (pars, ty) = unrollArr ty₁
+        in SVal n (distillPars pars) (distill ty) (distill (instantiate1 (Var n) t))
+    distill (ValD (Val n ty t)) =
+        SVal n [] (distill ty) (distill t)
     distill (ValD (Val no tyo to)) =
         let (pars, ty', t') = go tyo to
-        in  SVal no (distillPars pars) (distill ty') (distill t')
+        in SVal no (distillPars pars) (distill ty') (distill t')
       where
         go tyo'@(Arr ty₁ s₁) to'@(Lam ty₂ s₂) =
             if ty₁ == ty₂
@@ -150,6 +152,7 @@ instance a ~ (TermT Id) => Desugar STerm a where
     distill (Case _ _ _) = error "distill: panic, got a non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
+    distill (Fix _ _ _) = error "distill: panic, got a fix not at the top level"
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)

@@ -41,6 +41,7 @@ import           Kant.Sugar
     '->'                { ARROW }
     '=>'                { DARROW }
     '\\'                { LAMBDA }
+    '_'                 { UNDERSCORE }
     'data'              { DATA }
     'case'              { CASE }
     'postulate'         { POSTULATE }
@@ -83,7 +84,7 @@ Params : Seq0(Param)                         { $1 }
 
 Param :: { SParam }
 Param
-    : '[' Seq(name) ':' Term ']'             { (Just $2, $4) }
+    : '[' Seq(PatName) ':' Term ']'          { (Just $2, $4) }
     | SingleTerm                             { (Nothing, $1) }
 
 DataCon :: { SConstr }
@@ -97,7 +98,7 @@ Term
     | Arr                                    { $1 }
 
 Branch :: { SBranch }
-Branch : name Seq0(name) '=>' Term           { ($1, $2, $4) }
+Branch : name Seq0(PatName) '=>' Term        { ($1, $2, $4) }
 
 SingleTerm :: { STerm }
 SingleTerm
@@ -112,6 +113,11 @@ Arr : App '->' Arr                           { SArr Nothing $1 $3 }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
+
+PatName :: { Id }
+PatName
+    : name                                   { $1 }
+    | '_'                                    { discarded }
 
 {
 
