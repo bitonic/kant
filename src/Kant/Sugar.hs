@@ -51,6 +51,7 @@ data STerm
 -- TODO add this, desugaring to 'case'
 --    | SLet Id STerm STerm STerm
     | SCase Id STerm [SBranch]
+    | SFix (Maybe Id) [SParam] STerm STerm
     deriving (Show)
 
 scase :: Id -> STerm -> [SBranch] -> Either Id STerm
@@ -83,18 +84,9 @@ instance a ~ Decl => Desugar SDecl a where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (ValD (Val n ty₁ (Fix ty₁' i ss))) | ty₁ == ty₁' =
-        let (pars, ty)    = unrollArr ty₁
-            (pars', rest) = splitAt i pars
-            ty'           = pis rest ty
-            ns            = [(j, n') | Name n' j <- bindings ss]
-            pars''        = mergeBi pars' ns
-        in SVal n (distillPars pars'') (distill ty')
-                  (distill (instantiateIntU (Var n) (map (Var . fst) pars'') ss))
-      where
-        mergeBi pars ns =
-            [ (if n' == discarded then fromMaybe discarded (lookup j ns) else n', ty')
-            | (j, (n', ty')) <- zip [0..] pars ]
+    distill (ValD (Val n ty₁ (Fix ty₂ i ss))) | ty₁ == ty₂ =
+        -- We assume that the name returned by 'distillFix' is 'n'
+        SVal n pars ty t where (_, pars, ty, t) = distillFix ty₂ i ss
     distill (ValD (Val n ty t)) =
         SVal n [] (distill ty) (distill t)
 
@@ -102,6 +94,9 @@ instance a ~ Decl => Desugar SDecl a where
         SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =
         SData c (distillPars pars) l (map (second distillPars) cons)
+
+discardedM :: Maybe Id -> Id
+discardedM = fromMaybe discarded
 
 desugarPars :: [SParam] -> [Param]
 desugarPars pars =
@@ -123,6 +118,8 @@ instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SArr (Just n) ty t) = pi_ n (desugar ty) (desugar t)
     desugar (SCase n ty brs)     =
         case_ (Var n) n (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
+    desugar (SFix nm pars ty t)  =
+        fix (discardedM nm) (desugarPars pars) (desugar ty) (desugar t)
 
     -- TODO make names unique
     distill (Var n) = SVar n
@@ -148,15 +145,31 @@ instance a ~ (TermT Id) => Desugar STerm a where
     distill (Case _ _ _) = error "distill: panic, got a non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
-    distill (Fix _ _ _) = error "distill: panic, got a fix not at the top level"
+    distill (Fix ty i ss) =
+        let (nm, pars, ty', t) = distillFix ty i ss
+        in SFix nm pars ty' t
+
+distillFix :: Term -> Int -> TScopeIntU Id  -> (Maybe Id, [SParam], STerm, STerm)
+distillFix ty i ss =
+    let (pars, ty')   = unrollArr ty
+        (pars', rest) = splitAt i pars
+        nm            = scopeVar (fromScope ss)
+        ns            = [(j, n') | Name n' j <- bindings ss]
+        pars''        = mergeBi pars' ns
+    in (nm, distillPars pars'', distill (pis rest ty'),
+        distill (instantiateIntU (Var (discardedM nm)) (map (Var . fst) pars'') ss))
+  where
+    mergeBi pars ns =
+        [ (if n' == discarded then discardedM (lookup j ns) else n', ty')
+        | (j, (n', ty')) <- zip [0..] pars ]
 
 freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
-  where n = fromMaybe discarded (scopeVar s)
+  where n = discardedM (scopeVar s)
 
 -- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
 -- in the branch body.
 freshScopeI :: (Monad f, Foldable f) => Scope (TName Int) f Id -> Int -> ([Id], f Id)
 freshScopeI s i = (vars', instantiateList (map return vars') s)
   where vars = [ (ix, n) | Name n ix <- bindings s ]
-        vars' = [ fromMaybe discarded (lookup ix vars) | ix <- [0..(i-1)] ]
+        vars' = [ discardedM (lookup ix vars) | ix <- [0..(i-1)] ]

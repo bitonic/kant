@@ -19,6 +19,7 @@ module Kant.Term
     , TName
     , TScopeT
     , TScopeT²
+    , TScopeIntU
     , TScope
     , discarded
       -- * Smart constructors
@@ -116,6 +117,7 @@ type Param = (Id, Term)
 type TName a        = Name Id a
 type TScopeT b a    = Scope (TName b) TermT a
 type TScopeT² b c a = Scope (TName b) (Scope (TName c) TermT) a
+type TScopeIntU a   = TScopeT² Int () a
 type TScope a       = TScopeT () a
 
 data TermT a
@@ -130,7 +132,7 @@ data TermT a
     | Constr ConId [TermT a] [TermT a]
     | Fix (TermT a)                   -- The type of the rec function.
           Int                         -- The number of arguments.
-          (TScopeT² Int () a)         -- The body, scoped with the arguments
+          (TScopeIntU a)              -- The body, scoped with the arguments
                                       -- (there should be as many as the length
                                       -- of the list) and the recursive
                                       -- function.
@@ -140,7 +142,7 @@ type Term = TermT Id
 
 -- | Each branch is scoped with the matched variable, and the arguments to the
 --   constructors.
-type BranchT a = (ConId, Int, TScopeT² Int () a)
+type BranchT a = (ConId, Int, TScopeIntU a)
 type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
@@ -249,7 +251,7 @@ scopeVar = listToMaybe . scopeVars
 instantiateList :: Monad f => [f a] -> Scope (Name n Int) f a -> f a
 instantiateList ts = instantiateName (ts !!)
 
-instantiateIntU :: TermT a -> [TermT a] -> TScopeT² Int () a -> TermT a
+instantiateIntU :: TermT a -> [TermT a] -> TScopeIntU a -> TermT a
 instantiateIntU t ts ss =
     instantiate1 t (instantiateList (map (toScope . fmap F) ts) ss)
 
