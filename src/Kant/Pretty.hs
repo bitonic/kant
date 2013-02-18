@@ -12,7 +12,7 @@ import           Data.String (IsString(..))
 
 import           Text.PrettyPrint.Leijen
                  (Pretty(..), (<+>), (<>), Doc, align, hsep, vcat,
-                  (<$>), vsep, group, (<$$>))
+                  (<$>), vsep, group, (<$$>), hcat)
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
@@ -42,7 +42,7 @@ instance Pretty STerm where
     pretty (SVar v) = pretty v
     pretty (SType 0) = "Type"
     pretty (SType l) = "Type" <> pretty (show l)
-    pretty (SArr pars ty) = prettyPars pars "->" <+> "->" <+> pretty ty
+    pretty (SArr pars ty) = prettyPars pars " -> " <+> "->" <+> pretty ty
     pretty to@(SApp _ _) = go to
       where
         go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
@@ -70,7 +70,7 @@ singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
 prettyPars :: [SParam] -> Doc -> Doc
-prettyPars pars' d = hsep (intersperse d (go pars'))
+prettyPars pars' d = hcat (intersperse d (go pars'))
   where
     go [] = []
     go ((mns, ty) : pars) =
@@ -80,7 +80,7 @@ prettyPars pars' d = hsep (intersperse d (go pars'))
         : go pars
 
 prettyPars' :: [SParam] -> Doc
-prettyPars' pars = prettyPars pars "" <> spaceIfCons pars
+prettyPars' pars = prettyPars pars " " <> spaceIfCons pars
 
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
