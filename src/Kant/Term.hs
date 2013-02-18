@@ -19,7 +19,7 @@ module Kant.Term
     , TName
     , TScopeT
     , TScopeT²
-    , TScopeIntU
+    , TScopeNatU
     , TScope
     , discarded
       -- * Smart constructors
@@ -35,9 +35,10 @@ module Kant.Term
       -- * Utilities
     , unrollApp
     , unrollArr
+    , unrollArr'
     , arrLen
     , instantiateList
-    , instantiateIntU
+    , instantiateNatU
     , scopeVars
     , scopeVar
     , moduleNames
@@ -45,18 +46,19 @@ module Kant.Term
     ) where
 
 import           Control.Applicative (Applicative(..), (<$>))
-import           Control.Arrow (first, second)
+import           Control.Arrow (second)
 import           Control.Monad (ap)
 import           Data.Foldable (Foldable)
-import           Data.List (elemIndex)
 import           Data.Maybe (listToMaybe, fromMaybe)
 import           Data.Traversable (Traversable)
+import           Prelude hiding ((!!), length)
 
 import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
 import           Bound.Scope
+import           Numeric.Natural
 import           Prelude.Extras
 
 import           Kant.Common
@@ -118,7 +120,7 @@ type Param = (Id, Term)
 type TName a        = Name Id a
 type TScopeT b a    = Scope (TName b) TermT a
 type TScopeT² b c a = Scope (TName b) (Scope (TName c) TermT) a
-type TScopeIntU a   = TScopeT² Int () a
+type TScopeNatU a   = TScopeT² Natural () a
 type TScope a       = TScopeT () a
 
 data TermT a
@@ -132,8 +134,8 @@ data TermT a
     | Case (TermT a) (TScope a) [BranchT a]
     | Constr ConId [TermT a] [TermT a]
     | Fix (TermT a)                   -- The type of the rec function.
-          Int                         -- The number of arguments.
-          (TScopeIntU a)              -- The body, scoped with the arguments
+          Natural                     -- The number of arguments.
+          (TScopeNatU a)              -- The body, scoped with the arguments
                                       -- (there should be as many as the length
                                       -- of the list) and the recursive
                                       -- function.
@@ -143,7 +145,7 @@ type Term = TermT Id
 
 -- | Each branch is scoped with the matched variable, and the arguments to the
 --   constructors.
-type BranchT a = (ConId, Int, TScopeIntU a)
+type BranchT a = (ConId, Natural, TScopeNatU a)
 type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
@@ -227,14 +229,20 @@ unrollApp :: TermT a -> (TermT a, [TermT a])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
 
-unrollArr :: Term -> ([Param], Term)
-unrollArr (Arr ty s) = first ((n, ty) :) (unrollArr (instantiate1 (Var n) s))
-  where n = case scopeVars s of
-                []     -> discarded
-                (n':_) -> n'
-unrollArr t = ([], t)
+unrollArr' :: (Id -> a) -> Natural -> TermT a -> Maybe ([(a, TermT a)], TermT a)
+unrollArr' nest i (Arr ty s) | i > 0 =
+    do (pars, ty') <- unrollArr' nest (i - 1) (instantiate1 (Var n) s)
+       return ((n, ty) : pars, ty')
+  where
+    n = case bindings s of
+            []     -> nest discarded
+            (n':_) -> nest (name n')
+unrollArr' _ i t = if i == 0 then Just ([], t) else Nothing
 
-arrLen :: TermT a -> Int
+unrollArr :: Natural -> Term -> Maybe ([Param], Term)
+unrollArr = unrollArr' id
+
+arrLen :: TermT a -> Natural
 arrLen (Arr _ s) = 1 + arrLen (fromScope s)
 arrLen _         = 0
 
@@ -244,16 +252,16 @@ scopeVars s = Set.toList (Set.fromList (map name (bindings s)))
 scopeVar :: (Monad f, Foldable f, Ord n) => Scope (Name n ()) f a -> Maybe n
 scopeVar = listToMaybe . scopeVars
 
--- | Instantiates an 'Int'-indexed scope where each number 'n' is replaced by
---   the element at index 'n' in the provided list.
+-- | Instantiates an 'Natural'-indexed scope where each number 'n' is replaced
+--   by the element at index 'n' in the provided list.
 --
 --   IMPORTANT: this function is unsafe, it crashes if the list doesn't cover
 --   all the indices in the term.
-instantiateList :: Monad f => [f a] -> Scope (Name n Int) f a -> f a
+instantiateList :: Monad f => [f a] -> Scope (Name n Natural) f a -> f a
 instantiateList ts = instantiateName (ts !!)
 
-instantiateIntU :: TermT a -> [TermT a] -> TScopeIntU a -> TermT a
-instantiateIntU t ts ss =
+instantiateNatU :: TermT a -> [TermT a] -> TScopeNatU a -> TermT a
+instantiateNatU t ts ss =
     instantiate1 t (instantiateList (map (toScope . fmap F) ts) ss)
 
 moduleNames :: Module -> [Id]

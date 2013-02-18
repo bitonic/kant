@@ -6,8 +6,11 @@ module Kant.Reduce
     , whnf
     ) where
 
+import           Prelude hiding ((!!), length, splitAt)
+
 import           Bound
 
+import           Kant.Common
 import           Kant.Term
 import           Kant.Environment
 
@@ -36,14 +39,14 @@ reduce r env (App t₁ t₂) =
                 (fargs, rest) = splitAt i args'
             in if i > length args' || not (all canonical fargs)
                then App t₁' t₂'
-               else reduce r env (app (instantiateIntU ft fargs fss : rest))
+               else reduce r env (app (instantiateNatU ft fargs fss : rest))
         t₁'     -> App t₁' (r env t₂)
 reduce r env (Case t ty brs) =
     case t' of
         Constr c _ ts ->
             case [ss | (c', i, ss) <- brs, c == c', length ts == i] of
                 []       -> stuck
-                (ss : _) -> reduce r env (instantiateIntU t' ts ss)
+                (ss : _) -> reduce r env (instantiateNatU t' ts ss)
         _ -> stuck
   where
     t'    = reduce r env t

@@ -30,7 +30,8 @@ Library
                       containers,
                       haskeline,
                       parsec,
-                      transformers
+                      transformers,
+                      nats
 
     Build-Tools:      alex, happy
 

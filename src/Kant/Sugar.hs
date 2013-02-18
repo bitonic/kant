@@ -20,12 +20,14 @@ import           Control.Arrow (second)
 import           Data.Foldable (Foldable)
 import           Data.List (groupBy)
 import           Data.Maybe (fromMaybe, isJust)
+import           Prelude hiding ((!!), length, splitAt)
 
 import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
 import           Bound.Scope
+import           Numeric.Natural
 
 import           Kant.Common
 import           Kant.Term
@@ -135,7 +137,7 @@ instance a ~ (TermT Id) => Desugar STerm a where
          go t          = ([], t)
     distill (Case v@(Var n) s brs) =
         SCase n (distill (instantiate1 v s))
-              [ let (ns, s') = freshScopeI ss i
+              [ let (ns, s') = freshScopeNat ss i
                 in (c, ns, distill (instantiate1 v s'))
               | (c, i, ss) <- brs ]
     distill (Case _ _ _) = error "distill: panic, got a non-var scrutined"
@@ -145,15 +147,16 @@ instance a ~ (TermT Id) => Desugar STerm a where
         let (nm, pars, ty', t) = distillFix ty i ss
         in SFix nm pars ty' t
 
-distillFix :: Term -> Int -> TScopeIntU Id  -> (Maybe Id, [SParam], STerm, STerm)
+distillFix :: Term -> Natural -> TScopeNatU Id  -> (Maybe Id, [SParam], STerm, STerm)
 distillFix ty i ss =
-    let (pars, ty')   = unrollArr ty
+    -- TODO we assume that the arr is well formed
+    let Just (pars, ty')   = unrollArr i ty
         (pars', rest) = splitAt i pars
         nm            = scopeVar (fromScope ss)
         ns            = [(j, n') | Name n' j <- bindings ss]
         pars''        = mergeBi pars' ns
     in (nm, distillPars pars'', distill (pis rest ty'),
-        distill (instantiateIntU (Var (discardedM nm)) (map (Var . fst) pars'') ss))
+        distill (instantiateNatU (Var (discardedM nm)) (map (Var . fst) pars'') ss))
   where
     mergeBi pars ns =
         [ (if n' == discarded then discardedM (lookup j ns) else n', ty')
@@ -165,7 +168,8 @@ freshScope s = (n, instantiate1 (Var n) s)
 
 -- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
 -- in the branch body.
-freshScopeI :: (Monad f, Foldable f) => Scope (TName Int) f Id -> Int -> ([Id], f Id)
-freshScopeI s i = (vars', instantiateList (map return vars') s)
+freshScopeNat :: (Monad f, Foldable f)
+              => Scope (TName Natural) f Id -> Natural -> ([Id], f Id)
+freshScopeNat s i = (vars', instantiateList (map return vars') s)
   where vars = [ (ix, n) | Name n ix <- bindings s ]
         vars' = [ discardedM (lookup ix vars) | ix <- [0..(i-1)] ]

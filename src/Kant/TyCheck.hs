@@ -8,14 +8,18 @@ module Kant.TyCheck
     ) where
 
 import           Control.Applicative ((<$>), (<$))
+import           Control.Arrow ((***))
 import           Control.Monad (unless, forM_)
+import           Prelude hiding ((!!), length, splitAt)
 
 import           Control.Monad.Error (Error(..), MonadError(..))
 import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
+import           Numeric.Natural
 
+import           Kant.Common
 import qualified Kant.Environment as Env
 import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
@@ -146,6 +150,9 @@ tyCheckT env (Lam ty s) =
        return (Arr ty tys)
 tyCheckT env@Env{envNest = nest} (Constr c pars args) =
     tyCheckT env (app (Var (nest c) : pars ++ args))
+tyCheckT env (Fix ty i ss) =
+    do tyCheckT env ty
+       return ty
 tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
     do ty <- tyCheckT env t
        -- Check if the scrutined's type is canonical, which amounts to checking
@@ -155,7 +162,7 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
            (Var (envData' env -> Just (Data _ pars _ cons)), args)
                | length pars == length args ->
                    -- Check that the number of branches is just right
-                   if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
+                   if length brs /= fi (Set.size (Set.fromList [c | (c, _, _) <- brs]))
                    then wrongBranchNumber env ct
                    else instantiate1 t s <$ forM_ brs (checkBr args cons s)
            _ -> expectingCanonical env t ty
@@ -174,7 +181,7 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
             Just pars | length pars == i ->
                 do let -- Get the new environment with the types for the bound
                        -- variables
-                       env' = prepareVars pars
+                       env' = intVars env (map (nest *** fmap nest) pars)
                        -- Prepare the term for this branch
                        cont = Constr c (map (fmap F) args)
                               (map (Var . B) (zipWith Name (map fst pars) [0..]))
