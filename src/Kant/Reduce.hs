@@ -11,8 +11,9 @@ import           Bound
 import           Kant.Term
 import           Kant.Environment
 
+import Debug.Trace
 
-type Reducer = forall a. Eq a => EnvT a -> TermT a -> TermT a
+type Reducer = forall a. (Show a, Eq a) => EnvT a -> TermT a -> TermT a
 
 -- | Reduces a term.  Assumes that the code is type checked:
 --
@@ -31,17 +32,19 @@ reduce r env (App t₁ t₂) =
         t₁'@(unrollApp -> (ft@(Fix _ i fss), args)) ->
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
-            let (fargs, rest) = splitAt i args
-            in if i > length args || not (all canonical fargs)
-               then App (r env t₁') (r env t₂)
-               else app (instantiateIntU ft fargs fss : rest)
-        t₁'     -> App (r env t₁') (r env t₂)
+            let t₂'           = reduce r env t₂
+                args'         = args ++ [t₂']
+                (fargs, rest) = splitAt i args'
+            in if i > length args' || not (all canonical fargs)
+               then App t₁' t₂'
+               else reduce r env (app (instantiateIntU ft fargs fss : rest))
+        t₁'     -> App t₁' (r env t₂)
 reduce r env (Case t ty brs) =
     case t' of
         Constr c _ ts ->
             case [ss | (c', i, ss) <- brs, c == c', length ts == i] of
                 []       -> stuck
-                (ss : _) -> instantiateIntU t' ts ss
+                (ss : _) -> reduce r env (instantiateIntU t' ts ss)
         _ -> stuck
   where
     t'    = reduce r env t
@@ -66,11 +69,11 @@ canonical (Fix _ _ _)    = False
 nestNothing :: EnvT a -> EnvT (Var (TName b) a)
 nestNothing env = nestEnv env (const Nothing)
 
-reduceScope :: (Eq b, Eq a)
+reduceScope :: (Eq b, Eq a, Show b, Show a)
             => Reducer -> EnvT a -> TScopeT b a -> TScopeT b a
 reduceScope r env = toScope . reduce r (nestNothing env) . fromScope
 
-reduceScope² :: (Eq b, Eq c, Eq a)
+reduceScope² :: (Eq b, Eq c, Eq a, Show b, Show c, Show a)
              => Reducer -> EnvT a -> TScopeT² b c a -> TScopeT² b c a
 reduceScope² r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
                      fromScope . fromScope

@@ -119,7 +119,7 @@ addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
 envTy :: Eq a => EnvT a -> a -> TyCheckM (TermT a)
 envTy env v = maybe (outOfBounds env v) return (Env.envTy env v)
 
-tyCheckT :: forall a. (Ord a) => EnvT a -> TermT a -> TyCheckM (TermT a)
+tyCheckT :: forall a. (Ord a, Show a) => EnvT a -> TermT a -> TyCheckM (TermT a)
 tyCheckT env (Var v) = envTy env v
 tyCheckT _ (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -201,7 +201,7 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
         in nestEnv env (\i -> Just (nested₂ !! i))
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: (Ord a) => EnvT a -> TermT a -> TermT a -> TyCheckM ()
+tyCheckEq :: (Ord a, Show a) => EnvT a -> TermT a -> TermT a -> TyCheckM ()
 tyCheckEq env ty t =
     do ty' <- tyCheckT env t
        unless (eqCum env ty' ty) (mismatch env ty t ty')
@@ -209,6 +209,6 @@ tyCheckEq env ty t =
 -- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
 --   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
 --   ('Type' 4) ('Type' 1)@ will fail.
-eqCum :: Ord a => EnvT a -> TermT a -> TermT a -> Bool
+eqCum :: (Ord a, Show a) => EnvT a -> TermT a -> TermT a -> Bool
 eqCum env (nf env -> Type l₁) (nf env -> Type l₂) = l₁ <= l₂
 eqCum env (nf env -> ty₁)     (nf env -> ty₂)     = ty₁ == ty₂
