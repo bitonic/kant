@@ -191,21 +191,24 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
                        s' = toScope (instantiate1 cont (fromScope ss))
                    tyCheckEq env' ty' (fromScope s')
             Just _ -> wrongArity env c ct
-    prepareVars :: [Param] -> EnvT (Var (TName Int) a)
-    prepareVars pars =
-        let -- First, bring all the types of the parameters of the data
-            -- constructor to the right level of boundness
-            nested₁ = [(n, (F . nest) <$> t') | (n, t') <- pars]
-            -- Then the tricky part: for each parameter of the data
-            -- constructor, replace the variables that represent previous
-            -- arguments with the variables that will represent them in the
-            -- current scope.
-            nested₂ = [ foldr (\(n, j) t' -> substitute (F (nest n))
-                                                        (Var (B (Name n j))) t')
-                              (snd (nested₁ !! i))
-                              (zip (map fst nested₁) [0..(i-1)])
-                      | i <- [0..(length nested₁ - 1)] ]
-        in nestEnv env (\i -> Just (nested₂ !! i))
+
+-- | Prepares an environment with where variable `n' has type `pars !! n', and
+--   all the references to previous elements in `pars' are int variables as
+--   well.
+intVars :: (Eq a) => EnvT a -> [(a, TermT a)] -> EnvT (Var (TName Natural) a)
+intVars env@Env{envPull = pull} pars =
+    let -- First, bring all the types of the parameters of the data
+        -- constructor to the right level of boundness
+        nested₁ = [(n, F <$> t) | (n, t) <- pars]
+        -- Then the tricky part: for each parameter of the data
+        -- constructor, replace the variables that represent previous
+        -- arguments with the variables that will represent them in the
+        -- current scope.
+        nested₂ = [ foldr (\(n, j) t -> substitute (F n) (Var (B (Name (pull n) j))) t)
+                          (snd (nested₁ !! i))
+                          (zip (map fst nested₁) [0..(i-1)])
+                  | i <- [0..(length nested₁ - 1)] ]
+    in nestEnv env (\i -> Just (nested₂ !! i))
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: (Ord a, Show a) => EnvT a -> TermT a -> TermT a -> TyCheckM ()
