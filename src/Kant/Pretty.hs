@@ -55,7 +55,6 @@ instance Pretty STerm where
     pretty (SFix nm pars ty t) =
         "fix" <+> group (nest (prettyFixPars (discardedM nm) pars ty <+> "=>" <$>
                                align (pretty t)))
-    pretty SUnknown = "??"
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2

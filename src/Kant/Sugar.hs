@@ -61,7 +61,6 @@ data STerm
       --   so that the return type can refer to that directly.
     | SCase Id STerm [SBranch]
     | SFix (Maybe Id) [SParam] STerm STerm
-    | SUnknown
     deriving (Show)
 
 -- | Checks that all variables matched in branches are distinct.  Returns
@@ -121,7 +120,6 @@ instance a ~ (TermT Id) => Desugar STerm a where
         case_ (Var n) n (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
     desugar (SFix nm pars ty t) =
         fix (discardedM nm) (desugarPars pars) (desugar ty) (desugar t)
-    desugar SUnknown = error "desugar: panic, can't desugar unknown"
 
 desugarArr :: [SParam] -> STerm -> Term
 desugarArr []                          ty  = desugar ty
