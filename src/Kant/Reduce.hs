@@ -9,6 +9,7 @@ module Kant.Reduce
 import           Prelude hiding ((!!), length, splitAt)
 
 import           Bound
+import           Numeric.Natural
 
 import           Kant.Common
 import           Kant.Term
@@ -31,7 +32,7 @@ reduce _ _ (Type l) = Type l
 reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
         Lam _ s -> reduce r env (instantiate1 t₂ s)
-        t₁'@(unrollApp -> (ft@(Fix _ i fss), args)) ->
+        t₁'@(unrollApp -> (ft@(Fix _ (FixT i fss)), args)) ->
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
             let t₂'           = reduce r env t₂
@@ -41,22 +42,23 @@ reduce r env (App t₁ t₂) =
                then App t₁' t₂'
                else reduce r env (app (instantiateNatU fargs ft fss : rest))
         t₁'     -> App t₁' (r env t₂)
-reduce r env (Case t ty brs) =
+reduce r env (Case t (CaseT ty brs)) =
     case t' of
         Constr c _ ts ->
-            case [ss | (c', i, ss) <- brs, c == c', length ts == i] of
+            case [ss | BranchT c' i ss <- brs, c == c', length ts == i] of
                 []       -> stuck
                 (ss : _) -> reduce r env (instantiateNatU ts t' ss)
         _ -> stuck
   where
     t'    = reduce r env t
-    stuck = Case t' (reduceScope r env ty)
-                 [(c, i, reduceScope² r env ss) | (c, i, ss) <- brs]
+    stuck = Case t' (CaseT (reduceScope r env ty)
+                           [ BranchT c i (reduceScope² r env ss)
+                           | BranchT c i ss <- brs ])
 reduce r env (Lam t s) =
     Lam (reduce r env t) (reduceScope r env s)
 reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
 reduce r env (Constr c pars ts) = Constr c (map (r env) pars) (map (r env) ts)
-reduce r env (Fix ty i ss) = Fix (r env ty) i (reduceScope² r env ss)
+reduce r env (Fix ty (FixT i ss)) = Fix (r env ty) (FixT i (reduceScope² r env ss))
 
 constr :: TermT a -> Bool
 constr (Constr _ _ _) = True
@@ -65,12 +67,14 @@ constr _              = False
 nestNothing :: EnvT a -> EnvT (Var (TName b) a)
 nestNothing env = nestEnv env (const Nothing)
 
-reduceScope :: (Eq b, Eq a, Show b, Show a)
-            => Reducer -> EnvT a -> TScopeT b a -> TScopeT b a
+type TScopeNatU a = Scope (TName Natural) (Scope (TName ()) TermT) a
+
+reduceScope :: (Eq a, Show a)
+            => Reducer -> EnvT a -> TScope a -> TScope a
 reduceScope r env = toScope . reduce r (nestNothing env) . fromScope
 
-reduceScope² :: (Eq b, Eq c, Eq a, Show b, Show c, Show a)
-             => Reducer -> EnvT a -> TScopeT² b c a -> TScopeT² b c a
+reduceScope² :: (Eq a, Show a)
+             => Reducer -> EnvT a -> TScopeNatU a -> TScopeNatU a
 reduceScope² r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
                      fromScope . fromScope
 
