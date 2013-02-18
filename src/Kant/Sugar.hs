@@ -14,6 +14,7 @@ module Kant.Sugar
      , scase
      , SBranch
      , Desugar(..)
+     , Distill(..)
      ) where
 
 import           Control.Applicative ((<$))

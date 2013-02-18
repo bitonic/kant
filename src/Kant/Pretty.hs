@@ -93,9 +93,6 @@ prettyBranch (c, ns, t) =
 typed :: Id -> STerm -> Doc
 typed n ty = pretty n <+> ":" <+> pretty ty
 
-instance Pretty Decl where
-    pretty = pretty . (distill :: Decl -> SDecl)
-
 instance Pretty SDecl where
     pretty (SVal n pars ty t) =
         group (end (nest (prettyValPars n pars ty <+> "=>" <+>
@@ -124,9 +121,6 @@ prettyValPars n (SValParams pars rest) ty =
         Just (pars', pars'') -> "|" <+> prettyPars' pars' <> "|" <+>
                                 prettyPars' pars''
     <> ":" <+> pretty ty
-
-instance Pretty Module where
-    pretty = pretty . (distill :: Module -> SModule)
 
 instance Pretty SModule where
     pretty = prettyList . unSModule

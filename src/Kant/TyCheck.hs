@@ -71,11 +71,11 @@ instance Error TyCheckError where
 type TyCheckM = Either TyCheckError
 
 nestTyCheckM :: EnvT a
-             -> TScopeT b a
-             -> (b -> TermT a)
-             -> (EnvT (Var (Name Id b) a) -> TermT (Var (Name Id b) a) -> TyCheckM c)
+             -> TScope a
+             -> TermT a
+             -> (EnvT (Var (TName ()) a) -> TermT (Var (TName ()) a) -> TyCheckM c)
              -> TyCheckM c
-nestTyCheckM env s ty f = f (nestEnv' env (Just . ty)) (fromScope s)
+nestTyCheckM env s ty f = f (nestEnv' env (Just . const ty)) (fromScope s)
 
 class TyCheck a where
     tyCheck :: Env -> a -> TyCheckM Env
@@ -137,14 +137,14 @@ tyCheckT env (App t₁ t₂) =
            _         -> expectingFunction env t₁ ty₁
 tyCheckT env (Lam ty s) =
     do tyCheckT env ty
-       tys <- toScope <$> nestTyCheckM env s (const ty) tyCheckT
+       tys <- toScope <$> nestTyCheckM env s ty tyCheckT
        return (Arr ty tys)
 tyCheckT env@Env{envNest = nest} (Constr c pars args) =
     tyCheckT env (app (Var (nest c) : pars ++ args))
-tyCheckT env (Fix ty i ss) =
+tyCheckT env (Fix ty (FixT i ss)) =
      do tyCheckT env ty
         return ty
-tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
+tyCheckT env@Env{envNest = nest} ct@(Case t (CaseT s brs)) =
     do ty <- tyCheckT env t
        -- Check if the scrutined's type is canonical, which amounts to checking
        -- that it is an application, we can find a matching type constructor,
@@ -153,7 +153,8 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
            (Var (envData' env -> Just (Data _ pars _ cons)), args)
                | length pars == length args ->
                    -- Check that the number of branches is just right
-                   if length brs /= fi (Set.size (Set.fromList [c | (c, _, _) <- brs]))
+                   if length brs /=
+                      fi (Set.size (Set.fromList [c | BranchT c _ _ <- brs]))
                    then wrongBranchNumber env ct
                    else instantiate1 t s <$ forM_ brs (checkBr args cons s)
            _ -> expectingCanonical env t ty
@@ -162,8 +163,8 @@ tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
     -- that all the lists are of the same length, and thus all the unsafe
     -- indexing. It would be nice to have it to be safer and more "obviously
     -- correct".
-    checkBr :: [TermT a] -> [Constr] -> TScope a -> BranchT a -> TyCheckM ()
-    checkBr args cons tys (c, i, ss) =
+    checkBr :: [TermT a] -> [Constr] -> TScope a -> BranchT TermT a -> TyCheckM ()
+    checkBr args cons tys (BranchT c i ss) =
         -- Check that each constructor is indeed a constructor for our datatype
         case lookup c cons of
             Nothing -> notConstructor env c ct
