@@ -11,6 +11,7 @@ import           Bound
 import           Kant.Term
 import           Kant.Environment
 
+-- TODO remove the Show when we're not debugging anymore...
 type Reducer = forall a. (Show a, Eq a) => EnvT a -> TermT a -> TermT a
 
 -- | Reduces a term.  Assumes that the code is type checked:
