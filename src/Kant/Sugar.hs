@@ -150,11 +150,11 @@ instance a ~ (TermT Id) => Desugar STerm a where
 distillFix :: Term -> Natural -> TScopeNatU Id  -> (Maybe Id, [SParam], STerm, STerm)
 distillFix ty i ss =
     -- TODO we assume that the arr is well formed
-    let Just (pars, ty')   = unrollArr i ty
-        (pars', rest) = splitAt i pars
-        nm            = scopeVar (fromScope ss)
-        ns            = [(j, n') | Name n' j <- bindings ss]
-        pars''        = mergeBi pars' ns
+    let Just (pars, ty') = unrollArr i ty
+        (pars', rest)    = splitAt i pars
+        nm               = scopeVar (fromScope ss)
+        ns               = [(j, n') | Name n' j <- bindings ss]
+        pars''           = mergeBi pars' ns
     in (nm, distillPars pars'', distill (pis rest ty'),
         distill (instantiateNatU (Var (discardedM nm)) (map (Var . fst) pars'') ss))
   where
@@ -166,8 +166,8 @@ freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
   where n = discardedM (scopeVar s)
 
--- TODO this is unsafe, and relies that the 'Int' are all indeed below the bound
--- in the branch body.
+-- TODO this is unsafe, and relies that the 'Natural' are all indeed below the
+-- bound in the branch body.
 freshScopeNat :: (Monad f, Foldable f)
               => Scope (TName Natural) f Id -> Natural -> ([Id], f Id)
 freshScopeNat s i = (vars', instantiateList (map return vars') s)
