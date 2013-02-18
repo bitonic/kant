@@ -187,7 +187,6 @@ addData env@Env{envData = dat} dd@(Data c₁ _ _ _) =
                   maybe (Left c₂) Right (addCtx env'' c₂ item))
              (Right env') (tyc : cons)
 
-
 caseRefine :: Eq a => EnvT a -> a -> TermT a -> TermT a -> EnvT a
 caseRefine env@Env{envCtx = ctx} v₁ ty t =
     env{envCtx = \v₂ -> if v₁ == v₂ then Just (ty, Just t) else ctx v₂}

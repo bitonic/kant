@@ -43,18 +43,24 @@ data SDecl
 type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
 
+-- TODO add let bindings
+-- | A term matching what we parse, which can be 'desugar'ed and 'distill'ed
+--   into a 'Term'.
 data STerm
     = SVar Id
     | SType Level
     | SLam [SParam] STerm
     | SApp STerm STerm
     | SArr (Maybe Id) STerm STerm
--- TODO add this, desugaring to 'case'
---    | SLet Id STerm STerm STerm
+      -- TODO add a way to match on non-variables
+      -- | Pattern matching.  Note that here we demand a variable as scrutined
+      --   so that the return type can refer to that directly.
     | SCase Id STerm [SBranch]
     | SFix (Maybe Id) [SParam] STerm STerm
     deriving (Show)
 
+-- | Checks that all variables matched in branches are distinct.  Returns
+--   @'Left' v@ if `v' is duplicate somewhere.
 scase :: Id -> STerm -> [SBranch] -> Either Id STerm
 scase n₁ ty brs =
     SCase n₁ ty brs
@@ -64,8 +70,15 @@ scase n₁ ty brs =
                    (Right Set.empty))
             [ns | (_, ns, _) <- brs]
 
-type SBranch = (ConId, [Id], STerm)
+type SBranch = ( ConId          -- Constructor
+               , [Id]           -- Matched variables
+               , STerm
+               )
 
+-- TODO add errors to desugar:
+-- * the 'error' below
+-- * the assume distillFix below
+-- ...
 class Desugar a b where
     desugar :: a -> b
     distill :: b -> a
@@ -156,7 +169,7 @@ distillFix ty i ss =
         ns               = [(j, n') | Name n' j <- bindings ss]
         pars''           = mergeBi pars' ns
     in (nm, distillPars pars'', distill (pis rest ty'),
-        distill (instantiateNatU (Var (discardedM nm)) (map (Var . fst) pars'') ss))
+        distill (instantiateNatU (map (Var . fst) pars'') (Var (discardedM nm)) ss))
   where
     mergeBi pars ns =
         [ (if n' == discarded then discardedM (lookup j ns) else n', ty')
@@ -166,8 +179,8 @@ freshScope :: TScope Id -> (Id, Term)
 freshScope s = (n, instantiate1 (Var n) s)
   where n = discardedM (scopeVar s)
 
--- TODO this is unsafe, and relies that the 'Natural' are all indeed below the
--- bound in the branch body.
+-- INVARIANT Again, we assume that the bound 'Natural's are all below the
+-- provided 'Natural'.
 freshScopeNat :: (Monad f, Foldable f)
               => Scope (TName Natural) f Id -> Natural -> ([Id], f Id)
 freshScopeNat s i = (vars', instantiateList (map return vars') s)
