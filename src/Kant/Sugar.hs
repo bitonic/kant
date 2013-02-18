@@ -108,6 +108,7 @@ instance a ~ Decl => Desugar SDecl a where
     distill (DataD (Data c pars l cons)) =
         SData c (distillPars pars) l (map (second distillPars) cons)
 
+-- TODO broken, fix soon, the rec call should include the lambdas
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
 buildVal n (SValParams pars rest) ty t =
     SLam pars (go rest)

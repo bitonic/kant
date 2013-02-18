@@ -13,12 +13,10 @@ module Kant.Term
     , Param
     , TermT(..)
     , Term
-    , BranchT
-    , Branch
+    , CaseT(..)
+    , BranchT(..)
+    , FixT(..)
     , TName
-    , TScopeT
-    , TScopeT²
-    , TScopeNatU
     , TScope
     , discarded
       -- * Smart constructors
@@ -46,7 +44,7 @@ module Kant.Term
 
 import           Control.Applicative (Applicative(..), (<$>))
 import           Control.Arrow (second)
-import           Control.Monad (ap)
+import           Control.Monad (ap, liftM)
 import           Data.Foldable (Foldable)
 import           Data.Maybe (listToMaybe, fromMaybe)
 import           Data.Traversable (Traversable)
@@ -110,13 +108,10 @@ type Constr = (ConId, [Param])
 type Param = (Id, Term)
 
 -- | A 'Name' with an 'Id' name.
-type TName a        = Name Id a
--- | Single scope.
-type TScopeT b a    = Scope (TName b) TermT a
--- | Double scope.
-type TScopeT² b c a = Scope (TName b) (Scope (TName c) TermT) a
-type TScopeNatU a   = TScopeT² Natural () a
-type TScope a       = TScopeT () a
+type TName a = Name Id a
+
+-- | Simple scope with one variable abstracted
+type TScope a = Scope (TName ()) TermT a
 
 -- | Terms for our language.  This is what we typecheck and reduce.
 data TermT a
@@ -133,37 +128,16 @@ data TermT a
     | Lam (TermT a) (TScope a)
       -- | Pattern matching.
     | Case (TermT a)            -- Thing to pattern match (scrutined).
-           (TScope a)           -- The type of the result, abstracted over the
-                                -- scrutined.  Note that we could scope the
-                                -- scrutined for both the return type and all
-                                -- the branches, but we don't because I can't
-                                -- give a 'Monad' instance for the scoped thing.
-           [BranchT a]
+           (CaseT TermT a)
       -- | An instance of some inductive data type created by the user.
     | Constr ConId              -- Constructor
              [TermT a]          -- Type parameters
              [TermT a]          -- Data Parameters
     | Fix (TermT a)             -- Type of the rec function.
-          Natural               -- Number of arguments. INVARIANT: in the scope
-                                -- below all bound 'Natural's are less than this
-                                -- 'Natural'.
-          (TScopeNatU a)        -- Body, scoped with the arguments
-                                -- (there should be as many as the length
-                                -- of the list) and the recursive
-                                -- function.
+          (FixT TermT a)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Term = TermT Id
-
-type BranchT a = ( ConId        -- Constructor to match
-                 , Natural      -- Number of arguments.  INVARIANT: in the scope
-                                -- below all bound 'Natural's are less than this
-                                -- 'Natural'.
-                 , TScopeNatU a -- The outer scope matches binds the arguments
-                                -- of the constructor, the inner scope the
-                                -- refined scrutined.
-                 )
-type Branch = BranchT Id
 
 instance Eq1 TermT   where (==#)      = (==)
 instance Ord1 TermT  where compare1   = compare
@@ -174,19 +148,71 @@ instance Applicative TermT where pure = Var; (<*>) = ap
 instance Monad TermT where
     return = Var
 
-    Var v            >>= f = f v
-    Type l           >>= _ = Type l
-    App t₁ t₂        >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Arr ty s         >>= f = Arr (ty >>= f) (s >>>= f)
-    Lam t s          >>= f = Lam (t >>= f) (s >>>= f)
-    Case t tys brs   >>= f = Case (t >>= f) (tys >>>= f)
-                                  [(c, i, s >>>>= f) | (c, i, s) <- brs]
-    Constr c tys ts  >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
-    Fix ty i s       >>= f = Fix (ty >>= f) i (s >>>>= f)
+    Var v           >>= f = f v
+    Type l          >>= _ = Type l
+    App t₁ t₂       >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Arr ty s        >>= f = Arr (ty >>= f) (s >>>= f)
+    Lam t s         >>= f = Lam (t >>= f) (s >>>= f)
+    Case t s        >>= f = Case (t >>= f) (s >>>= f)
+    Constr c tys ts >>= f = Constr c (map (>>= f) tys) (map (>>= f) ts)
+    Fix ty s        >>= f = Fix (ty >>= f) (s >>>= f)
 
--- | Substitutes in a double scope.
-(>>>>=) :: TScopeT² b c a -> (a -> TermT d) -> TScopeT² b c d
-Scope s >>>>= f = Scope (fmap (>>>= f) <$> s)
+data CaseT f a =
+    CaseT (Scope (TName ()) f a) -- The type of the result, abstracted over the
+                                 -- scrutined.
+          [BranchT f a]
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+instance Bound CaseT where
+    CaseT s brs >>>= f = CaseT (s >>>= f) (map (>>>= f) brs)
+
+abstractCase :: (Monad f) => Id -> f Id -> [(ConId, [Id], f Id)] -> CaseT f Id
+abstractCase n ty brs =
+    CaseT (abstract1Name n ty) [abstractBranch n c ns t | (c, ns, t) <- brs]
+
+data BranchT f a =
+    BranchT -- Constructor to match
+            ConId
+            -- Number of arguments.  INVARIANT: in the scope below all bound
+            -- 'Natural's are less than this 'Natural'.
+            Natural
+            -- The scope matching the arguments of the constructor, and the
+            -- refined scrutined.
+            (Scope (TName Natural) (Scope (TName ()) f) a)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+abstractBranch :: (Monad f)
+               => Id            -- ^ Scrutined variable
+               -> ConId         -- ^ Matching constructor
+               -> [Id]          -- ^ Variables of the constructor
+               -> f Id          -- ^ Body
+               -> BranchT f Id
+abstractBranch n c ns t =
+    BranchT c (length ns) (abstractName (`elemIndex` ns) (abstract1Name n t))
+
+instance Bound BranchT where
+    BranchT c i (Scope s) >>>= f = BranchT c i (Scope (liftM (>>>= f) `liftM` s))
+-- type Branch = BranchT Id
+
+data FixT f a =
+    FixT -- Number of arguments. INVARIANT: in the scope below all bound
+         -- 'Natural's are less than this 'Natural'.
+         Natural
+         -- Body, scoped with the arguments (there should be as many as the
+         -- length of the list) and the recursive function.
+         (Scope (TName Natural) (Scope (TName ()) f) a)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+instance Bound FixT where
+    FixT i (Scope s) >>>= f = FixT i (Scope (liftM (>>>= f) `liftM` s))
+
+abstractFix :: (Monad f)
+            => Id               -- ^ Name of the recursor
+            -> [Id]             -- ^ Arguments names
+            -> f Id             -- ^ Body
+            -> FixT f Id
+abstractFix n ns t =
+    FixT (length ns) (abstractName (`elemIndex` ns) (abstract1Name n t))
 
 -- | A binding/pattern match that we are not going to use.
 discarded :: Id
@@ -211,10 +237,7 @@ case_ :: Term                   -- ^ The scrutined
       -> [(ConId, [Id], Term)]  -- ^ Each branch has a constructor, bound
                                 --   variables, and a body.
       -> Term
-case_ t n ty brs =
-    Case t (abstract1Name n ty)
-         [ (c, length vs, (abstractName (`elemIndex` vs) (abstract1Name n t')))
-         | (c, vs, t') <- brs ]
+case_ t n ty brs = Case t (abstractCase n ty brs)
 
 -- | Dependent function, @(x : A) -> B@.
 pi_ :: Id                       -- ^ Abstracting an @x@...
@@ -232,8 +255,7 @@ fix :: Id                       -- ^ Name of the recursor
     -> Term                     -- ^ Return type
     -> Term                     -- ^ Body
     -> Term
-fix n pars ty t = Fix (pis pars ty) (length pars)
-                      (abstractName (`elemIndex` map fst pars) (abstract1Name n t))
+fix n pars ty t = Fix (pis pars ty) (abstractFix n (map fst pars) t)
 
 -- | Non-dependent function, @A -> B@
 arr :: Term -> Term -> Term
@@ -280,13 +302,14 @@ scopeVar = listToMaybe . scopeVars
 --   by the element at index 'n' in the provided list.
 --
 --   INVARIANT All the bound 'Natural' are less than the length of the list.
-instantiateList :: Monad f => [f a] -> Scope (Name n Natural) f a -> f a
+instantiateList :: Monad f => [f a] -> Scope (TName Natural) f a -> f a
 instantiateList ts = instantiateName (ts !!)
 
--- | Instantiate the '()' and the 'Natural' in 'TScopeNatU' at once.
-instantiateNatU :: [TermT a] -> TermT a -> TScopeNatU a -> TermT a
+-- | Instantiate the '()' and the 'Natural' at once.
+instantiateNatU :: Monad f
+                => [f a] -> f a -> Scope (TName Natural) (Scope (TName ()) f) a -> f a
 instantiateNatU ts t ss =
-    instantiate1 t (instantiateList (map (toScope . fmap F) ts) ss)
+    instantiate1 t (instantiateList (map (toScope . liftM F) ts) ss)
 
 moduleNames :: Module -> [Id]
 moduleNames = concatMap go . unModule
