@@ -11,8 +11,6 @@ import           Bound
 import           Kant.Term
 import           Kant.Environment
 
-import Debug.Trace
-
 type Reducer = forall a. (Show a, Eq a) => EnvT a -> TermT a -> TermT a
 
 -- | Reduces a term.  Assumes that the code is type checked:
