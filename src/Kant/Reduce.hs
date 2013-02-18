@@ -37,7 +37,7 @@ reduce r env (App t₁ t₂) =
             let t₂'           = reduce r env t₂
                 args'         = args ++ [t₂']
                 (fargs, rest) = splitAt i args'
-            in if i > length args' || not (all canonical fargs)
+            in if i > length args' || not (all constr fargs)
                then App t₁' t₂'
                else reduce r env (app (instantiateNatU fargs ft fss : rest))
         t₁'     -> App t₁' (r env t₂)
@@ -58,15 +58,9 @@ reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
 reduce r env (Constr c pars ts) = Constr c (map (r env) pars) (map (r env) ts)
 reduce r env (Fix ty i ss) = Fix (r env ty) i (reduceScope² r env ss)
 
-canonical :: TermT a -> Bool
-canonical (Var _)        = False
-canonical (Type _)       = True
-canonical (App _ _)      = False
-canonical (Arr _ _)      = True
-canonical (Lam _ _)      = True
-canonical (Case _ _ _)   = False
-canonical (Constr _ _ _) = True
-canonical (Fix _ _ _)    = False
+constr :: TermT a -> Bool
+constr (Constr _ _ _) = True
+constr _              = False
 
 nestNothing :: EnvT a -> EnvT (Var (TName b) a)
 nestNothing env = nestEnv env (const Nothing)
