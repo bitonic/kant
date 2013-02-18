@@ -57,13 +57,13 @@ instance Pretty STerm where
         go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
         go t           = singleParens t
     pretty (SLam pars t) =
-        "\\" <> group (align (prettyPars' pars <> "=>" <$> align (pretty t)))
+        "\\" <> group (nest (prettyPars' pars <> "=>" <$> align (pretty t)))
     pretty (SCase n ty brs) =
         group (nest ("case" <+> pretty n <+> "return" <+> pretty ty <$>
                      (align (prettyBarred prettyBranch brs))))
     pretty (SFix nm pars ty t) =
-        "fix" <+> group (align (prettyValTy (discardedM nm) pars ty <+> "=>" <$>
-                                align (pretty t)))
+        "fix" <+> group (nest (prettyValTy (discardedM nm) pars ty <+> "=>" <$>
+                               align (pretty t)))
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
