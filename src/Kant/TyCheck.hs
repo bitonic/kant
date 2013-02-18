@@ -87,25 +87,16 @@ instance TyCheck Module where
         go (decl : decls) env = tyCheck env decl >>= go decls
 
 instance TyCheck Decl where
-    tyCheck env (ValD val)      = tyCheck env val
     tyCheck env (DataD dat)      = tyCheck env dat
-    tyCheck env (Postulate n t) =
-        case Env.envTy env n of
-            Just _ -> throwError (DuplicateName n)
-            _      -> addAbst env n t
-
-instance TyCheck Val where
-    tyCheck env vd@(Val _ ty t) =
-        do env' <- addVal env vd
-           env' <$ tyCheckEq env' ty t
+    tyCheck env (Val n t)        = do ty <- tyCheckT env t; addVal env n ty t
+    tyCheck env (Postulate n ty) = do tyCheckT env ty; addAbst env n ty
 
 instance TyCheck Data where
-    tyCheck env dd =
-        do let ((c, (ty, _)), cons) = dataDecl dd
-           tyCheckT env ty
-           env' <- addAbst env c ty
-           mapM_ (tyCheckT env') (map (\(_, (ty', _)) -> ty') cons)
-           addData env dd
+    tyCheck env dd = do let ((c, (ty, _)), cons) = dataDecl dd
+                        tyCheckT env ty
+                        env' <- addAbst env c ty
+                        mapM_ (tyCheckT env') (map (\(_, (ty', _)) -> ty') cons)
+                        addData env dd
 
 dupMaybe :: Id -> Maybe b -> TyCheckM b
 dupMaybe _ (Just x) = return x
@@ -114,8 +105,8 @@ dupMaybe n Nothing  = throwError (DuplicateName n)
 addAbst :: Env -> Id -> Term -> TyCheckM Env
 addAbst env n t = dupMaybe n (Env.addAbst env n t)
 
-addVal :: Env -> Val -> TyCheckM Env
-addVal env vd@(Val n _ _) = dupMaybe n (Env.addVal env vd)
+addVal :: Env -> Id -> Term -> Term -> TyCheckM Env
+addVal env n ty t = dupMaybe n (Env.addVal env n ty t)
 
 addData :: Env -> Data -> TyCheckM Env
 addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
@@ -151,8 +142,8 @@ tyCheckT env (Lam ty s) =
 tyCheckT env@Env{envNest = nest} (Constr c pars args) =
     tyCheckT env (app (Var (nest c) : pars ++ args))
 tyCheckT env (Fix ty i ss) =
-    do tyCheckT env ty
-       return ty
+     do tyCheckT env ty
+        return ty
 tyCheckT env@Env{envNest = nest} ct@(Case t s brs) =
     do ty <- tyCheckT env t
        -- Check if the scrutined's type is canonical, which amounts to checking

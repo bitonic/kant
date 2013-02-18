@@ -153,8 +153,8 @@ addAbst env v₁ t = addCtx env v₁ (t, Nothing)
 
 -- | Adds a value definition to an environment, 'Nothing' if the name is already
 --   present.
-addVal :: Env -> Val -> Maybe Env
-addVal env (Val n ty t) = addCtx env n (ty, Just t)
+addVal :: Env -> Id -> Term -> Term -> Maybe Env
+addVal env n ty t = addCtx env n (ty, (Just t))
 
 -- | Extracts the types out of a data declaration.
 --

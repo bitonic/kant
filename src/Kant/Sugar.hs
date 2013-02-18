@@ -93,17 +93,15 @@ instance a ~ Decl => Desugar SDecl a where
     desugar (SVal n pars ty t) =
         let pars' = desugarPars pars
             ty'   = desugar ty
-        in ValD (Val n (pis pars' ty') (fix n pars' ty' (desugar t)))
+        in Val n (fix n pars' ty' (desugar t))
     desugar (SPostulate n ty) = Postulate n (desugar ty)
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (ValD (Val n ty₁ (Fix ty₂ i ss))) | ty₁ == ty₂ =
+    distill (Val n (Fix ty i ss)) =
         -- We assume that the name returned by 'distillFix' is 'n'
-        SVal n pars ty t where (_, pars, ty, t) = distillFix ty₂ i ss
-    distill (ValD (Val n ty t)) =
-        SVal n [] (distill ty) (distill t)
-
+        SVal n pars ty' t where (_, pars, ty', t) = distillFix ty i ss
+    distill (Val _ _) = error "Sugar.distill: got non fix declaration"
     distill (Postulate n ty) =
         SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =

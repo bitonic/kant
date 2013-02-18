@@ -9,7 +9,6 @@ module Kant.Term
     , Module(..)
     , Decl(..)
     , Data(..)
-    , Val(..)
     , Constr
     , Param
     , TermT(..)
@@ -85,16 +84,9 @@ newtype Module = Module {unModule :: [Decl]}
 -- TODO we can remove the type in ValD, since Fix include the recursive type
 -- | Value or datatype declaration
 data Decl
-    = ValD Val
+    = Val Id Term
     | DataD Data
-    | Postulate
-          Id                    -- Name
-          Term                  -- Type
-    deriving (Show, Eq)
-
-data Val = Val Id               -- Name
-               Term             -- Type
-               Term             -- Body
+    | Postulate Id Term
     deriving (Show, Eq)
 
 -- | Inductive data types declarations.
@@ -299,7 +291,7 @@ instantiateNatU ts t ss =
 moduleNames :: Module -> [Id]
 moduleNames = concatMap go . unModule
   where
-    go (ValD (Val n _ _))          = [n]
+    go (Val n _)                   = [n]
     go (Postulate n _)             = [n]
     go (DataD (Data tyc _ _ cons)) = tyc : map fst cons
 
