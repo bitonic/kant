@@ -39,6 +39,7 @@ Library
 
     Exposed-Modules:  Kant,
                       Kant.Term,
+                      Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty,
                       Kant.Reduce,
@@ -47,7 +48,6 @@ Library
                       Kant.REPL
 
     Other-Modules:    Kant.Common,
-                      Kant.Sugar,
                       Kant.Lexer
                       Kant.REPL.Types
 

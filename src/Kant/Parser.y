@@ -11,6 +11,7 @@ module Kant.Parser
     ) where
 
 import           Control.Applicative ((<$>))
+import           Control.Arrow (first)
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
@@ -77,7 +78,16 @@ Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
        { SData $2 $3 $5 $7 }
 
 Val :: { SDecl }
-Val : name Params ':' Term '=>' SingleTerm   { SVal $1 $2 $4 $6 }
+Val : name ValParams ':' Term '=>' SingleTerm { SVal $1 $2 $4 $6 }
+
+ValParams :: { SValParams }
+ValParams
+    : Params ValParams1                      { SValParams $1 $2 }
+
+ValParams1 :: { Maybe ([SParam], [SParam]) }
+ValParams1
+    : '|' Params '|' Params                  { Just ($2, $4) }
+    |  {- empty -}                           { Nothing }
 
 Params :: { [SParam] }
 Params : Seq0(Param)                         { $1 }
@@ -95,7 +105,7 @@ Term
     : '\\' Seq(Param) '=>' Term              { SLam $2 $4 }
     | 'case' name 'return' Term '{' Bar(Branch) '}'
       {% checkCase $2 $4 $6 }
-    | Arr                                    { $1 }
+    | Arr                                    { uncurry SArr $1 }
 
 Branch :: { SBranch }
 Branch : name Seq0(PatName) '=>' Term        { ($1, $2, $4) }
@@ -106,10 +116,10 @@ SingleTerm
     | type                                   { SType $1 }
     | '(' Term ')'                           { $2 }
 
-Arr :: { STerm }
-Arr : App '->' Arr                           { SArr Nothing $1 $3 }
-    | '(' name ':' Term ')' '->' Arr         { SArr (Just $2) $4 $7 }
-    | App                                    { $1 }
+Arr :: { ([SParam], STerm) }
+Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
+    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Just $2, $4):) $7 }
+    | App                                    { ([], $1) }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }

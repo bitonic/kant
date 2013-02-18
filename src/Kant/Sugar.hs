@@ -7,6 +7,7 @@ module Kant.Sugar
      , Level
      , SModule(..)
      , SDecl(..)
+     , SValParams(..)
      , SParam
      , SConstr
      , STerm(..)
@@ -35,11 +36,13 @@ import           Kant.Term
 newtype SModule = SModule {unSModule :: [SDecl]}
 
 data SDecl
-    = SVal Id [SParam] STerm STerm
+    = SVal Id SValParams STerm STerm
     | SPostulate Id STerm
     | SData ConId [SParam] Level [SConstr]
     deriving (Show)
 
+data SValParams = SValParams [SParam] (Maybe ([SParam], [SParam]))
+    deriving (Show)
 type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
 
@@ -51,12 +54,13 @@ data STerm
     | SType Level
     | SLam [SParam] STerm
     | SApp STerm STerm
-    | SArr (Maybe Id) STerm STerm
+    | SArr [SParam] STerm
       -- TODO add a way to match on non-variables
       -- | Pattern matching.  Note that here we demand a variable as scrutined
       --   so that the return type can refer to that directly.
     | SCase Id STerm [SBranch]
     | SFix (Maybe Id) [SParam] STerm STerm
+    | SUnknown
     deriving (Show)
 
 -- | Checks that all variables matched in branches are distinct.  Returns
@@ -91,21 +95,34 @@ instance a ~ Decl => Desugar SDecl a where
     -- TODO make the fix machinery more flexible, we want to be able to fix only
     -- certain arguments.
     desugar (SVal n pars ty t) =
-        let pars' = desugarPars pars
-            ty'   = desugar ty
-        in Val n (fix n pars' ty' (desugar t))
+        Val n (desugar (buildVal n pars ty t))
     desugar (SPostulate n ty) = Postulate n (desugar ty)
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (Val n (Fix ty i ss)) =
+    distill (Val n t) =
         -- We assume that the name returned by 'distillFix' is 'n'
-        SVal n pars ty' t where (_, pars, ty', t) = distillFix ty i ss
-    distill (Val _ _) = error "Sugar.distill: got non fix declaration"
+        SVal n pars ty t' where (pars, ty, t') = tearVal (distill t)
     distill (Postulate n ty) =
         SPostulate n (distill ty)
     distill (DataD (Data c pars l cons)) =
         SData c (distillPars pars) l (map (second distillPars) cons)
+
+buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
+buildVal n (SValParams pars rest) ty t =
+    SLam pars (go rest)
+  where
+    go (Just (pars', pars'')) = SFix (Just n) pars' (SArr pars'' ty) (SLam pars'' t)
+    go Nothing                = t
+
+-- TODO finish this
+tearVal, tearVal' :: STerm -> (SValParams, STerm, STerm)
+tearVal (SLam pars t) = (SValParams (pars ++ pars') pars'', ty, t')
+  where (SValParams pars' pars'', ty, t') = tearVal' t
+tearVal t = (SValParams pars pars', ty, t')
+  where (SValParams pars pars', ty, t') = tearVal' t
+tearVal' (SFix _ pars ty t) = (SValParams [] (Just (pars, [])), ty, t)
+tearVal' t = (SValParams [] Nothing, SUnknown, t)
 
 desugarPars :: [SParam] -> [Param]
 desugarPars pars =
@@ -119,25 +136,26 @@ distillPars pars =
          [(if n == discarded then Nothing else Just n, t) | (n, t) <- pars]
 
 instance a ~ (TermT Id) => Desugar STerm a where
-    desugar (SVar n)             = Var n
-    desugar (SType l)            = Type l
-    desugar (SLam pars t)        = lams (desugarPars pars) (desugar t)
-    desugar (SApp t₁ t₂)         = App (desugar t₁) (desugar t₂)
-    desugar (SArr Nothing ty t)  = arr (desugar ty) (desugar t)
-    desugar (SArr (Just n) ty t) = pi_ n (desugar ty) (desugar t)
-    desugar (SCase n ty brs)     =
+    desugar (SVar n)            = Var n
+    desugar (SType l)           = Type l
+    desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
+    desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
+    desugar (SArr pars ty)      = desugarArr pars ty
+    desugar (SCase n ty brs)    =
         case_ (Var n) n (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
-    desugar (SFix nm pars ty t)  =
+    desugar (SFix nm pars ty t) =
         fix (discardedM nm) (desugarPars pars) (desugar ty) (desugar t)
+    desugar SUnknown = error "desugar: panic, can't desugar unknown"
 
     -- TODO make names unique
     distill (Var n) = SVar n
     distill (Type l) = SType l
     distill (Arr ty s) =
-        SArr par (distill ty) (distill (instantiate1 (Var n) s))
+        SArr [(par, distill ty)] (distill (instantiate1 (Var n) s))
+      -- TODO group equal types
       where (par, n) = case scopeVar s of
                            Nothing -> (Nothing, discarded)
-                           Just n' -> (Just n', n')
+                           Just n' -> (Just [n'], n')
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
     distill to@(Lam _ _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
@@ -157,6 +175,13 @@ instance a ~ (TermT Id) => Desugar STerm a where
     distill (Fix ty i ss) =
         let (nm, pars, ty', t) = distillFix ty i ss
         in SFix nm pars ty' t
+
+desugarArr :: [SParam] -> STerm -> Term
+desugarArr []                          ty  = desugar ty
+desugarArr ((Nothing,     ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
+desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
+    pi_ n (desugar ty₁) (desugarArr ((Just ns, ty₁) : pars) ty₂)
+desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
 
 distillFix :: Term -> Natural -> TScopeNatU Id  -> (Maybe Id, [SParam], STerm, STerm)
 distillFix ty i ss =
@@ -183,4 +208,5 @@ freshScopeNat :: (Monad f, Foldable f)
               => Scope (TName Natural) f Id -> Natural -> ([Id], f Id)
 freshScopeNat s i = (vars', instantiateList (map return vars') s)
   where vars = [ (ix, n) | Name n ix <- bindings s ]
-        vars' = [ discardedM (lookup ix vars) | ix <- [0..(i-1)] ]
+        vars' = [ discardedM (lookup ix vars)
+                | ix <- if i > 0 then [0..(i-1)] else [] ]

@@ -42,16 +42,7 @@ instance Pretty STerm where
     pretty (SVar v) = pretty v
     pretty (SType 0) = "Type"
     pretty (SType l) = "Type" <> pretty (show l)
-    pretty to@(SArr _ _ _) = go to
-      where
-        go (SArr mn ty₁ ty₂) =
-            let l = case mn of
-                        Nothing -> noArr ty₁
-                        Just n  -> "(" <> typed n ty₁ <> ")"
-            in l <+> "->" <+> go ty₂
-        go t = noArr t
-        noArr t@(SApp _ _) = pretty t
-        noArr t            = singleParens t
+    pretty (SArr pars ty) = prettyPars pars "->" <+> "->" <+> pretty ty
     pretty to@(SApp _ _) = go to
       where
         go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
@@ -62,8 +53,9 @@ instance Pretty STerm where
         group (nest ("case" <+> pretty n <+> "return" <+> pretty ty <$>
                      (align (prettyBarred prettyBranch brs))))
     pretty (SFix nm pars ty t) =
-        "fix" <+> group (nest (prettyValTy (discardedM nm) pars ty <+> "=>" <$>
+        "fix" <+> group (nest (prettyFixPars (discardedM nm) pars ty <+> "=>" <$>
                                align (pretty t)))
+    pretty SUnknown = "??"
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
@@ -77,16 +69,18 @@ singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
-prettyPars :: [SParam] -> Doc
-prettyPars [] = ""
-prettyPars ((mns, ty) : pars) =
-    case mns of
-        Nothing -> singleParens ty
-        Just ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]"
-    <+> prettyPars pars
+prettyPars :: [SParam] -> Doc -> Doc
+prettyPars pars' d = hsep (intersperse d (go pars'))
+  where
+    go [] = []
+    go ((mns, ty) : pars) =
+        (case mns of
+             Nothing -> singleParens ty
+             Just ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
+        : go pars
 
 prettyPars' :: [SParam] -> Doc
-prettyPars' pars = prettyPars pars <> spaceIfCons pars
+prettyPars' pars = prettyPars pars "" <> spaceIfCons pars
 
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
@@ -104,7 +98,7 @@ instance Pretty Decl where
 
 instance Pretty SDecl where
     pretty (SVal n pars ty t) =
-        group (end (nest (prettyValTy n pars ty <+> "=>" <+>
+        group (end (nest (prettyValPars n pars ty <+> "=>" <+>
                           if single then pt else "(" <$$> pt)))
       where
         single = singleTerm t
@@ -119,8 +113,17 @@ instance Pretty SDecl where
 
     prettyList = vcat . intersperse "" . map pretty
 
-prettyValTy :: Id -> [SParam] -> STerm -> Doc
-prettyValTy n pars ty = pretty n <+> prettyPars pars <> ":" <+> pretty ty
+prettyFixPars :: Id -> [SParam] -> STerm -> Doc
+prettyFixPars n pars ty = pretty n <+> prettyPars' pars <> ":" <+> pretty ty
+
+prettyValPars :: Id -> SValParams -> STerm -> Doc
+prettyValPars n (SValParams pars rest) ty =
+    pretty n <+> prettyPars' pars <>
+    case rest of
+        Nothing              -> ""
+        Just (pars', pars'') -> "|" <+> prettyPars' pars' <> "|" <+>
+                                prettyPars' pars''
+    <> ":" <+> pretty ty
 
 instance Pretty Module where
     pretty = pretty . (distill :: Module -> SModule)
