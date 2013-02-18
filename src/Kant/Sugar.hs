@@ -85,11 +85,9 @@ type SBranch = ( ConId          -- Constructor
 -- ...
 class Desugar a b where
     desugar :: a -> b
-    distill :: b -> a
 
 instance a ~ Module => Desugar SModule a where
     desugar (SModule decls) = Module (map desugar decls)
-    distill (Module decls)  = SModule (map distill decls)
 
 instance a ~ Decl => Desugar SDecl a where
     -- TODO make the fix machinery more flexible, we want to be able to fix only
@@ -100,14 +98,6 @@ instance a ~ Decl => Desugar SDecl a where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
-    distill (Val n t) =
-        -- We assume that the name returned by 'distillFix' is 'n'
-        SVal n pars ty t' where (pars, ty, t') = tearVal (distill t)
-    distill (Postulate n ty) =
-        SPostulate n (distill ty)
-    distill (DataD (Data c pars l cons)) =
-        SData c (distillPars pars) l (map (second distillPars) cons)
-
 -- TODO broken, fix soon, the rec call should include the lambdas
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
 buildVal n (SValParams pars rest) ty t =
@@ -116,25 +106,9 @@ buildVal n (SValParams pars rest) ty t =
     go (Just (pars', pars'')) = SFix (Just n) pars' (SArr pars'' ty) (SLam pars'' t)
     go Nothing                = t
 
--- TODO finish this
-tearVal, tearVal' :: STerm -> (SValParams, STerm, STerm)
-tearVal (SLam pars t) = (SValParams (pars ++ pars') pars'', ty, t')
-  where (SValParams pars' pars'', ty, t') = tearVal' t
-tearVal t = (SValParams pars pars', ty, t')
-  where (SValParams pars pars', ty, t') = tearVal' t
-tearVal' (SFix _ pars ty t) = (SValParams [] (Just (pars, [])), ty, t)
-tearVal' t = (SValParams [] Nothing, SUnknown, t)
-
 desugarPars :: [SParam] -> [Param]
 desugarPars pars =
     concat [zip (fromMaybe [discarded] mns) (repeat (desugar t)) | (mns, t) <- pars]
-
-distillPars :: [Param] -> [SParam]
-distillPars pars =
-    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
-  where
-    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
-         [(if n == discarded then Nothing else Just n, t) | (n, t) <- pars]
 
 instance a ~ (TermT Id) => Desugar STerm a where
     desugar (SVar n)            = Var n
@@ -148,6 +122,17 @@ instance a ~ (TermT Id) => Desugar STerm a where
         fix (discardedM nm) (desugarPars pars) (desugar ty) (desugar t)
     desugar SUnknown = error "desugar: panic, can't desugar unknown"
 
+desugarArr :: [SParam] -> STerm -> Term
+desugarArr []                          ty  = desugar ty
+desugarArr ((Nothing,     ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
+desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
+    pi_ n (desugar ty₁) (desugarArr ((Just ns, ty₁) : pars) ty₂)
+desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
+
+class Distill a b where
+    distill :: a -> b
+
+instance (a ~ STerm, b ~ Id) => Distill (TermT b) a where
     -- TODO make names unique
     distill (Var n) = SVar n
     distill (Type l) = SType l
@@ -165,27 +150,26 @@ instance a ~ (TermT Id) => Desugar STerm a where
                              (pars, t') = go t
                          in ((n, ty) : pars, t')
          go t          = ([], t)
-    distill (Case v@(Var n) s brs) =
+    distill (Case v@(Var n) (CaseT s brs)) =
         SCase n (distill (instantiate1 v s))
               [ let (ns, s') = freshScopeNat ss i
                 in (c, ns, distill (instantiate1 v s'))
-              | (c, i, ss) <- brs ]
-    distill (Case _ _ _) = error "distill: panic, got a non-var scrutined"
+              | BranchT c i ss <- brs ]
+    distill (Case _ _) = error "distill: panic, got a non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
-    distill (Fix ty i ss) =
-        let (nm, pars, ty', t) = distillFix ty i ss
-        in SFix nm pars ty' t
+    distill (Fix ty tf) =
+        SFix nm pars ty' t where (nm, pars, ty', t) = distillFix ty tf
 
-desugarArr :: [SParam] -> STerm -> Term
-desugarArr []                          ty  = desugar ty
-desugarArr ((Nothing,     ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
-desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
-    pi_ n (desugar ty₁) (desugarArr ((Just ns, ty₁) : pars) ty₂)
-desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
+distillPars :: [Param] -> [SParam]
+distillPars pars =
+    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
+  where
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
+         [(if n == discarded then Nothing else Just n, t) | (n, t) <- pars]
 
-distillFix :: Term -> Natural -> TScopeNatU Id  -> (Maybe Id, [SParam], STerm, STerm)
-distillFix ty i ss =
+distillFix :: Term -> FixT TermT Id  -> (Maybe Id, [SParam], STerm, STerm)
+distillFix ty (FixT i ss) =
     -- TODO we assume that the arr is well formed
     let Just (pars, ty') = unrollArr i ty
         (pars', rest)    = splitAt i pars
