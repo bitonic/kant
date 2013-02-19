@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
@@ -41,6 +42,7 @@ import qualified Data.Map as Map
 
 import           Bound
 import           Bound.Name
+import           Numeric.Natural
 
 import           Kant.Term
 
@@ -174,8 +176,10 @@ dataDecl (Data c pars l cons) =
   where
     args = map (Var . fst) pars
     resTy = app (Var c : args)
-    conFun c' pars' = lams (pars ++ pars')
-                           (Constr c' (map (Var . fst) pars) (map (Var . fst) pars'))
+    conFun c' pars' =
+        let ref = zip (map (("_"++) . show) [(0::Natural)..]) (map snd pars')
+        in lams (pars ++ ref)
+                (Constr c' (map (Var . fst) pars) (map (Var . fst) ref))
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
