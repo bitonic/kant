@@ -48,7 +48,7 @@ Library
                       Kant.REPL
 
     Other-Modules:    Kant.Common,
-                      Kant.Lexer
+                      Kant.Lexer,
                       Kant.REPL.Types
 
 executable kant

@@ -18,11 +18,12 @@ module Kant.Sugar
      ) where
 
 import           Control.Applicative ((<$))
-import           Control.Arrow (second)
+import           Control.Arrow (second, (+++))
 import           Data.Foldable (Foldable)
 import           Data.List (groupBy)
 import           Data.Maybe (fromMaybe, isJust)
-import           Prelude hiding ((!!), length, splitAt)
+import           Prelude hiding ((!!), length, splitAt, drop)
+import qualified Prelude
 
 import qualified Data.Set as Set
 
@@ -42,7 +43,7 @@ data SDecl
     | SData ConId [SParam] Level [SConstr]
     deriving (Show)
 
-data SValParams = SValParams [SParam] (Maybe ([SParam], [SParam]))
+data SValParams = SValParams [SParam] (Maybe [SParam])
     deriving (Show)
 type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
@@ -100,11 +101,56 @@ instance a ~ Decl => Desugar SDecl a where
 
 -- TODO broken, fix soon, the rec call should include the lambdas
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
-buildVal n (SValParams pars rest) ty t =
-    SLam pars (go rest)
-  where
-    go (Just (pars', pars'')) = SFix (Just n) pars' (SArr pars'' ty) (SLam pars'' t)
-    go Nothing                = t
+buildVal n (SValParams pars mfpars) ty t =
+    SLam pars $
+    case mfpars of
+        Just fpars -> SFix (Just n) fpars ty (removeNotFix n (length pars) t)
+        Nothing    -> t
+
+removeNotFix :: Id -> Natural -> STerm -> STerm
+removeNotFix _ _ t@(SVar _) = t
+removeNotFix _ _ t@(SType _) = t
+removeNotFix n i (SLam pars t) =
+    case rnfPars n i pars of
+        Left pars'  -> SLam pars' (removeNotFix n i t)
+        Right pars' -> SLam pars' t
+removeNotFix n₁ i (SApp (SVar n₂) t) =
+     -- TODO emit an error if the application has less than `i' things
+     if n₁ == n₂ then foldl SApp (SVar n₂) (drop i (go t))
+     else SApp (SVar n₂) (removeNotFix n₁ i t)
+  where go (SApp t₁ t₂) = go t₁ ++ [t₂]
+        go t₁           = [t₁]
+removeNotFix n i (SApp t₁ t₂) = SApp (removeNotFix n i t₁) (removeNotFix n i t₂)
+removeNotFix n i (SArr pars t) =
+    case rnfPars n i pars of
+        Left pars'  -> SArr pars' (removeNotFix n i t)
+        Right pars' -> SArr pars' t
+removeNotFix n₁ i (SCase n₂ ty brs) =
+    SCase n₂ (removeNotFix n₁ i ty) (rnfBrs n₁ i brs)
+removeNotFix n₁ _ t@(SFix (Just n₂) _ _ _) | n₁ == n₂ = t
+removeNotFix n i (SFix nm pars ty t) =
+    case rnfPars n i pars of
+        Left pars'  -> SFix nm pars' (removeNotFix n i ty) (removeNotFix n i t)
+        Right pars' -> SFix nm pars' ty t
+
+leftRight :: (a -> b) -> Either a a -> Either b b
+leftRight f = f +++ f
+
+rnfPars :: Id -> Natural -> [SParam] -> Either [SParam] [SParam]
+rnfPars _ _ [] = Left []
+rnfPars n i ((Nothing, ty) : pars) = leftRight (par :) (rnfPars n i pars)
+  where par = (Nothing, removeNotFix n i ty)
+rnfPars n i ((Just [], _) : pars) = rnfPars n i pars
+rnfPars n i ((Just ns, ty) : pars) =
+    case elemIndex n ns of
+        Nothing -> leftRight ((Just ns, removeNotFix n i ty) :) (rnfPars n i pars)
+        Just 0  -> Right ((Just ns, ty) : pars)
+        Just j  -> let (ns', ns'') = splitAt (j+1) ns
+                   in Right ((Just ns', removeNotFix n i ty) : (Just ns'', ty) : pars)
+
+rnfBrs :: Id -> Natural -> [SBranch] -> [SBranch]
+rnfBrs n i brs = [ (c, ns, if n `elem` ns then t else removeNotFix n i t)
+                 | (c, ns, t) <- brs ]
 
 desugarPars :: [SParam] -> [Param]
 desugarPars pars =

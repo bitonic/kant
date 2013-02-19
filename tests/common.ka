@@ -5,14 +5,14 @@ one : Nat => (suc zero)
 two : Nat => (suc one)
 three : Nat => (suc two)
 
-plus | [x y : Nat] | : Nat => (
+plus | [x y : Nat] : Nat => (
   case x return Nat
     { zero   => y
     | suc x' => suc (plus x' y)
     }
 )
 
-times | [x y : Nat] | : Nat => (
+times | [x y : Nat] : Nat => (
   case x return Nat
     { zero   => zero
     | suc x' => plus y (times x' y)
@@ -21,14 +21,14 @@ times | [x y : Nat] | : Nat => (
 
 data List [A : Type] : Type { nil | cons A (List A) }
 
-app [A : Type] | [xs ys : List A] | : List A => (
+app [A : Type] | [xs ys : List A] : List A => (
   case xs return List A
     { nil        => ys
     | cons x xs' => cons A x (app A xs' ys)
     }
 )
 
-map [A B : Type] [f : A -> B] | [xs : List A] | : List B => (
+map [A B : Type] [f : A -> B] | [xs : List A] : List B => (
   case xs return List B
     { nil        => nil B
     | cons x xs' => cons B (f x) (map A B f xs')
@@ -72,7 +72,7 @@ T [b : Bool] : Type => (ite' b Unit Empty)
 
 absurd [bot : Empty] [A : Type] : A => (case bot return A { })
 
-ackerman | [m n : Nat] | : Nat => (
+ackerman | [m n : Nat] : Nat => (
   case m return Nat
     { zero   => suc n
     | suc m' => case n return Nat

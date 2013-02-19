@@ -84,9 +84,9 @@ ValParams :: { SValParams }
 ValParams
     : Params ValParams1                      { SValParams $1 $2 }
 
-ValParams1 :: { Maybe ([SParam], [SParam]) }
+ValParams1 :: { Maybe [SParam] }
 ValParams1
-    : '|' Params '|' Params                  { Just ($2, $4) }
+    : '|' Params                             { Just $2 }
     |  {- empty -}                           { Nothing }
 
 Params :: { [SParam] }

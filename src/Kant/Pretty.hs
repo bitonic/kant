@@ -116,9 +116,8 @@ prettyValPars :: Id -> SValParams -> STerm -> Doc
 prettyValPars n (SValParams pars rest) ty =
     pretty n <+> prettyPars' pars <>
     case rest of
-        Nothing              -> ""
-        Just (pars', pars'') -> "|" <+> prettyPars' pars' <> "|" <+>
-                                prettyPars' pars''
+        Nothing    -> ""
+        Just pars' -> "|" <+> prettyPars' pars'
     <> ":" <+> pretty ty
 
 instance Pretty SModule where
