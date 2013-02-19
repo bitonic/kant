@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Sugar
      ( Id
      , ConId
@@ -107,6 +108,10 @@ buildVal n (SValParams pars mfpars) ty t =
         Just fpars -> SFix (Just n) fpars ty (removeNotFix n (length pars) t)
         Nothing    -> t
 
+unrollSArr :: STerm -> [STerm]
+unrollSArr (SApp t₁ t₂) = unrollSArr t₁ ++ [t₂]
+unrollSArr t₁           = [t₁]
+
 removeNotFix :: Id -> Natural -> STerm -> STerm
 removeNotFix _ _ t@(SVar _) = t
 removeNotFix _ _ t@(SType _) = t
@@ -114,12 +119,9 @@ removeNotFix n i (SLam pars t) =
     case rnfPars n i pars of
         Left pars'  -> SLam pars' (removeNotFix n i t)
         Right pars' -> SLam pars' t
-removeNotFix n₁ i (SApp (SVar n₂) t) =
-     -- TODO emit an error if the application has less than `i' things
-     if n₁ == n₂ then foldl SApp (SVar n₂) (drop i (go t))
-     else SApp (SVar n₂) (removeNotFix n₁ i t)
-  where go (SApp t₁ t₂) = go t₁ ++ [t₂]
-        go t₁           = [t₁]
+removeNotFix n₁ i (unrollSArr -> (SVar n₂ : ts)) | n₁ == n₂ =
+    -- TODO emit an error if the application has less than `i' things
+    foldl SApp (SVar n₂) (drop i (map (removeNotFix n₁ i) ts))
 removeNotFix n i (SApp t₁ t₂) = SApp (removeNotFix n i t₁) (removeNotFix n i t₂)
 removeNotFix n i (SArr pars t) =
     case rnfPars n i pars of
