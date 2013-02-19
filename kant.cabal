@@ -21,39 +21,33 @@ Library
     Hs-Source-Dirs:   src
 
     Build-Depends:    base >= 3 && < 5,
-                      bound,
-                      pretty,
-                      prelude-extras,
-                      array,
-                      mtl,
                       wl-pprint,
-                      containers,
                       haskeline,
                       parsec,
-                      transformers,
-                      nats
+                      nats,
+                      void
 
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant,
-                      Kant.Term,
-                      Kant.Sugar,
-                      Kant.Parser,
-                      Kant.Pretty,
-                      Kant.Reduce,
-                      Kant.Environment,
-                      Kant.TyCheck
-                      Kant.REPL
+                      Kant.Name,
+                      Kant.Term
+                      -- Kant.Sugar,
+                      -- Kant.Parser,
+                      -- Kant.Pretty,
+                      -- Kant.Reduce,
+                      -- Kant.Environment,
+                      -- Kant.TyCheck
+                      -- Kant.REPL
 
-    Other-Modules:    Kant.Common,
-                      Kant.Lexer,
-                      Kant.REPL.Types
+    -- Other-Modules:    Kant.Lexer,
+    --                   Kant.REPL.Types
 
-executable kant
-    Main-Is:          kant.hs
+-- executable kant
+--     Main-Is:          kant.hs
 
-    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+--     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
-    Build-Depends:    base, kant
+--     Build-Depends:    base, kant
