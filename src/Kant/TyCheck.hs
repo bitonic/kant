@@ -198,7 +198,7 @@ intVars env@Env{envPull = pull} pars =
         -- current scope.
         nested₂ = [ foldr (\(n, j) t -> substitute (F n) (Var (B (Name (pull n) j))) t)
                           (snd (nested₁ !! i))
-                          (zip (map fst nested₁) [0..(i-1)])
+                          (zip (map fst nested₁) (if i == 0 then [] else [0..(i-1)]))
                   | i <- [0..(length nested₁ - 1)] ]
     in nestEnv env (\i -> Just (nested₂ !! i))
 
