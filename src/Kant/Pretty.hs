@@ -153,7 +153,7 @@ instance Pretty TyCheckError where
 
 instance Pretty Output where
     pretty (OTyCheck ty) = pretty ty
-    pretty (OEval t)     = pretty t
+    pretty (OPretty t)   = pretty t
     pretty OOK           = "OK"
     pretty OQuit         = "Bye!"
     pretty OSkip         = ""

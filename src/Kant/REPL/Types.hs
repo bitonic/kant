@@ -12,7 +12,7 @@ import           Kant.TyCheck
 
 data Output
     = OTyCheck Term             -- Type of term
-    | OEval Term                -- Normal form of term
+    | OPretty Term              -- PPrinted term
     | OOK
     | OQuit
     | OSkip

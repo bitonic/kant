@@ -31,6 +31,7 @@ data Input
     | IEval String
     | IDecl String
     | ILoad FilePath
+    | IPretty String
     | IQuit
     | ISkip
 
@@ -47,6 +48,7 @@ parseInput =
     rest     = Parsec.many anyChar
     commands = [ ('e', IEval <$> rest)
                , ('t', ITyCheck <$> rest)
+               , ('p', IPretty <$> rest)
                , ('l', ILoad . trim <$> rest)
                , ('q', IQuit <$ Parsec.eof)
                ]
@@ -60,7 +62,7 @@ replOutput env s₁ =
                              return (OTyCheck ty, env)
            IEval s₂    -> do t <- parse s₂
                              tyct t
-                             return (OEval (nf env t), env)
+                             return (OPretty (nf env t), env)
            IDecl s₂    -> do d <- parseE (parseDecl s₂)
                              env' <- tyE (tyCheck env d)
                              return (OOK, env')
@@ -68,6 +70,8 @@ replOutput env s₁ =
                              m <- parseE (parseModule s)
                              env' <- tyE (tyCheck env m)
                              return (OOK, env')
+           IPretty s₂  -> do t <- parse s₂
+                             return (OPretty (whnf env t), env)
            IQuit       -> return (OQuit, env)
            ISkip       -> return (OSkip, env)
   where
