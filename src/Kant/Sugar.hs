@@ -98,7 +98,12 @@ instance a ~ Decl => Desugar SDecl a where
         Val n (desugar (buildVal n pars ty t))
     desugar (SPostulate n ty) = Postulate n (desugar ty)
     desugar (SData c pars l cons) =
-        DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
+        let dpars = desugarPars pars
+        in DataD (Data c (desugarPars pars) l
+                       [ abstractConstr (map fst dpars) c' (desugarPars pars')
+                       | (c', pars') <- cons ])
+
+
 
 -- TODO broken, fix soon, the rec call should include the lambdas
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm

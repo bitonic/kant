@@ -166,14 +166,16 @@ tyCheckT env@Env{envNest = nest} ct@(Case t (CaseT s brs)) =
     checkBr :: [TermT a] -> [Constr] -> TScope a -> BranchT TermT a -> TyCheckM ()
     checkBr args cons tys (BranchT c i ss) =
         -- Check that each constructor is indeed a constructor for our datatype
-        case lookup c cons of
-            Nothing -> notConstructor env c ct
+        case [con | con@(ConstrT c' _) <- cons, c == c'] of
+            [] -> notConstructor env c ct
             -- Check that the number of arguments given to the constructor are
             -- all there
-            Just pars | length pars == i ->
+            (ConstrT _ pars : _) | length pars == i ->
                 do let -- Get the new environment with the types for the bound
-                       -- variables
-                       env' = intVars env (map (nest *** fmap nest) pars)
+                       -- variables.  Note that we replace the scoped arguments
+                       -- to the type constructors with what we actually have.
+                       env' = intVars env
+                              (map (nest *** (instantiateList args . fmap nest)) pars)
                        -- Prepare the term for this branch
                        cont = Constr c (map (fmap F) args)
                               (map (Var . B) (zipWith Name (map fst pars) [0..]))
@@ -182,7 +184,7 @@ tyCheckT env@Env{envNest = nest} ct@(Case t (CaseT s brs)) =
                        -- Remove the branch scope's inner scope
                        s' = toScope (instantiate1 cont (fromScope ss))
                    tyCheckEq env' ty' (fromScope s')
-            Just _ -> wrongArity env c ct
+            _ -> wrongArity env c ct
 
 -- | Prepares an environment with where variable `n' has type `pars !! n', and
 --   all the references to previous elements in `pars' are int variables as

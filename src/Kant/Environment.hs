@@ -29,6 +29,7 @@ module Kant.Environment
     ) where
 
 import           Control.Applicative ((<$>))
+import           Control.Arrow (second)
 import           Control.Monad (join)
 import           Data.Foldable (Foldable)
 import           Data.Foldable (foldr)
@@ -167,10 +168,12 @@ addVal env n ty t = addCtx env n (ty, (Just t))
 dataDecl :: Data -> ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
     ((c, (params pi_ pars (Type l), Nothing)),
-     [ (c', (params pi_ (pars ++ pars') resTy, Just (conFun c' pars')))
-     | (c', pars') <- cons ])
+     [ let pars' = map (second (instantiateList args)) s
+       in (c', (params pi_ (pars ++ pars') resTy, Just (conFun c' pars')))
+     | ConstrT c' s <- cons ])
   where
-    resTy = app (Var c : map (Var . fst) pars)
+    args = map (Var . fst) pars
+    resTy = app (Var c : args)
     conFun c' pars' = lams (pars ++ pars')
                            (Constr c' (map (Var . fst) pars) (map (Var . fst) pars'))
 

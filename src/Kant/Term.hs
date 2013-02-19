@@ -9,7 +9,9 @@ module Kant.Term
     , Module(..)
     , Decl(..)
     , Data(..)
+    , ConstrT(..)
     , Constr
+    , abstractConstr
     , Param
     , TermT(..)
     , Term
@@ -46,6 +48,7 @@ import           Control.Applicative (Applicative(..), (<$>))
 import           Control.Arrow (second)
 import           Control.Monad (ap, liftM)
 import           Data.Foldable (Foldable)
+import           Data.List ((\\))
 import           Data.Maybe (listToMaybe, fromMaybe)
 import           Data.Traversable (Traversable)
 import           Prelude hiding ((!!), length)
@@ -104,7 +107,27 @@ data Data = Data ConId            -- Name
                  [Constr]         -- Constructors
     deriving (Show, Eq)
 
-type Constr = (ConId, [Param])
+data ConstrT f a = ConstrT ConId [(Id, Scope (TName Natural) f a)]
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+type Constr = ConstrT TermT Id
+
+instance Bound ConstrT where
+    ConstrT c pars >>>= f = ConstrT c (map (second (>>>= f)) pars)
+
+abstractConstr :: [Id]          -- ^ Arguments to the type constructors
+               -> ConId
+               -> [(Id, Term)]  -- ^ Arguments to the data construcors
+               -> Constr
+abstractConstr args c parso = ConstrT c (go (zip args [0..]) parso)
+  where
+    go _ [] = []
+    go ixs ((n, t) : pars) =
+        (n, instIx ixs t) :
+        case lookup n ixs of
+            Nothing -> go ixs pars
+            Just i  -> go (ixs \\ [(n, i)]) pars
+    instIx ixs = abstractName (`lookup` ixs)
+
 type Param = (Id, Term)
 
 -- | A 'Name' with an 'Id' name.
@@ -316,7 +339,7 @@ moduleNames = concatMap go . unModule
   where
     go (Val n _)                   = [n]
     go (Postulate n _)             = [n]
-    go (DataD (Data tyc _ _ cons)) = tyc : map fst cons
+    go (DataD (Data tyc _ _ cons)) = tyc : map (\(ConstrT c _) -> c) cons
 
 -- | Returns 'discarded' if the argument is nothing.
 discardedM :: Maybe Id -> Id
