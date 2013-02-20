@@ -9,7 +9,6 @@ module Kant.Term
     , Level
     , Name(..)
     , Binder(..)
-    , TBinder
     , ModuleT(..)
     , Module
     , ModuleV
@@ -26,7 +25,6 @@ module Kant.Term
     , Constr
     , ConstrV
     , TName
-    , Var(..)
     , TermT(..)
     , Term
     , TermV
@@ -47,6 +45,7 @@ module Kant.Term
     ) where
 
 import           Control.Arrow (first, second)
+import           Control.Monad (mplus)
 
 import           Data.Void
 import           Numeric.Natural
@@ -80,10 +79,6 @@ type ConId = Id
 -- | Type levels
 type Level  = Natural
 
--- | A binder with a forgettable 'Id'.  We don't strictly need it, but it's
---   handy.
-type TBinder tag = Name Id (Binder tag)
-
 -- | A Kant module.
 newtype ModuleT fr tag = Module {unModule :: [DeclT fr tag]}
     deriving (Show, Eq)
@@ -92,7 +87,7 @@ type ModuleV = ModuleT Void Id
 
 -- | Parameters for binders - we mostly use it when forming things and for
 --   data/type constructors.
-type ParamT fr tag = (TBinder tag, TermT fr tag)
+type ParamT fr tag = (Binder tag, TermT fr tag)
 type Param = ParamT Id Tag
 type ParamV = ParamT Void Id
 
@@ -121,16 +116,11 @@ type Constr = ConstrT Id Tag
 type ConstrV = ConstrT Void Id
 
 -- | A 'Name' with an 'Id' name.
-type TName tag = Name Id tag
-
-data Var fr tag
-    = Bound (TName tag)
-    | Free fr
-    deriving (Eq, Show, Functor)
+type TName fr tag = Name fr Id tag
 
 -- | Terms for our language.  This is what we typecheck and reduce.
 data TermT fr tag
-    = Var (Var fr tag)
+    = Var (TName fr tag)
       -- | The type of types
     | Type Level
       -- | Function application.  To the left we expect either a 'Lam' or a
@@ -138,18 +128,18 @@ data TermT fr tag
     | App (TermT fr tag) (TermT fr tag)
       -- | Constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
       --   Type (n ⊔ m)@.
-    | Arr (TBinder tag) (TermT fr tag) (TermT fr tag)
+    | Arr (Binder tag) (TermT fr tag) (TermT fr tag)
       -- | Lambda abstraction.
-    | Lam (TBinder tag) (TermT fr tag) (TermT fr tag)
+    | Lam (Binder tag) (TermT fr tag) (TermT fr tag)
       -- | Pattern matching.
-    | Case (Var fr tag)         -- Variable to pattern match
+    | Case (TName fr tag)       -- Variable to pattern match
            (TermT fr tag)       -- Return type
            [BranchT  fr tag]
       -- | An instance of some inductive data type created by the user.
     | Constr ConId              -- Constructor
              [TermT fr tag]     -- Type parameters
              [TermT fr tag]     -- Data Parameters
-    | Fix (TBinder tag)
+    | Fix (Binder tag)
           [ParamT fr tag]       -- Arguments to the function.
           (TermT fr tag)        -- Return type
           (TermT fr tag)        -- Body
@@ -157,12 +147,12 @@ data TermT fr tag
 type Term = TermT Id Tag
 type TermV = TermT Void Id
 
-type BranchT fr tag = (ConId, [TBinder tag], TermT fr tag)
+type BranchT fr tag = (ConId, [Binder tag], TermT fr tag)
 type Branch = BranchT Id Tag
 type BranchV = BranchT Void Id
 
 -- | Folds a list of parameters.
-params :: (TBinder t -> TermT f t -> TermT f t -> TermT f t)
+params :: (Binder t -> TermT f t -> TermT f t -> TermT f t)
        -> [ParamT f t] -> TermT f t -> TermT f t
 params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 
@@ -176,7 +166,7 @@ arrs = params Arr
 
 -- | Non-dependent function, @A -> B@
 arr :: TermT f t -> TermT f t -> TermT f t
-arr ty₁ ty₂ = Arr (return Wild) ty₁ ty₂
+arr ty₁ ty₂ = Arr Wild ty₁ ty₂
 
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 --   to @b@ applied to @c@.  Fails with empty lists.
@@ -202,13 +192,13 @@ moduleNames = concatMap go . unModule
 
 ------
 
-substBind :: Eq tag => tag -> TermT fr tag -> TBinder tag -> TermT fr tag
+substBind :: Eq tag => tag -> TermT fr tag -> Binder tag -> TermT fr tag
           -> TermT fr tag
-substBind v₁ _  (content -> (Bind v₂)) t  | v₁ == v₂ = t
-substBind v  t₁ _                      t₂ = subst v t₁ t₂
+substBind v₁ _  (Bind v₂) t  | v₁ == v₂ = t
+substBind v  t₁ _         t₂ = subst v t₁ t₂
 
 subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
-subst v t (Var (Bound n)) | v == content n = t
+subst v₁ t (Var (Bound _ v₂)) | v₁ == v₂ = t
 subst _ _ t@(Var _) = t
 subst _ _ t@(Type _) = t
 subst v t₁ (App t₂ t₃) = App (subst v t₁ t₂) (subst v t₁ t₃)
@@ -216,7 +206,7 @@ subst v t (Arr b ty₁ ty₂) = Arr b (subst v t ty₁) (subst v t ty₂)
 subst v t₁ (Lam b ty t₂) = Lam b (subst v t₁ ty) (substBind v t₁ b t₂)
 subst v t₁ (Case n ty brs) =
     Case n (subst v t₁ ty)
-         [ (c, bs, if return (Bind v) `elem` bs then t₂ else subst v t₁ t₂)
+         [ (c, bs, if Bind v `elem` bs then t₂ else subst v t₁ t₂)
          | (c, bs, t₂) <- brs ]
 subst v t (Constr c tys ts) = Constr c (map (subst v t) tys) (map (subst v t) ts)
 subst v t₁ (Fix b pars ty t₂) =
@@ -230,7 +220,7 @@ substPars :: Eq tag
           -> Either [ParamT fr tag] [ParamT fr tag]
 substPars _ _ [] = Right []
 substPars v t ((b, ty) : pars) =
-    case if return (Bind v) == b then Right pars else substPars v t pars of
+    case if Bind v == b then Right pars else substPars v t pars of
         Right pars' -> Right (bty : pars')
         Left pars'  -> Left (bty : pars')
   where bty = (b, subst v t ty)
