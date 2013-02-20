@@ -40,6 +40,8 @@ module Kant.Term
     , unrollApp
     , unrollArr
     , moduleNames
+      -- * Substitutions
+    , subst
     ) where
 
 import           Control.Arrow (first, second)
