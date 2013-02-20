@@ -40,58 +40,20 @@ import           Prelude hiding (foldr)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
-import           Bound
-import           Bound.Name
 import           Numeric.Natural
 
 import           Kant.Term
 
-type ItemT a = (TermT a, Maybe (TermT a))
-type Item = ItemT Id
-
-type CtxT a = (a -> Maybe (ItemT a))
-type Ctx = CtxT Id
+type Item = (Term, Maybe Term)
 
 type CtxData = Map Id Data
 
--- | Nests an 'Id' the required amount of times to turn it into a top level
---   variable.
-type NestT a = Id -> a
-type Nest = NestT Id
-
--- | Extracts the name out of the bound variable.
-type PullT a = a -> Id
-type Pull = PullT Id
-
 -- | Bringing it all together
 data EnvT a = Env
-    { envCtx  :: CtxT a
-    , envData :: CtxData
-    , envNest :: NestT a
-    , envPull :: PullT a
+    { envCtx   :: Map Id Item
+    , envData  :: Map Id Data
+    , envCount :: Tag
     }
-type Env = EnvT Id
-
--- | To be used when we enter a 'Scope', it adjust the environment functions to
---   work with the new level of boundness.
-nestEnv :: EnvT a
-        -> (b -> Maybe (TermT (Var (Name Id b) a)))
-        -> EnvT (Var (Name Id b) a)
-nestEnv env@Env{envCtx = ctx, envNest = nest, envPull = pull} f =
-    env{ envCtx =
-         \v -> case v of
-                  B (Name _ n) -> (\t      -> (t,       Nothing))       <$> f n
-                  F v'         -> (\(t, m) -> (F <$> t, (F <$>) <$> m)) <$> ctx v'
-       , envNest = F . nest
-       , envPull = \v -> case v of
-                             B b  -> name b
-                             F v' -> pull v'
-       }
-
--- | Like 'nestEnv' but accepts a function that returns terms of the outer
--- scope, and automatically nests them.
-nestEnv' :: EnvT a -> (b -> Maybe (TermT a)) -> EnvT (Var (Name Id b) a)
-nestEnv' env f = nestEnv env (\n -> (F <$>) <$> f n)
 
 -- | Looks up the type of a variable.
 envTy :: EnvT a -> a -> Maybe (TermT a)

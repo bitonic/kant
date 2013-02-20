@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+-- TODO revise variable names
 module Kant.Sugar
      ( -- * Abstract syntax tree
        Id
@@ -208,4 +209,3 @@ distillPars pars =
   where
     go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isBind mn₁ && isBind mn₂ && ty₁ == ty₂)
          pars
-

@@ -27,7 +27,8 @@ Library
                       nats,
                       void,
                       containers,
-                      array
+                      array,
+                      mtl
 
     Build-Tools:      alex, happy
 
@@ -38,8 +39,8 @@ Library
                       Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty
+--                    Kant.Environment
                       -- Kant.Reduce,
-                      -- Kant.Environment,
                       -- Kant.TyCheck
                       -- Kant.REPL
 
