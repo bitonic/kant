@@ -166,7 +166,8 @@ instance a ~ TermV => Desugar STerm a where
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase n ty brs)    =
-        Case (Bound n n) (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
+        Case (Bind n) (Var (Bound n n))
+             (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
     desugar (SFix b pars ty t) = Fix b (desugarPars pars) (desugar ty) (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
@@ -191,9 +192,11 @@ instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
       where
          go (Lam b ty t) = first ((b, ty):) (go t)
          go t            = ([], t)
-    distill (Case (Bound _ n) ty brs) =
-        SCase n (distill ty) [(c, bs, distill t) | (c, bs, t) <- brs]
-    distill (Case (Free v) _ _) = absurd v
+    distill (Case (Bind _) (Var (Free v)) _ _) = absurd v
+    distill (Case (Bind v) b@(Var (Bound _ n)) ty brs) =
+        SCase n (distill (subst v b ty))
+              [(c, bs, distill t) | (c, bs, t) <- substBrs v b brs]
+    distill (Case _ _ _ _) = error "distill: got non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix b pars ty t) =

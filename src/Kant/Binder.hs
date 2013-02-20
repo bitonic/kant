@@ -6,7 +6,7 @@ module Kant.Binder
     ) where
 
 import           Control.Applicative (Applicative(..))
-import           Control.Monad (ap)
+import           Control.Monad (ap, MonadPlus(..))
 
 -- | Something isomorphic to 'Maybe' for the time being, might change in the
 --   future.
@@ -27,3 +27,10 @@ instance Monad Binder where
 instance Applicative Binder where
     pure = return
     (<*>) = ap
+
+instance MonadPlus Binder where
+    mzero = Wild
+
+    Wild `mplus` b    = b
+    b    `mplus` Wild = b
+    b    `mplus` _    = b
