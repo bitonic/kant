@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Kant.Term
     ( -- * Modules, data declarations, terms.
       Id
@@ -140,9 +141,11 @@ data TermT tag
           [ParamT tag]          -- Arguments to the function.
           (TermT tag)           -- Return type
           (TermT tag)           -- Body
-    deriving (Eq, Show, Functor)
+    deriving (Show, Functor)
 type Term = TermT Tag
 type TermV = TermT Void
+
+instance Eq a => Eq (TermT a) where
 
 type BranchT tag = (ConId, [TBinder], TermT tag)
 type Branch = BranchT Tag
