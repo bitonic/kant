@@ -18,7 +18,7 @@ module Kant.Sugar
      , distill
      ) where
 
-import           Control.Applicative ((<$), (<$>))
+import           Control.Applicative ((<$))
 import           Control.Arrow (first, second, (+++))
 import           Data.List (groupBy, elemIndex)
 
