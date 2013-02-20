@@ -179,8 +179,8 @@ instance (a ~ STerm, b ~ Void) => Distill (TermT b) a where
     distill (Var (Free n)) = SVar n
     distill (Var (Bound _ v)) = absurd v
     distill (Type l) = SType l
-    -- TODO group equal types
-    distill (Arr b ty₁ ty₂) = SArr [(return <$> b, distill ty₁)] (distill ty₂)
+    distill to@(Arr _ _ _) = SArr (distillPars pars) (distill ty)
+      where (pars, ty) = unrollArr to
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
     distill to@(Lam _ _ _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
