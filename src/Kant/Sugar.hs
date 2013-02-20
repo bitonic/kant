@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 module Kant.Sugar
      ( -- * Abstract syntax tree
        SModule(..)
@@ -18,16 +17,13 @@ module Kant.Sugar
      , distill
      ) where
 
-import           Control.Applicative ((<$))
-import           Control.Arrow (second, (+++))
-import           Data.Foldable (Foldable)
+import           Control.Applicative ((<$), (<$>))
+import           Control.Arrow (first, second, (+++))
 import           Data.List (groupBy, elemIndex)
-import           Data.Maybe (fromMaybe, isJust)
 
 import qualified Data.Set as Set
 
 import           Data.Void
-import           Numeric.Natural
 
 import           Kant.Name
 import           Kant.Binder
@@ -178,66 +174,29 @@ desugarArr ((Name [],     _)   : pars) ty  = desugarArr pars ty
 class Distill a b where
     distill :: a -> b
 
--- instance (a ~ STerm, b ~ Id) => Distill (TermT b) a where
---     -- TODO make names unique
---     distill (Var n) = SVar n
---     distill (Type l) = SType l
---     distill (Arr ty s) =
---         SArr [(par, distill ty)] (distill (instantiate1 (Var n) s))
---       -- TODO group equal types
---       where (par, n) = case scopeVar s of
---                            Nothing -> (Nothing, discarded)
---                            Just n' -> (Just [n'], n')
---     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
---     distill to@(Lam _ _)  =
---         let (pars, t) = go to in SLam (distillPars pars) (distill t)
---       where
---          go (Lam ty s) = let (n, t)     = freshScope s
---                              (pars, t') = go t
---                          in ((n, ty) : pars, t')
---          go t          = ([], t)
---     distill (Case v@(Var n) (CaseT s brs)) =
---         SCase n (distill (instantiate1 v s))
---               [ let (ns, s') = freshScopeNat ss i
---                 in (c, ns, distill (instantiate1 v s'))
---               | BranchT c i ss <- brs ]
---     distill (Case _ _) = error "distill: panic, got a non-var scrutined"
---     distill (Constr c tys ts) =
---         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
---     distill (Fix ty tf) =
---         SFix nm pars ty' t where (nm, pars, ty', t) = distillFix ty tf
+instance (a ~ STerm, b ~ Void) => Distill (TermT b) a where
+    distill (Var (Free n)) = SVar n
+    distill (Var (Bound _ v)) = absurd v
+    distill (Type l) = SType l
+    -- TODO group equal types
+    distill (Arr b ty₁ ty₂) = SArr [(return <$> b, distill ty₁)] (distill ty₂)
+    distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
+    distill to@(Lam _ _ _)  =
+        let (pars, t) = go to in SLam (distillPars pars) (distill t)
+      where
+         go (Lam b ty t) = first ((b, ty):) (go t)
+         go t            = ([], t)
+    distill (Case n ty brs) =
+        SCase (name n) (distill ty) [(c, bs, distill t) | (c, bs, t) <- brs]
+    distill (Constr c tys ts) =
+        foldl1 SApp (SVar c : map distill tys ++ map distill ts)
+    distill (Fix b pars ty t) =
+        SFix b (distillPars pars) (distill ty) (distill t)
 
--- distillPars :: [Param] -> [SParam]
--- distillPars pars =
---     [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
---   where
---     go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
---          [(if n == discarded then Nothing else Just n, t) | (n, t) <- pars]
+distillPars :: [ParamV] -> [SParam]
+distillPars pars =
+    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
+  where
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isName mn₁ && isName mn₂ && ty₁ == ty₂)
+         pars
 
--- distillFix :: Term -> FixT TermT Id  -> (Maybe Id, [SParam], STerm, STerm)
--- distillFix ty (FixT i ss) =
---     -- TODO we assume that the arr is well formed
---     let Just (pars, ty') = unrollArr i ty
---         (pars', rest)    = splitAt i pars
---         nm               = scopeVar (fromScope ss)
---         ns               = [(j, n') | Name n' j <- bindings ss]
---         pars''           = mergeBi pars' ns
---     in (nm, distillPars pars'', distill (pis rest ty'),
---         distill (instantiateNatU (map (Var . fst) pars'') (Var (discardedM nm)) ss))
---   where
---     mergeBi pars ns =
---         [ (if n' == discarded then discardedM (lookup j ns) else n', ty')
---         | (j, (n', ty')) <- zip [0..] pars ]
-
--- freshScope :: TScope Id -> (Id, Term)
--- freshScope s = (n, instantiate1 (Var n) s)
---   where n = discardedM (scopeVar s)
-
--- -- INVARIANT Again, we assume that the bound 'Natural's are all below the
--- -- provided 'Natural'.
--- freshScopeNat :: (Monad f, Foldable f)
---               => Scope (TName Natural) f Id -> Natural -> ([Id], f Id)
--- freshScopeNat s i = (vars', instantiateList (map return vars') s)
---   where vars = [ (ix, n) | Name n ix <- bindings s ]
---         vars' = [ discardedM (lookup ix vars)
---                 | ix <- if i > 0 then [0..(i-1)] else [] ]
