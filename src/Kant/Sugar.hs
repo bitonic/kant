@@ -160,13 +160,13 @@ desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Name ns -> map Name
                           | (mns, t) <- pars ]
 
 instance a ~ TermV => Desugar STerm a where
-    desugar (SVar n)            = Var (Free n)
+    desugar (SVar n)            = Var (Bound n n)
     desugar (SType l)           = Type l
     desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase n ty brs)    =
-        Case (Free n) (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
+        Case (Bound n n) (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
     desugar (SFix b pars ty t) = Fix b (desugarPars pars) (desugar ty) (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
@@ -179,9 +179,9 @@ desugarArr ((Name [],     _)   : pars) ty  = desugarArr pars ty
 class Distill a b where
     distill :: a -> b
 
-instance (a ~ STerm, b ~ Void) => Distill (TermT b) a where
-    distill (Var (Free n)) = SVar n
-    distill (Var (Bound _ v)) = absurd v
+instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
+    distill (Var (Free v)) = absurd v
+    distill (Var (Bound _ n)) = SVar n
     distill (Type l) = SType l
     distill to@(Arr _ _ _) = SArr (distillPars pars) (distill ty)
       where (pars, ty) = unrollArr to
@@ -191,8 +191,9 @@ instance (a ~ STerm, b ~ Void) => Distill (TermT b) a where
       where
          go (Lam b ty t) = first ((b, ty):) (go t)
          go t            = ([], t)
-    distill (Case n ty brs) =
-        SCase (name n) (distill ty) [(c, bs, distill t) | (c, bs, t) <- brs]
+    distill (Case (Bound _ n) ty brs) =
+        SCase n (distill ty) [(c, bs, distill t) | (c, bs, t) <- brs]
+    distill (Case (Free v) _ _) = absurd v
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix b pars ty t) =

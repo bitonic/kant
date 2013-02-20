@@ -35,7 +35,7 @@ spaceIfCons _  = " "
 instance IsString Doc where
     fromString = pretty
 
-instance a ~ Void => Pretty (TermT a) where
+instance (f ~ Void, t ~ Id) => Pretty (TermT f t) where
     pretty = pretty . (distill :: TermV -> STerm)
 
 instance a ~ Id => Pretty (Binder a) where
