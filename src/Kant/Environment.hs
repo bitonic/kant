@@ -6,120 +6,73 @@
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
-    ( CtxT
-    , Ctx
-    , NestT
-    , Nest
-    , PullT
-    , Pull
-    , EnvT(..)
-    , Env
+    ( Env(..)
       -- * Utilities
-    , nestEnv
-    , nestEnv'
     , envTy
     , envDef
     , envData'
     , newEnv
-    , pullTerm
     , addAbst
     , addVal
-    , dataDecl
     , addData
-    , caseRefine
     ) where
 
 import           Control.Applicative ((<$>))
-import           Control.Arrow (second)
 import           Control.Monad (join)
-import           Data.Foldable (Foldable)
 import           Data.Foldable (foldr)
-import           Data.Maybe (fromMaybe)
 import           Prelude hiding (foldr)
 
+import           Control.Monad.State (State, runState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-
-import           Numeric.Natural
 
 import           Kant.Term
 
 type Item = (Term, Maybe Term)
 
-type CtxData = Map Id Data
-
 -- | Bringing it all together
-data EnvT a = Env
-    { envCtx   :: Map Id Item
-    , envData  :: Map Id Data
+data Env = Env
+    { envCtx   :: Map TName Item
+    , envData  :: Map ConId Data
     , envCount :: Tag
     }
 
 -- | Looks up the type of a variable.
-envTy :: EnvT a -> a -> Maybe (TermT a)
-envTy Env{envCtx = ctx} v = fst <$> ctx v
+envTy :: Env -> TName -> Maybe Term
+envTy Env{envCtx = ctx} v = fst <$> Map.lookup v ctx
 
 -- | Looks up the body of a definition.
-envDef :: EnvT a -> a -> Maybe (TermT a)
-envDef Env{envCtx = ctx} v = join (snd <$> ctx v)
+envDef :: Env -> TName -> Maybe Term
+envDef Env{envCtx = ctx} v = join (snd <$> Map.lookup v ctx)
 
-envData' :: Eq a => EnvT a -> a -> Maybe Data
-envData' env@Env{envData = dat, envPull = pull} v =
-    if isTop env v then Map.lookup (pull v) dat else Nothing
+envData' :: Env -> TName -> Maybe Data
+envData' env@Env{envData = dds} (Free n) = Map.lookup n dds
+envData' _                      _        = Nothing
 
 newEnv :: Env
-newEnv = Env{ envCtx  = const Nothing
-            , envData = Map.empty
-            , envNest = id
-            , envPull = id
+newEnv = Env{ envCtx   = Map.empty
+            , envData  = Map.empty
+            , envCount = startTag
             }
 
--- | Checks if a variable refers to a top level thing
-isTop :: Eq a => EnvT a -> a -> Bool
-isTop env v = envNest env (envPull env v) == v
-
--- TODO remove duplicates in bound names
--- | Slams a @'TermT' a@ back to a 'Term', by replacing all the abstracted
---   variables with identifiers.  Distinguishes duplicate names while keeping top
---   level names alone.  It's called 'pullTerm' but it really works with any
---   'Foldable'.
-pullTerm :: (Ord a, Functor f, Foldable f) => EnvT a -> f a -> f Id
-pullTerm env@Env{envPull = pull} t = (mn' Map.!) <$> t
-  where
-    format 0 n = n
-    format i n = n ++ show i
-
-    -- We first insert all the top level ones, so we know they are going to have
-    -- count 0
-    collect1 v@(isTop env -> True) (mcount, mn) =
-        (Map.insert (pull v) 0 mcount, Map.insert v (pull v) mn)
-    collect1 _ ms = ms
-
-    -- Then the rest.
-    collect2 v ms@(_, Map.lookup v -> Just _) = ms
-    collect2 v (mcount, mn) =
-        let n = pull v
-            c = fromMaybe 0 (Map.lookup n mcount)
-        in (Map.insert (pull v) c mcount, Map.insert v (format c n) mn)
-
-    (_, mn') = foldr collect2
-                     (foldr collect1 (Map.empty :: Map Id Int, Map.empty) t) t
-
-addCtx :: Eq a => EnvT a -> a -> ItemT a -> Maybe (EnvT a)
-addCtx env@Env{envCtx = ctx} v₁ it =
-    case ctx v₁ of
-        Nothing -> Just (env{envCtx = \v₂ -> if v₁ == v₂ then Just it else ctx v₂})
+addCtx :: Env -> TName -> Item -> Maybe Env
+addCtx env@Env{envCtx = ctx} v it =
+    case Map.lookup v ctx of
+        Nothing -> Just (env{envCtx = Map.insert v it ctx})
         Just _  -> Nothing
 
 -- | Adds an abstracted variable to an environment, 'Nothing' if the name is
 --   already present.
-addAbst :: Eq a => EnvT a -> a -> TermT a -> Maybe (EnvT a)
-addAbst env v₁ t = addCtx env v₁ (t, Nothing)
+addAbst :: Env -> Id -> TermV -> Maybe Env
+addAbst env n t =
+    addCtx env' (Free n) (t', Nothing) where (env', t') = runUniquify env t
 
 -- | Adds a value definition to an environment, 'Nothing' if the name is already
 --   present.
-addVal :: Env -> Id -> Term -> Term -> Maybe Env
-addVal env n ty t = addCtx env n (ty, (Just t))
+addVal :: Env -> Id -> TermV -> TermV -> Maybe Env
+addVal env n ty t = addCtx env'' (Free n) (ty', (Just t'))
+  where (env', ty') = runUniquify env ty
+        (env'', t') = runUniquify env' t
 
 -- | Extracts the types out of a data declaration.
 --
@@ -129,33 +82,45 @@ addVal env n ty t = addCtx env n (ty, (Just t))
 --
 --   Another function will be generated for each data constructor, taking all
 --   the parameters of the type constructor plus its own parameter.
-dataDecl :: Data -> ((Id, Item), [(Id, Item)])
+dataDecl :: Data -> State Tag ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
-    ((c, (params pi_ pars (Type l), Nothing)),
-     [ let pars' = map (second (instantiateList args)) s
-       in (c', (params pi_ (pars ++ pars') resTy, Just (conFun c' pars')))
-     | ConstrT c' s <- cons ])
+    do cons' <- sequence [ do f <- conFun c' pars'
+                              return (c', (arrs (pars ++ pars') resTy, Just f))
+                         | (c', pars') <- cons ]
+       return ((c, (arrs pars (Type l), Nothing)), cons')
   where
-    args = map (Var . fst) pars
-    resTy = app (Var c : args)
-    conFun c' pars' =
-        let ref = zip (map (("_"++) . show) [(0::Natural)..]) (map snd pars')
-        in lams (pars ++ ref)
-                (Constr c' (map (Var . fst) pars) (map (Var . fst) ref))
+    resTy = app (Var (Free c) : map snd pars)
+    conFun = undefined
+    -- conFun c' pars' =
+    --     let ref = zip (map (("_"++) . show) [(0::Natural)..]) (map snd pars')
+    --     in lams (pars ++ ref)
+    --             (Constr c' (map (Var . fst) pars) (map (Var . fst) ref))
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
-addData :: Env -> Data -> Either Id Env
-addData env@Env{envData = dat} dd@(Data c₁ _ _ _) =
-    do env' <- if Map.member c₁ dat
+addData :: Env -> Data -> Either ConId Env
+addData env@Env{envData = dds} dd@(Data c₁ _ _ _) =
+    do env₁ <- if Map.member c₁ dds
                then Left c₁
-               else Right (env{envData = Map.insert c₁ dd dat})
-       let (tyc, cons) = dataDecl dd
+               else Right (env{envData = Map.insert c₁ dd dds})
+       let (env₂, (tyc, cons)) = runUniquify' env₁ (dataDecl dd)
        foldr (\(c₂, item) enve ->
-               do env'' <- enve;
-                  maybe (Left c₂) Right (addCtx env'' c₂ item))
-             (Right env') (tyc : cons)
+               do env₃ <- enve;
+                  maybe (Left c₂) Right (addCtx env₃ (Free c₂) item))
+             (Right env₂) (tyc : cons)
 
-caseRefine :: Eq a => EnvT a -> a -> TermT a -> TermT a -> EnvT a
-caseRefine env@Env{envCtx = ctx} v₁ ty t =
-    env{envCtx = \v₂ -> if v₁ == v₂ then Just (ty, Just t) else ctx v₂}
+-----
+
+class Uniquify f where
+    uniquify :: f Void Id -> State Tag (f Id Tag)
+
+instance Uniquify TermT
+
+instance Uniquify DataT
+
+runUniquify' :: Env -> State Tag a -> (Env, a)
+runUniquify' env@Env{envCount = ta} s = (env{envCount = ta'}, x)
+  where (x, ta') = runState s ta
+
+runUniquify :: Uniquify f => Env -> f Void Id -> (Env, f Id Tag)
+runUniquify env x = runUniquify' env (uniquify x)

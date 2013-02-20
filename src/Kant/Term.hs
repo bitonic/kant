@@ -8,6 +8,7 @@ module Kant.Term
     , ConId
     , Level
     , Tag
+    , startTag
     , Name(..)
     , Binder(..)
     , ModuleT(..)
@@ -25,6 +26,7 @@ module Kant.Term
     , ConstrT
     , Constr
     , ConstrV
+    , TNameT
     , TName
     , TermT(..)
     , Term
@@ -73,10 +75,17 @@ i     For numbers, e.g. the number of things in patterns
 par   Parameter
 d     Data
 env   Env
+it    Item
+ctx   Map TName Item
+dds   Map TName Data
+dd    Data
 -}
 
 -- | Type to tag names uniquely
 type Tag = Natural
+
+startTag :: Tag
+startTag = 0
 
 -- | Identifiers for things
 type Id = String
@@ -113,8 +122,8 @@ data DataT fr tag
            Level            -- Resulting level
            [ConstrT fr tag] -- Constructors
     deriving (Show, Eq)
-type Data = DataT Tag
-type DataV = DataT Void
+type Data = DataT Id Tag
+type DataV = DataT Void Id
 
 -- | A constructor declaration.
 type ConstrT fr tag = (ConId, [ParamT fr tag])
@@ -122,11 +131,12 @@ type Constr = ConstrT Id Tag
 type ConstrV = ConstrT Void Id
 
 -- | A 'Name' with an 'Id' name.
-type TName fr tag = Name fr Id tag
+type TNameT fr tag = Name fr Id tag
+type TName = TNameT Id Tag
 
 -- | Terms for our language.  This is what we typecheck and reduce.
 data TermT fr tag
-    = Var (TName fr tag)
+    = Var (TNameT fr tag)
       -- | The type of types
     | Type Level
       -- | Function application.  To the left we expect either a 'Lam' or a

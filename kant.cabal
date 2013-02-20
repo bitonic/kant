@@ -39,7 +39,7 @@ Library
                       Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty
---                    Kant.Environment
+                      Kant.Environment
                       -- Kant.Reduce,
                       -- Kant.TyCheck
                       -- Kant.REPL

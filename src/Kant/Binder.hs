@@ -3,6 +3,7 @@ module Kant.Binder
     ( Binder(..)
     , isBind
     , isWild
+    , fromBinder
     ) where
 
 import           Control.Applicative (Applicative(..))
@@ -17,6 +18,10 @@ isBind, isWild :: Binder n -> Bool
 isBind (Bind _) = True
 isBind Wild     = False
 isWild = not . isBind
+
+fromBinder :: n -> Binder n -> n
+fromBinder x Wild     = x
+fromBinder _ (Bind x) = x
 
 instance Monad Binder where
     return = Bind
