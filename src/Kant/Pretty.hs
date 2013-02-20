@@ -17,8 +17,8 @@ import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
 import           Kant.Sugar
-import           Kant.TyCheck
-import           Kant.REPL.Types
+-- import           Kant.TyCheck
+-- import           Kant.REPL.Types
 
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
@@ -35,8 +35,12 @@ spaceIfCons _  = " "
 instance IsString Doc where
     fromString = pretty
 
-instance a ~ Id => Pretty (TermT a) where
-    pretty = pretty . (distill :: Term -> STerm)
+instance a ~ Void => Pretty (TermT a) where
+    pretty = pretty . (distill :: TermV -> STerm)
+
+instance a ~ Id => Pretty (Binder a) where
+    pretty (Name n) = pretty n
+    pretty Wild     = "_"
 
 instance Pretty STerm where
     pretty (SVar v) = pretty v
@@ -53,7 +57,7 @@ instance Pretty STerm where
         group (nest ("case" <+> pretty n <+> "return" <+> pretty ty <$>
                      (align (prettyBarred prettyBranch brs))))
     pretty (SFix nm pars ty t) =
-        "fix" <+> group (nest (prettyFixPars (discardedM nm) pars ty <+> "=>" <$>
+        "fix" <+> group (nest (prettyFixPars nm pars ty <+> "=>" <$>
                                align (pretty t)))
 
 nest :: Doc -> Doc
@@ -74,8 +78,8 @@ prettyPars pars' d = hcat (intersperse d (go pars'))
     go [] = []
     go ((mns, ty) : pars) =
         (case mns of
-             Nothing -> singleParens ty
-             Just ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
+             Wild    -> singleParens ty
+             Name ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
         : go pars
 
 prettyPars' :: [SParam] -> Doc
@@ -109,8 +113,8 @@ instance Pretty SDecl where
 
     prettyList = vcat . intersperse "" . map pretty
 
-prettyFixPars :: Id -> [SParam] -> STerm -> Doc
-prettyFixPars n pars ty = pretty n <+> prettyPars' pars <> ":" <+> pretty ty
+prettyFixPars :: Binder Id -> [SParam] -> STerm -> Doc
+prettyFixPars b pars ty = pretty b <+> prettyPars' pars <> ":" <+> pretty ty
 
 prettyValPars :: Id -> SValParams -> STerm -> Doc
 prettyValPars n (SValParams pars rest) ty =
@@ -123,43 +127,43 @@ prettyValPars n (SValParams pars rest) ty =
 instance Pretty SModule where
     pretty = prettyList . unSModule
 
-instance Pretty TyCheckError where
-    pretty TyCheckError = "fixme"
-    pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
-    pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
-    pretty (Mismatch ty₁ t ty₂) =
-        group (nest ("Expecting type" <$> pretty ty₁) <$>
-               nest ("for term" <$> pretty t) <$>
-               nest ("instead of" <$> pretty ty₂))
-    pretty (ExpectingFunction t ty) =
-        group (nest ("Expecting function type for term" <$> pretty t) <$>
-               nest ("instead of" <$> pretty ty))
-    pretty (ExpectingType t ty) =
-        group (nest ("Expecting a Type for term" <$> pretty t) <$>
-               nest ("instead of" <$> pretty ty))
-    pretty (ExpectingCanonical t ty) =
-        group (nest ("Expecting canonical (non-arrow) type for term" <$>
-                     pretty t) <$>
-               nest ("instead of" <$> pretty ty))
-    pretty (WrongBranchNumber t) =
-        group (nest ("Too few or too many branches in term" <$> pretty t))
-    pretty (NotConstructor c t) =
-        group (nest ("Pattern matching on non-constructor '" <> pretty c <>
-                     "' in term" <$>
-                     pretty t))
-    pretty (WrongArity c t) =
-        group (nest ("Branch gives wrong number of arguments to constructor `" <>
-                     pretty c <> "' in term" <$> pretty t))
+-- instance Pretty TyCheckError where
+--     pretty TyCheckError = "fixme"
+--     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
+--     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
+--     pretty (Mismatch ty₁ t ty₂) =
+--         group (nest ("Expecting type" <$> pretty ty₁) <$>
+--                nest ("for term" <$> pretty t) <$>
+--                nest ("instead of" <$> pretty ty₂))
+--     pretty (ExpectingFunction t ty) =
+--         group (nest ("Expecting function type for term" <$> pretty t) <$>
+--                nest ("instead of" <$> pretty ty))
+--     pretty (ExpectingType t ty) =
+--         group (nest ("Expecting a Type for term" <$> pretty t) <$>
+--                nest ("instead of" <$> pretty ty))
+--     pretty (ExpectingCanonical t ty) =
+--         group (nest ("Expecting canonical (non-arrow) type for term" <$>
+--                      pretty t) <$>
+--                nest ("instead of" <$> pretty ty))
+--     pretty (WrongBranchNumber t) =
+--         group (nest ("Too few or too many branches in term" <$> pretty t))
+--     pretty (NotConstructor c t) =
+--         group (nest ("Pattern matching on non-constructor '" <> pretty c <>
+--                      "' in term" <$>
+--                      pretty t))
+--     pretty (WrongArity c t) =
+--         group (nest ("Branch gives wrong number of arguments to constructor `" <>
+--                      pretty c <> "' in term" <$> pretty t))
 
-instance Pretty Output where
-    pretty (OTyCheck ty) = pretty ty
-    pretty (OPretty t)   = pretty t
-    pretty OOK           = "OK"
-    pretty OQuit         = "Bye!"
-    pretty OSkip         = ""
+-- instance Pretty Output where
+--     pretty (OTyCheck ty) = pretty ty
+--     pretty (OPretty t)   = pretty t
+--     pretty OOK           = "OK"
+--     pretty OQuit         = "Bye!"
+--     pretty OSkip         = ""
 
-instance Pretty REPLError where
-    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
-    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
-    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
-    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
+-- instance Pretty REPLError where
+--     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
+--     pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
+--     pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
+--     pretty (IOError err)  = group ("IO error:" <$> pretty (show err))

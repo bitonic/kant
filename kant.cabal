@@ -26,25 +26,27 @@ Library
                       parsec,
                       nats,
                       void,
-                      containers
+                      containers,
+                      array
 
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant,
-                      Kant.Name,
-                      Kant.Term
-                      -- Kant.Sugar,
-                      -- Kant.Parser,
-                      -- Kant.Pretty,
+                      Kant.Term,
+                      Kant.Sugar,
+                      Kant.Parser,
+                      Kant.Pretty
                       -- Kant.Reduce,
                       -- Kant.Environment,
                       -- Kant.TyCheck
                       -- Kant.REPL
 
-    -- Other-Modules:    Kant.Lexer,
-    --                   Kant.REPL.Types
+    Other-Modules:    Kant.Name,
+                      Kant.Binder,
+                      Kant.Lexer
+--                      Kant.REPL.Types
 
 -- executable kant
 --     Main-Is:          kant.hs

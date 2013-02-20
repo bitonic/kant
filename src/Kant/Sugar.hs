@@ -4,7 +4,11 @@
 {-# LANGUAGE ViewPatterns #-}
 module Kant.Sugar
      ( -- * Abstract syntax tree
-       SModule(..)
+       Id
+     , ConId
+     , Level
+     , Binder(..)
+     , SModule(..)
      , SDecl(..)
      , SValParams(..)
      , SParam

@@ -2,8 +2,11 @@
 module Kant.Term
     ( -- * Modules, data declarations, terms.
       Id
+    , Void
     , ConId
     , Level
+    , Name(..)
+    , Binder(..)
     , ModuleT(..)
     , Module
     , ModuleV

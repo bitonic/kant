@@ -94,8 +94,8 @@ Params : Seq0(Param)                         { $1 }
 
 Param :: { SParam }
 Param
-    : '[' Seq(PatName) ':' Term ']'          { (Just $2, $4) }
-    | SingleTerm                             { (Nothing, $1) }
+    : '[' Seq(name) ':' Term ']'             { (Name $2, $4) }
+    | SingleTerm                             { (Wild, $1) }
 
 DataCon :: { SConstr }
 DataCon : name Params                        { ($1, $2) }
@@ -108,7 +108,7 @@ Term
     | Arr                                    { uncurry SArr $1 }
 
 Branch :: { SBranch }
-Branch : name Seq0(PatName) '=>' Term        { ($1, $2, $4) }
+Branch : name Seq0(Binder) '=>' Term         { ($1, $2, $4) }
 
 SingleTerm :: { STerm }
 SingleTerm
@@ -117,17 +117,17 @@ SingleTerm
     | '(' Term ')'                           { $2 }
 
 Arr :: { ([SParam], STerm) }
-Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
-    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Just $2, $4):) $7 }
+Arr : App '->' Arr                           { first ((Wild, $1):) $3 }
+    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Name $2, $4):) $7 }
     | App                                    { ([], $1) }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 
-PatName :: { Id }
-PatName
-    : name                                   { $1 }
-    | '_'                                    { discarded }
+Binder :: { Binder Id }
+Binder
+    : name                                   { Name $1 }
+    | '_'                                    { Wild }
 
 {
 
@@ -155,17 +155,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult Module
+parseModule :: String -> ParseResult ModuleV
 parseModule s = desugar <$> runAlex s parseModule_
 
-parseDecl :: String -> ParseResult Decl
+parseDecl :: String -> ParseResult DeclV
 parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult Term
+parseTerm :: String -> ParseResult TermV
 parseTerm s = desugar <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO Module
+parseFile :: FilePath -> IO ModuleV
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 }
