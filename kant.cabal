@@ -25,7 +25,8 @@ Library
                       haskeline,
                       parsec,
                       nats,
-                      void
+                      void,
+                      containers
 
     Build-Tools:      alex, happy
 

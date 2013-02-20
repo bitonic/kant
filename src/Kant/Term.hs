@@ -126,8 +126,8 @@ data TermT tag
       -- | Lambda abstraction.
     | Lam TBinder (TermT tag) (TermT tag)
       -- | Pattern matching.
-    | Case TBinder              -- Name to give to the matched thing.
-           (TermT tag)          -- Thing to pattern match (scrutined).
+    | Case (TName tag)          -- Variable to pattern match
+           (TermT tag)          -- Return type
            [BranchT tag]
       -- | An instance of some inductive data type created by the user.
     | Constr ConId              -- Constructor
@@ -151,7 +151,7 @@ params :: (TBinder -> TermT t -> TermT t -> TermT t)
 params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 
 -- | Like 'lam', but abstracts over several parameters
-lams :: [Param] -> Term -> Term
+lams :: [ParamT t] -> TermT t -> TermT t
 lams = params Lam
 
 -- | @lam : lams = pi_ : pis@.
@@ -159,8 +159,8 @@ arrs :: [ParamT t] -> TermT t -> TermT t
 arrs = params Arr
 
 -- | Non-dependent function, @A -> B@
-arr :: Term -> Term -> Term
-arr ty₁ ty₂ = Arr Wildcard ty₁ ty₂
+arr :: TermT t -> TermT t -> TermT t
+arr ty₁ ty₂ = Arr Wild ty₁ ty₂
 
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 --   to @b@ applied to @c@.  Fails with empty lists.
