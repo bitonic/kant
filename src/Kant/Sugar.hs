@@ -81,6 +81,13 @@ type SBranch = ( ConId          -- Constructor
                , STerm
                )
 
+mkBound :: Id -> Var fr Id
+mkBound n = Bound (Name n n)
+
+mkTBinder :: Binder Id -> TBinder Id
+mkTBinder Wild     = return Wild
+mkTBinder (Bind n) = Name n (Bind n)
+
 -- TODO add errors to desugar:
 -- * the 'error' below
 -- * the assume distillFix below
@@ -155,33 +162,42 @@ rnfBrs n i brs = [ (c, ns, if Bind n `elem` ns then t else removeNotFix n i t)
                  | (c, ns, t) <- brs ]
 
 desugarPars :: [SParam] -> [ParamV]
-desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Bind ns -> map Bind ns)
+desugarPars pars = concat [ zip (case mns of
+                                      Wild -> [return Wild]
+                                      Bind ns -> map (\n -> Name n (Bind n)) ns)
                                 (repeat (desugar t))
                           | (mns, t) <- pars ]
 
 instance a ~ TermV => Desugar STerm a where
-    desugar (SVar n)            = Var (Bound n n)
+    desugar (SVar n)            = Var (mkBound n)
     desugar (SType l)           = Type l
     desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase n ty brs)    =
-        Case (Bound n n) (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
-    desugar (SFix b pars ty t) = Fix b (desugarPars pars) (desugar ty) (desugar t)
+        Case (mkBound n) (desugar ty)
+             [(c, map mkTBinder ns, desugar t) | (c, ns, t) <- brs]
+    desugar (SFix b pars ty t) =
+        Fix (mkTBinder b) (desugarPars pars) (desugar ty) (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
 desugarArr []                          ty  = desugar ty
 desugarArr ((Wild,        ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
 desugarArr ((Bind (n:ns), ty₁) : pars) ty₂ =
-    Arr (Bind n) (desugar ty₁) (desugarArr ((Bind ns, ty₁) : pars) ty₂)
+    Arr (Name n (Bind n)) (desugar ty₁) (desugarArr ((Bind ns, ty₁) : pars) ty₂)
 desugarArr ((Bind [],     _)   : pars) ty  = desugarArr pars ty
+
+
+mkBinder :: TBinder Id -> Binder Id
+mkBinder (Name _ Wild)     = Wild
+mkBinder (Name _ (Bind n)) = Bind n
 
 class Distill a b where
     distill :: a -> b
 
 instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
     distill (Var (Free v)) = absurd v
-    distill (Var (Bound _ n)) = SVar n
+    distill (Var (Bound (content -> n))) = SVar n
     distill (Type l) = SType l
     distill to@(Arr _ _ _) = SArr (distillPars pars) (distill ty)
       where (pars, ty) = unrollArr to
@@ -191,18 +207,18 @@ instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
       where
          go (Lam b ty t) = first ((b, ty):) (go t)
          go t            = ([], t)
-    distill (Case (Bound _ n) ty brs) =
-        SCase n (distill ty) [(c, bs, distill t) | (c, bs, t) <- brs]
+    distill (Case (Bound (content -> n)) ty brs) =
+        SCase n (distill ty) [(c, map mkBinder bs, distill t) | (c, bs, t) <- brs]
     distill (Case (Free v) _ _) = absurd v
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix b pars ty t) =
-        SFix b (distillPars pars) (distill ty) (distill t)
+        SFix (mkBinder b) (distillPars pars) (distill ty) (distill t)
 
 distillPars :: [ParamV] -> [SParam]
 distillPars pars =
-    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
+    [(sequence (map (mkBinder . fst) pars'), distill ty) | pars'@((_, ty):_) <- go]
   where
-    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isBind mn₁ && isBind mn₂ && ty₁ == ty₂)
+    go = groupBy (\(content -> mn₁, ty₁) (content -> mn₂, ty₂) ->
+                  isBind mn₁ && isBind mn₂ && ty₁ == ty₂)
          pars
-

@@ -2,24 +2,26 @@
 module Kant.Name
     ( Name(..)
     , name
+    , content
     ) where
 
-data Name f n a
-    = Bound n a
-    | Free f
+import           Data.Monoid (Monoid(..))
+
+data Name n a = Name n a
     deriving (Show, Functor)
 
-name :: Name n n a -> n
-name (Bound n _) = n
-name (Free n)    = n
+name :: Name n a -> n
+name (Name n _) = n
 
-instance (Eq a, Eq f) => Eq (Name f n a) where
-    Bound _ a == Bound _ b = a  == b
-    Free n₁   == Free n₂   = n₁ == n₂
-    _         == _         = False
+content :: Name n a -> a
+content (Name _ a) = a
 
-instance (Ord a, Ord f) => Ord (Name f n a) where
-    Bound _ a `compare` Bound _ b = compare a b
-    Free n₁   `compare` Free n₂   = compare n₁ n₂
-    Bound _ _ `compare` Free _    = GT
-    Free _    `compare` Bound _ _ = LT
+instance (Eq a) => Eq (Name n a) where
+    Name _ a == Name _ b = a  == b
+
+instance (Ord a) => Ord (Name n a) where
+    Name _ a `compare` Name _ b = compare a b
+
+instance Monoid n => Monad (Name n) where
+    return = Name mempty
+    Name _ a >>= f = f a
