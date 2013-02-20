@@ -82,19 +82,19 @@ addVal env n ty t = addCtx env'' (Free n) (ty', (Just t'))
 --
 --   Another function will be generated for each data constructor, taking all
 --   the parameters of the type constructor plus its own parameter.
-dataDecl :: Data -> State Tag ((Id, Item), [(Id, Item)])
+dataDecl :: DataV -> State Tag ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
-    do cons' <- sequence [ do f <- conFun c' pars'
-                              return (c', (arrs (pars ++ pars') resTy, Just f))
+    do cons' <- sequence [ do f  <- uniquify (conFun c' pars')
+                              ty <- uniquify (resTy pars')
+                              return (c', (ty, Just f))
                          | (c', pars') <- cons ]
-       return ((c, (arrs pars (Type l), Nothing)), cons')
+       ty <- uniquify (arrs pars (Type l))
+       return ((c, (ty, Nothing)), cons')
   where
-    resTy = app (Var (Free c) : map snd pars)
-    conFun = undefined
-    -- conFun c' pars' =
-    --     let ref = zip (map (("_"++) . show) [(0::Natural)..]) (map snd pars')
-    --     in lams (pars ++ ref)
-    --             (Constr c' (map (Var . fst) pars) (map (Var . fst) ref))
+    -- TODO this is WRONG since the 'c' could be overwritten by a parameter.
+    resTy pars' = arrs (pars ++ pars') (Var (Bound c c))
+    conFun c' pars' =
+        lams (pars ++ pars') (Constr c' (map snd pars) (map snd pars'))
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
@@ -103,7 +103,7 @@ addData env@Env{envData = dds} ddo =
     do env₂ <- if Map.member c₁ dds
                then Left c₁
                else Right (env₁{envData = Map.insert c₁ dd dds})
-       let (env₃, (tyc, cons)) = runUniquify' env₂ (dataDecl dd)
+       let (env₃, (tyc, cons)) = runUniquify' env₂ (dataDecl ddo)
        foldr (\(c₂, item) enve ->
                do env₄ <- enve;
                   maybe (Left c₂) Right (addCtx env₄ (Free c₂) item))
