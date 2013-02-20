@@ -227,17 +227,19 @@ jumpBindPars z op f g ta ((b, ty) : pars) =
         Left xs  -> Left (x `op` xs)
   where x = f b ty
 
-subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
-subst ta₁ t (Var (Bound _ ta₂)) | ta₁ == ta₂ = t
+type Subst fr tag = Id -> TermT fr tag
+
+subst :: Eq tag => tag -> Subst fr tag -> TermT fr tag -> TermT fr tag
+subst ta₁ f (Var (Bound n ta₂)) | ta₁ == ta₂ = f n
 subst _ _ t@(Var _) = t
 subst _ _ t@(Type _) = t
-subst ta t₁ (App t₂ t₃) = App (subst ta t₁ t₂) (subst ta t₁ t₃)
-subst ta t (Arr b ty₁ ty₂) = Arr b (subst ta t ty₁) (substBind ta t b ty₂)
-subst ta t₁ (Lam b ty t₂) = Lam b (subst ta t₁ ty) (substBind ta t₁ b t₂)
-subst ta t₁ (Case b t₂ ty brs) =
-    Case b (subst ta t₁ t₂) ty' brs'
+subst ta f (App t₁ t₂) = App (subst ta f t₁) (subst ta f t₂)
+subst ta f (Arr b ty₁ ty₂) = Arr b (subst ta f ty₁) (substBind ta f b ty₂)
+subst ta f (Lam b ty t) = Lam b (subst ta f ty) (substBind ta f b t)
+subst ta f (Case b t ty brs) =
+    Case b (subst ta f t) ty' brs'
   where
-    (ty', brs') = jumpBind ta b (ty, brs) ((subst ta t₁ ty), substBrs ta t₁ brs)
+    (ty', brs') = jumpBind ta b (ty, brs) ((subst ta f ty), substBrs ta f brs)
 subst ta t (Constr c tys ts) = Constr c (map (subst ta t) tys) (map (subst ta t) ts)
 subst ta t₁ (Fix b pars ty t₂) =
     case substPars ta t₁ pars of
@@ -245,45 +247,29 @@ subst ta t₁ (Fix b pars ty t₂) =
         Right pars' -> Fix b pars' (subst ta t₁ ty) t₂'
   where t₂' = substBind ta t₁ b t₂
 
-substBind :: Eq tag => tag -> TermT fr tag -> Binder tag -> TermT fr tag
+subst' :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
+subst' ta t = subst ta (const t)
+
+substBind :: Eq tag => tag -> Subst fr tag -> Binder tag -> TermT fr tag
           -> TermT fr tag
-substBind ta t₁ b t₂ = jumpBind ta b t₂ (subst ta t₁ t₂)
+substBind ta f b t = jumpBind ta b t (subst ta f t)
 
 substPars :: Eq tag
-          => tag -> TermT fr tag -> [ParamT fr tag]
+          => tag -> Subst fr tag -> [ParamT fr tag]
           -> Either [ParamT fr tag] [ParamT fr tag]
-substPars ta t = jumpBindPars [] (:) (\b ty -> (b, subst ta t ty)) id ta
+substPars ta f = jumpBindPars [] (:) (\b ty -> (b, subst ta f ty)) id ta
 
-substBrs :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
-substBrs ta t₁ brs = [ (c, bs, if Bind ta `elem` bs then t₂ else subst ta t₁ t₂)
-                     | (c, bs, t₂) <- brs ]
+substPars' :: Eq tag
+           => tag -> TermT fr tag -> [ParamT fr tag]
+           -> Either [ParamT fr tag] [ParamT fr tag]
+substPars' ta t = substPars ta (const t)
 
-bindId :: (Eq tag, MonadPlus m) => tag -> TermT fr tag -> m Id
-bindId ta₁ (Var (Bound n ta₂)) | ta₁ == ta₂ = return n
-bindId _  (Var _) = mzero
-bindId _  (Type _) = mzero
-bindId ta  (App t₁ t₂) = bindId ta t₁ `mplus` bindId ta t₂
-bindId ta  (Arr b ty₁ ty₂) = bindId ta ty₁ `mplus` bindIdBind ta ty₂ b
-bindId ta  (Lam b ty t) = bindId ta ty `mplus` bindIdBind ta t b
-bindId ta  (Case b t₁ ty brs) =
-    bindId ta t₁ `mplus` jumpBind ta b mzero (bindId ta ty `mplus` bindIdBrs ta brs)
-bindId ta  (Constr _ tys ts) = msum (map (bindId ta) (tys ++ ts))
-bindId ta  (Fix b pars ty t) =
-    case bindIdPars ta pars of
-        Left mid -> mid `mplus` rest
-        Right mid -> mid `mplus` bindId ta ty `mplus` rest
-  where rest = bindIdBind ta t b
+substBrs :: Eq tag => tag -> Subst fr tag -> [BranchT fr tag] -> [BranchT fr tag]
+substBrs ta f brs = [ (c, bs, if Bind ta `elem` bs then t else subst ta f t)
+                    | (c, bs, t) <- brs ]
 
-bindIdBind :: (Eq tag, MonadPlus m) => tag -> TermT fr tag -> Binder tag -> m Id
-bindIdBind ta t b = jumpBind ta b mzero (bindId ta t)
-
-bindIdPars :: (Eq tag, MonadPlus m) => tag -> [ParamT fr tag]
-           -> Either (m Id) (m Id)
-bindIdPars ta = jumpBindPars mzero mplus (\_ ty -> bindId ta ty) (const mzero) ta
-
-bindIdBrs :: (Eq tag, MonadPlus m) => tag -> [BranchT fr tag] -> m Id
-bindIdBrs ta brs =
-    msum [if Bind ta `elem` bs then mzero else bindId ta t₂ | (_, bs, t₂) <- brs]
+substBrs' :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
+substBrs' ta t = substBrs ta (const t)
 
 instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
     Var n           == Var n'              = n == n'
@@ -300,31 +286,26 @@ instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
 
 bindEq :: (Eq tag, Eq fr) => Binder tag -> TermT fr tag -> Binder tag
        -> TermT fr tag -> Bool
-bindEq b t b' t' = t == bindSubst b t b' t'
+bindEq b t b' t' = t == bindSubst b b' t'
 
-bindSubst :: (Eq tag, Eq fr) => Binder tag -> TermT fr tag -> Binder tag
+bindSubst :: (Eq tag, Eq fr) => Binder tag -> Binder tag
           -> TermT fr tag -> TermT fr tag
-bindSubst Wild      _ _          t  = t
-bindSubst _         _ Wild       t  = t
-bindSubst (Bind ta) t (Bind ta') t' =
-    case bindId ta t of
-        Nothing -> t'
-        Just n  -> subst ta' (Var (Bound n ta)) t'
+bindSubst Wild      _          t  = t
+bindSubst _         Wild       t  = t
+bindSubst (Bind ta) (Bind ta') t' = subst ta' (\n -> Var (Bound n ta)) t'
 
 brEq :: (Eq tag, Eq fr)
      => Binder tag -> [BranchT fr tag]
      -> Binder tag -> [BranchT fr tag]
      -> Bool
-brEq Wild brs _    brs' = brEq' brs brs'
-brEq _    brs Wild brs' = brEq' brs brs'
+brEq Wild      brs _    brs' = brEq' brs brs'
+brEq _         brs Wild brs' = brEq' brs brs'
 brEq (Bind ta) brs (Bind ta') brs' =
-    case bindIdBrs ta brs of
-        Nothing -> brEq' brs brs'
-        Just n  -> brEq' brs (substBrs ta' (Var (Bound n ta)) brs)
+    brEq' brs (substBrs ta' (\n -> Var (Bound n ta)) brs')
 
 brEq' :: (Eq tag, Eq fr) => [BranchT fr tag] -> [BranchT fr tag] -> Bool
 brEq' [] [] = True
 brEq' ((c, bs, t) : brs) ((c', bs', t') : brs') =
     c == c' && brEq' brs brs' && length bs == length bs' &&
-    t == foldr (\(b, b') t'' -> bindSubst b t b' t'') t' (zip bs bs')
+    t == foldr (\(b, b') t'' -> bindSubst b b' t'') t' (zip bs bs')
 brEq' _ _ = False

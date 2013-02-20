@@ -195,8 +195,8 @@ instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
          go t            = ([], t)
     distill (Case (Bind _) (Var (Free v)) _ _) = absurd v
     distill (Case (Bind v) b@(Var (Bound _ n)) ty brs) =
-        SCase n (distill (subst v b ty))
-              [(c, bs, distill t) | (c, bs, t) <- substBrs v b brs]
+        SCase n (distill (subst' v b ty))
+              [(c, bs, distill t) | (c, bs, t) <- substBrs' v b brs]
     distill (Case _ _ _ _) = error "distill: got non-var scrutined"
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
