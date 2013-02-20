@@ -71,8 +71,8 @@ scase n₁ ty brs =
     <$ mapM (foldr (\b se -> se >>= \s ->
                      case b of
                          Wild    -> Right s
-                         Name n₂ | Set.member n₂ s -> Left n₂
-                         Name n₂ -> Right (Set.insert n₂ s))
+                         Bind n₂ | Set.member n₂ s -> Left n₂
+                         Bind n₂ -> Right (Set.insert n₂ s))
                    (Right Set.empty))
             [ns | (_, ns, _) <- brs]
 
@@ -105,7 +105,7 @@ buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
 buildVal n (SValParams pars mfpars) ty t =
     SLam pars $
     case mfpars of
-        Just fpars -> SFix (Name n) fpars ty (removeNotFix n (length pars) t)
+        Just fpars -> SFix (Bind n) fpars ty (removeNotFix n (length pars) t)
         Nothing    -> t
 
 unrollSArr :: STerm -> [STerm]
@@ -129,7 +129,7 @@ removeNotFix n i (SArr pars t) =
         Right pars' -> SArr pars' t
 removeNotFix n₁ i (SCase n₂ ty brs) =
     SCase n₂ (removeNotFix n₁ i ty) (rnfBrs n₁ i brs)
-removeNotFix n₁ _ t@(SFix (Name n₂) _ _ _) | n₁ == n₂ = t
+removeNotFix n₁ _ t@(SFix (Bind n₂) _ _ _) | n₁ == n₂ = t
 removeNotFix n i (SFix nm pars ty t) =
     case rnfPars n i pars of
         Left pars'  -> SFix nm pars' (removeNotFix n i ty) (removeNotFix n i t)
@@ -142,20 +142,20 @@ rnfPars :: Id -> Int -> [SParam] -> Either [SParam] [SParam]
 rnfPars _ _ [] = Left []
 rnfPars n i ((Wild, ty) : pars) = leftRight (par :) (rnfPars n i pars)
   where par = (Wild, removeNotFix n i ty)
-rnfPars n i ((Name [], _) : pars) = rnfPars n i pars
-rnfPars n i ((Name ns, ty) : pars) =
+rnfPars n i ((Bind [], _) : pars) = rnfPars n i pars
+rnfPars n i ((Bind ns, ty) : pars) =
     case elemIndex n ns of
-        Nothing -> leftRight ((Name ns, removeNotFix n i ty) :) (rnfPars n i pars)
-        Just 0  -> Right ((Name ns, ty) : pars)
+        Nothing -> leftRight ((Bind ns, removeNotFix n i ty) :) (rnfPars n i pars)
+        Just 0  -> Right ((Bind ns, ty) : pars)
         Just j  -> let (ns', ns'') = splitAt (j+1) ns
-                   in Right ((Name ns', removeNotFix n i ty) : (Name ns'', ty) : pars)
+                   in Right ((Bind ns', removeNotFix n i ty) : (Bind ns'', ty) : pars)
 
 rnfBrs :: Id -> Int -> [SBranch] -> [SBranch]
-rnfBrs n i brs = [ (c, ns, if Name n `elem` ns then t else removeNotFix n i t)
+rnfBrs n i brs = [ (c, ns, if Bind n `elem` ns then t else removeNotFix n i t)
                  | (c, ns, t) <- brs ]
 
 desugarPars :: [SParam] -> [ParamV]
-desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Name ns -> map Name ns)
+desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Bind ns -> map Bind ns)
                                 (repeat (desugar t))
                           | (mns, t) <- pars ]
 
@@ -172,9 +172,9 @@ instance a ~ TermV => Desugar STerm a where
 desugarArr :: [SParam] -> STerm -> TermV
 desugarArr []                          ty  = desugar ty
 desugarArr ((Wild,        ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
-desugarArr ((Name (n:ns), ty₁) : pars) ty₂ =
-    Arr (Name n) (desugar ty₁) (desugarArr ((Name ns, ty₁) : pars) ty₂)
-desugarArr ((Name [],     _)   : pars) ty  = desugarArr pars ty
+desugarArr ((Bind (n:ns), ty₁) : pars) ty₂ =
+    Arr (Bind n) (desugar ty₁) (desugarArr ((Bind ns, ty₁) : pars) ty₂)
+desugarArr ((Bind [],     _)   : pars) ty  = desugarArr pars ty
 
 class Distill a b where
     distill :: a -> b
@@ -203,6 +203,6 @@ distillPars :: [ParamV] -> [SParam]
 distillPars pars =
     [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
   where
-    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isName mn₁ && isName mn₂ && ty₁ == ty₂)
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isBind mn₁ && isBind mn₂ && ty₁ == ty₂)
          pars
 

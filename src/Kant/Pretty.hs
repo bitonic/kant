@@ -39,7 +39,7 @@ instance (f ~ Void, t ~ Id) => Pretty (TermT f t) where
     pretty = pretty . (distill :: TermV -> STerm)
 
 instance a ~ Id => Pretty (Binder a) where
-    pretty (Name n) = pretty n
+    pretty (Bind n) = pretty n
     pretty Wild     = "_"
 
 instance Pretty STerm where
@@ -79,7 +79,7 @@ prettyPars pars' d = hcat (intersperse d (go pars'))
     go ((mns, ty) : pars) =
         (case mns of
              Wild    -> singleParens ty
-             Name ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
+             Bind ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
         : go pars
 
 prettyPars' :: [SParam] -> Doc

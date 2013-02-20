@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Kant.Binder
     ( Binder(..)
-    , isName
+    , isBind
     , isWild
     ) where
 
@@ -10,18 +10,18 @@ import           Control.Monad (ap)
 
 -- | Something isomorphic to 'Maybe' for the time being, might change in the
 --   future.
-data Binder n = Name n | Wild
+data Binder n = Bind n | Wild
     deriving (Show, Eq, Functor)
 
-isName, isWild :: Binder n -> Bool
-isName (Name _) = True
-isName Wild     = False
-isWild = not . isName
+isBind, isWild :: Binder n -> Bool
+isBind (Bind _) = True
+isBind Wild     = False
+isWild = not . isBind
 
 instance Monad Binder where
-    return = Name
+    return = Bind
 
-    Name n >>= f = f n
+    Bind n >>= f = f n
     Wild   >>= _ = Wild
 
 instance Applicative Binder where

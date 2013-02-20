@@ -45,6 +45,7 @@ module Kant.Term
     ) where
 
 import           Control.Arrow (first, second)
+import           Control.Monad (mplus)
 
 import           Data.Void
 import           Numeric.Natural
@@ -146,8 +147,6 @@ data TermT fr tag
 type Term = TermT Id Tag
 type TermV = TermT Void Id
 
-instance (Eq f, Eq t) => Eq (TermT f t) where
-
 type BranchT fr tag = (ConId, [Binder tag], TermT fr tag)
 type Branch = BranchT Id Tag
 type BranchV = BranchT Void Id
@@ -195,7 +194,7 @@ moduleNames = concatMap go . unModule
 
 substBind :: Eq tag => tag -> TermT fr tag -> Binder tag -> TermT fr tag
           -> TermT fr tag
-substBind v₁ _  (Name v₂) t  | v₁ == v₂ = t
+substBind v₁ _  (Bind v₂) t  | v₁ == v₂ = t
 substBind v  t₁ _         t₂ = subst v t₁ t₂
 
 subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
@@ -207,7 +206,7 @@ subst v t (Arr b ty₁ ty₂) = Arr b (subst v t ty₁) (subst v t ty₂)
 subst v t₁ (Lam b ty t₂) = Lam b (subst v t₁ ty) (substBind v t₁ b t₂)
 subst v t₁ (Case n ty brs) =
     Case n (subst v t₁ ty)
-         [ (c, bs, if Name v `elem` bs then t₂ else subst v t₁ t₂)
+         [ (c, bs, if Bind v `elem` bs then t₂ else subst v t₁ t₂)
          | (c, bs, t₂) <- brs ]
 subst v t (Constr c tys ts) = Constr c (map (subst v t) tys) (map (subst v t) ts)
 subst v t₁ (Fix b pars ty t₂) =
@@ -221,7 +220,9 @@ substPars :: Eq tag
           -> Either [ParamT fr tag] [ParamT fr tag]
 substPars _ _ [] = Right []
 substPars v t ((b, ty) : pars) =
-    case if Name v == b then Right pars else substPars v t pars of
+    case if Bind v == b then Right pars else substPars v t pars of
         Right pars' -> Right (bty : pars')
         Left pars'  -> Left (bty : pars')
   where bty = (b, subst v t ty)
+
+instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
