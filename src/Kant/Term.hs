@@ -191,32 +191,35 @@ moduleNames = concatMap go . unModule
 
 ------
 
--- type EqName tag = TName tag -> Bool
+substBind :: Eq tag => tag -> TermT fr tag -> Binder tag -> TermT fr tag
+          -> TermT fr tag
+substBind v₁ _  (Name v₂) t  | v₁ == v₂ = t
+substBind v  t₁ _         t₂ = subst v t₁ t₂
 
--- subst :: Eq tag => EqName tag -> TermT tag -> TermT tag -> TermT tag
--- subst v t (Var (v -> True)) = t
--- subst _ _ t@(Var _) = t
--- subst _ _ t@(Type _) = t
--- subst v t₁ (App t₂ t₃) = App (subst v t₁ t₂) (subst v t₁ t₃)
--- subst v t (Arr b ty₁ ty₂) = Arr b (subst v t ty₁) (subst v t ty₂)
--- subst v t₁ (Lam b ty t₂) = Lam b (subst v t₁ ty) (subst v t₁ t₂)
--- subst v t₁ (Case n ty brs) =
---     Case n (subst v t₁ ty) [(c, bs, subst v t₁ t₂) | (c, bs, t₂) <- brs]
--- subst v t (Constr c tys ts) = Constr c (map (subst v t) tys) (map (subst v t) ts)
--- subst v t₁ (Fix b pars ty t₂) =
---     Fix b (substPars v t₁ pars) (subst v t₁ ty) (subst v t₁ t₂)
+subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
+subst v₁ t (Var (Bound _ v₂)) | v₁ == v₂ = t
+subst _ _ t@(Var _) = t
+subst _ _ t@(Type _) = t
+subst v t₁ (App t₂ t₃) = App (subst v t₁ t₂) (subst v t₁ t₃)
+subst v t (Arr b ty₁ ty₂) = Arr b (subst v t ty₁) (subst v t ty₂)
+subst v t₁ (Lam b ty t₂) = Lam b (subst v t₁ ty) (substBind v t₁ b t₂)
+subst v t₁ (Case n ty brs) =
+    Case n (subst v t₁ ty)
+         [ (c, bs, if Name v `elem` bs then t₂ else subst v t₁ t₂)
+         | (c, bs, t₂) <- brs ]
+subst v t (Constr c tys ts) = Constr c (map (subst v t) tys) (map (subst v t) ts)
+subst v t₁ (Fix b pars ty t₂) =
+    case substPars v t₁ pars of
+        Left pars'  -> Fix b pars' ty t₂'
+        Right pars' -> Fix b pars' (subst v t₁ ty) t₂'
+  where t₂' = substBind v t₁ b t₂
 
--- subst' v = subst (v ==)
-
--- substPars :: Eq tag => EqName tag -> TermT tag -> [ParamT tag] -> [ParamT tag]
--- substPars v t = map (second (subst v t))
-
--- instance Eq tag => Eq (TermT tag) where
---     Var v₁ == Var v₂ = v₁ == v₂
---     Type l₁ == Type l₂ = l₁ == l₂
---     App t₁ t₂ == App t₃ t₄ = t₁ == t₃ && t₂ == t₄
---     Arr Wild      ty₁ ty₂ == Arr _         ty₃ ty₄ = ty₁ == ty₃ && ty₂ == ty₄
---     Arr _         ty₁ ty₂ == Arr Wild      ty₃ ty₄ = ty₁ == ty₃ && ty₂ == ty₄
---     Arr (Name n₁) ty₁ ty₂ == Arr (Name n₂) ty₃ ty₄ =
---         ty₁ == ty₃ && 
-        
+substPars :: Eq tag
+          => tag -> TermT fr tag -> [ParamT fr tag]
+          -> Either [ParamT fr tag] [ParamT fr tag]
+substPars _ _ [] = Right []
+substPars v t ((b, ty) : pars) =
+    case if Name v == b then Right pars else substPars v t pars of
+        Right pars' -> Right (bty : pars')
+        Left pars'  -> Left (bty : pars')
+  where bty = (b, subst v t ty)
