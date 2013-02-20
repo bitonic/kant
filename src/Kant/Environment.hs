@@ -98,16 +98,17 @@ dataDecl (Data c pars l cons) =
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
-addData :: Env -> Data -> Either ConId Env
-addData env@Env{envData = dds} dd@(Data c₁ _ _ _) =
-    do env₁ <- if Map.member c₁ dds
+addData :: Env -> DataV -> Either ConId Env
+addData env@Env{envData = dds} ddo =
+    do env₂ <- if Map.member c₁ dds
                then Left c₁
-               else Right (env{envData = Map.insert c₁ dd dds})
-       let (env₂, (tyc, cons)) = runUniquify' env₁ (dataDecl dd)
+               else Right (env₁{envData = Map.insert c₁ dd dds})
+       let (env₃, (tyc, cons)) = runUniquify' env₂ (dataDecl dd)
        foldr (\(c₂, item) enve ->
-               do env₃ <- enve;
-                  maybe (Left c₂) Right (addCtx env₃ (Free c₂) item))
-             (Right env₂) (tyc : cons)
+               do env₄ <- enve;
+                  maybe (Left c₂) Right (addCtx env₄ (Free c₂) item))
+             (Right env₃) (tyc : cons)
+  where (env₁, dd@(Data c₁ _ _ _)) = runUniquify env ddo
 
 -----
 
