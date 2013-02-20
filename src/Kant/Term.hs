@@ -134,8 +134,8 @@ data TermT tag
              [TermT tag]        -- Type parameters
              [TermT tag]        -- Data Parameters
     | Fix TBinder
-          (TermT tag)           -- Type of the rec function.
           [ParamT tag]          -- Arguments to the function.
+          (TermT tag)           -- Return type
           (TermT tag)           -- Body
     deriving (Eq, Show, Functor)
 type Term = TermT Tag

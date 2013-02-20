@@ -154,8 +154,9 @@ rnfBrs n i brs = [ (c, ns, if Name n `elem` ns then t else removeNotFix n i t)
                  | (c, ns, t) <- brs ]
 
 desugarPars :: [SParam] -> [ParamV]
-desugarPars pars = undefined
---    concat [zip (fromMaybe [discarded] mns) (repeat (desugar t)) | (mns, t) <- pars]
+desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Name ns -> map Name ns)
+                                (repeat (desugar t))
+                          | (mns, t) <- pars ]
 
 instance a ~ TermV => Desugar STerm a where
     desugar (SVar n)            = Var (Free n)
@@ -165,14 +166,13 @@ instance a ~ TermV => Desugar STerm a where
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase n ty brs)    =
         Case (Free n) (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
-    desugar (SFix nm pars ty t) = undefined
---        fix (discardedM nm) (desugarPars pars) (desugar ty) (desugar t)
+    desugar (SFix b pars ty t) = Fix b (desugarPars pars) (desugar ty) (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
 desugarArr []                          ty  = desugar ty
 desugarArr ((Wild,        ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
-desugarArr ((Name (n:ns), ty₁) : pars) ty₂ = undefined
---    pi_ n (desugar ty₁) (desugarArr ((Just ns, ty₁) : pars) ty₂)
+desugarArr ((Name (n:ns), ty₁) : pars) ty₂ =
+    Arr (Name n) (desugar ty₁) (desugarArr ((Name ns, ty₁) : pars) ty₂)
 desugarArr ((Name [],     _)   : pars) ty  = desugarArr pars ty
 
 class Distill a b where
