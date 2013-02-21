@@ -40,8 +40,8 @@ Library
                       Kant.Parser,
                       Kant.Pretty
                       Kant.Environment,
-                      Kant.Reduce
-                      -- Kant.TyCheck
+                      Kant.Reduce,
+                      Kant.TyCheck
                       -- Kant.REPL
 
     Other-Modules:    Kant.Name,

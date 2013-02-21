@@ -17,8 +17,11 @@ module Kant.Environment
     , addVal
     , addData
     , upAbst
+    , upAbst'
     , upVal
     , upJustVal
+    , upJustVal'
+    , upJustVals'
     ) where
 
 import           Control.Applicative ((<$>))
@@ -30,6 +33,7 @@ import           Control.Monad.State (runState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
+import           Kant.Name
 import           Kant.Term
 import           Kant.Uniquify
 
@@ -82,11 +86,22 @@ upCtx env@Env{envCtx = ctx} v tym tm = env{envCtx = Map.insert v (tym, tm) ctx}
 upAbst :: Env -> TName -> Term -> Env
 upAbst env v t = upCtx env v (Just t) Nothing
 
+upAbst' :: Env -> Binder Tag -> Term -> Env
+upAbst' env Wild      _ = env
+upAbst' env (Bind ta) t = upAbst env (noName ta) t
+
 upVal :: Env -> TName -> Term -> Term -> Env
 upVal env v ty t = upCtx env v (Just ty) (Just t)
 
 upJustVal :: Env -> TName -> Term -> Env
 upJustVal env v t = upCtx env v Nothing (Just t)
+
+upJustVal' :: Env -> Binder Tag -> Term -> Env
+upJustVal' env Wild      _ = env
+upJustVal' env (Bind ta) t = upJustVal env (noName ta) t
+
+upJustVals' :: Env -> [(Binder Tag, Term)] -> Env
+upJustVals' = foldr (\(b, t) env -> upJustVal' env b t)
 
 -- | Extracts the types out of a data declaration.
 --

@@ -13,13 +13,6 @@ import           Kant.Environment
 
 type Reducer = Env -> Term -> Term
 
-upJustVal' :: Env -> Binder Tag -> Term -> Env
-upJustVal' env Wild      _ = env
-upJustVal' env (Bind ta) t = upJustVal env (noName ta) t
-
-upJustVals' :: Env -> [(Binder Tag, Term)] -> Env
-upJustVals' = foldr (\(b, t) env -> upJustVal' env b t)
-
 -- | Reduces a term.  Assumes that the code is type checked:
 --
 --   * It doesn't do anything when the scrutined term under 'Case' doesn't match
