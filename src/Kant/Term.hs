@@ -8,7 +8,6 @@ module Kant.Term
     , ConId
     , Level
     , Tag
-    , startTag
     , Name(..)
     , Binder(..)
     , ModuleT(..)
@@ -42,17 +41,21 @@ module Kant.Term
       -- * Utilities
     , unrollApp
     , unrollArr
+    , unrollArr'
     , moduleNames
+    , paramsFun
+    , paramsFun'
       -- * Substitutions
     , subst
     , substPars
     , substBrs
-      -- * Bind names
-    , bindId
+    , subst'
+    , substPars'
+    , substBrs'
     ) where
 
 import           Control.Arrow (first, second)
-import           Control.Monad (MonadPlus(..), msum)
+import           Control.Monad (liftM)
 
 import           Data.Void
 import           Numeric.Natural
@@ -82,10 +85,7 @@ dd    Data
 -}
 
 -- | Type to tag names uniquely
-type Tag = Natural
-
-startTag :: Tag
-startTag = 0
+type Tag = String
 
 -- | Identifiers for things
 type Id = String
@@ -196,9 +196,23 @@ unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
 
 -- | Dual of 'Arr' (but with more general types).
-unrollArr :: TermT f t -> ([ParamT f t], TermT f t)
-unrollArr (Arr b ty₁ ty₂) = first ((b, ty₁) :) (unrollArr ty₂)
-unrollArr ty              = ([], ty)
+unrollArr :: Maybe Natural -> TermT f t -> ([ParamT f t], TermT f t)
+unrollArr n        (Arr b ty₁ ty₂) | n == Nothing || n > Just 0 =
+    first ((b, ty₁) :) (unrollArr (fmap (\n' -> n' - 1) n)  ty₂)
+unrollArr (Just 0) ty              = ([], ty)
+unrollArr _        ty              = ([], ty)
+
+paramsFun :: Monad m => (TermT f t -> m (TermT f t)) -> [ParamT f t] -> TermT f t
+          -> m ([ParamT f t], TermT f t)
+paramsFun f pars ty =
+    unrollArr (Just (fromIntegral (length pars))) `liftM` f (arrs pars ty)
+
+paramsFun' :: (TermT f t -> TermT f t) -> [ParamT f t] -> TermT f t
+           -> ([ParamT f t], TermT f t)
+paramsFun' f pars ty = x where Just x = paramsFun (Just . f) pars ty
+
+unrollArr' :: TermT f t -> ([ParamT f t], TermT f t)
+unrollArr' = unrollArr Nothing
 
 moduleNames :: ModuleT f t -> [Id]
 moduleNames = concatMap go . unModule
@@ -213,20 +227,6 @@ jumpBind :: Eq tag => tag -> Binder tag -> a -> a -> a
 jumpBind ta₁ (Bind ta₂) x _ | ta₁ == ta₂ = x
 jumpBind _   _          _ x = x
 
-jumpBindPars :: Eq tag
-             => b -> (a -> b -> b)
-             -> (Binder tag -> TermT fr tag -> a)
-             -> ([ParamT fr tag] -> b)
-             -> tag
-             -> [ParamT fr tag]
-             -> Either b b
-jumpBindPars z _ _ _ _ [] = Right z
-jumpBindPars z op f g ta ((b, ty) : pars) =
-    case if Bind ta == b then Right (g pars) else jumpBindPars z op f g ta pars of
-        Right xs -> Right (x `op` xs)
-        Left xs  -> Left (x `op` xs)
-  where x = f b ty
-
 type Subst fr tag = Id -> TermT fr tag
 
 subst :: Eq tag => tag -> Subst fr tag -> TermT fr tag -> TermT fr tag
@@ -240,12 +240,9 @@ subst ta f (Case b t ty brs) =
     Case b (subst ta f t) ty' brs'
   where
     (ty', brs') = jumpBind ta b (ty, brs) ((subst ta f ty), substBrs ta f brs)
-subst ta t (Constr c tys ts) = Constr c (map (subst ta t) tys) (map (subst ta t) ts)
-subst ta t₁ (Fix b pars ty t₂) =
-    case substPars ta t₁ pars of
-        Left pars'  -> Fix b pars' ty t₂'
-        Right pars' -> Fix b pars' (subst ta t₁ ty) t₂'
-  where t₂' = substBind ta t₁ b t₂
+subst ta f (Constr c tys ts) = Constr c (map (subst ta f) tys) (map (subst ta f) ts)
+subst ta f (Fix b pars ty t) = Fix b pars' ty' (substBind ta f b t)
+  where (pars', ty') = substPars ta f pars ty
 
 subst' :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
 subst' ta t = subst ta (const t)
@@ -255,13 +252,13 @@ substBind :: Eq tag => tag -> Subst fr tag -> Binder tag -> TermT fr tag
 substBind ta f b t = jumpBind ta b t (subst ta f t)
 
 substPars :: Eq tag
-          => tag -> Subst fr tag -> [ParamT fr tag]
-          -> Either [ParamT fr tag] [ParamT fr tag]
-substPars ta f = jumpBindPars [] (:) (\b ty -> (b, subst ta f ty)) id ta
+          => tag -> Subst fr tag -> [ParamT fr tag] -> TermT fr tag
+          -> ([ParamT fr tag], TermT fr tag)
+substPars ta f pars ty = paramsFun' (subst ta f) pars ty
 
 substPars' :: Eq tag
-           => tag -> TermT fr tag -> [ParamT fr tag]
-           -> Either [ParamT fr tag] [ParamT fr tag]
+           => tag -> TermT fr tag -> [ParamT fr tag] -> TermT fr tag
+           -> ([ParamT fr tag], TermT fr tag)
 substPars' ta t = substPars ta (const t)
 
 substBrs :: Eq tag => tag -> Subst fr tag -> [BranchT fr tag] -> [BranchT fr tag]

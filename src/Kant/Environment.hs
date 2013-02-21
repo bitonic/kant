@@ -22,11 +22,12 @@ import           Control.Monad (join)
 import           Data.Foldable (foldr)
 import           Prelude hiding (foldr)
 
-import           Control.Monad.State (State, runState)
+import           Control.Monad.State (runState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
 import           Kant.Term
+import           Kant.Uniquify
 
 type Item = (Term, Maybe Term)
 
@@ -34,7 +35,7 @@ type Item = (Term, Maybe Term)
 data Env = Env
     { envCtx   :: Map TName Item
     , envData  :: Map ConId Data
-    , envCount :: Tag
+    , envCount :: Count
     }
 
 -- | Looks up the type of a variable.
@@ -46,13 +47,13 @@ envDef :: Env -> TName -> Maybe Term
 envDef Env{envCtx = ctx} v = join (snd <$> Map.lookup v ctx)
 
 envData' :: Env -> TName -> Maybe Data
-envData' env@Env{envData = dds} (Free n) = Map.lookup n dds
-envData' _                      _        = Nothing
+envData' Env{envData = dds} (Free n) = Map.lookup n dds
+envData' _                  _        = Nothing
 
 newEnv :: Env
 newEnv = Env{ envCtx   = Map.empty
             , envData  = Map.empty
-            , envCount = startTag
+            , envCount = 0
             }
 
 addCtx :: Env -> TName -> Item -> Maybe Env
@@ -82,7 +83,7 @@ addVal env n ty t = addCtx env'' (Free n) (ty', (Just t'))
 --
 --   Another function will be generated for each data constructor, taking all
 --   the parameters of the type constructor plus its own parameter.
-dataDecl :: DataV -> State Tag ((Id, Item), [(Id, Item)])
+dataDecl :: DataV -> UniqueM ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
     do cons' <- sequence [ do f  <- uniquify (conFun c' pars')
                               ty <- uniquify (resTy pars')
@@ -112,14 +113,7 @@ addData env@Env{envData = dds} ddo =
 
 -----
 
-class Uniquify f where
-    uniquify :: f Void Id -> State Tag (f Id Tag)
-
-instance Uniquify TermT
-
-instance Uniquify DataT
-
-runUniquify' :: Env -> State Tag a -> (Env, a)
+runUniquify' :: Env -> UniqueM a -> (Env, a)
 runUniquify' env@Env{envCount = ta} s = (env{envCount = ta'}, x)
   where (x, ta') = runState s ta
 

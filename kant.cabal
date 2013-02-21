@@ -46,7 +46,8 @@ Library
 
     Other-Modules:    Kant.Name,
                       Kant.Binder,
-                      Kant.Lexer
+                      Kant.Lexer,
+                      Kant.Uniquify
 --                      Kant.REPL.Types
 
 -- executable kant
