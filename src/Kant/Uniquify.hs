@@ -5,6 +5,7 @@ module Kant.Uniquify
     ) where
 
 import           Control.Applicative ((<$>), (<*>), (<$))
+import           Control.Arrow (second)
 
 import           Control.Monad.State (State, MonadState(..))
 import           Data.Set (Set)
@@ -14,6 +15,7 @@ import qualified Data.Text as Text
 import           Data.Void
 
 import           Kant.Term
+import           Kant.Name
 
 type Count = Integer
 
@@ -95,9 +97,10 @@ collect (Case b t ty brs) =
     dunions [dunions (map rsingle bs) `dunion` collect t' | (_, bs, t') <- brs]
 collect (Constr _ tys ts) = dunions (map collect tys) `dunion` dunions (map collect ts)
 collect (Fix b pars ty t) =
-    rsingle b `dunion`
-    dunions [rsingle b' `dunion` collect ty' | (b', ty') <- pars] `dunion`
-    collect ty `dunion` collect t
+    rsingle b `dunion` collectPars pars `dunion` collect ty `dunion` collect t
+
+collectPars :: [(Binder Id, TermV)] -> (Set Id, Set Id)
+collectPars pars = dunions [rsingle b' `dunion` collect ty' | (b', ty') <- pars]
 
 lsingle :: a -> (Set a, Set b)
 lsingle ta = (Set.singleton ta, Set.empty)
@@ -110,7 +113,8 @@ dunion :: (Set Id, Set Id) -> (Set Id, Set Id) -> (Set Id, Set Id)
 (vs, vsb) `dunion` (vs', vsb') = (Set.union vs vs', Set.union vsb vsb')
 
 dunions :: [(Set Id, Set Id)] -> (Set Id, Set Id)
-dunions = foldr1 dunion
+dunions []  = (Set.empty, Set.empty)
+dunions vss = foldr1 dunion vss
 
 replace :: Set Id -> TermV -> Term
 replace _  (Var (Free v)) = absurd v
@@ -124,8 +128,35 @@ replace vs (Case b t ty brs) =
     Case (Text.pack <$> b) (replace vs t) (replace vs ty)
          [(c, map (Text.pack <$>) bs, replace vs t') | (c, bs, t') <- brs]
 replace vs (Constr c tys ts) = Constr c (map (replace vs) tys) (map (replace vs) ts)
-replace vs (Fix b pars ty t) = Fix (Text.pack <$> b)
-                                   [ (Text.pack <$> b', replace vs ty')
-                                   | (b', ty') <- pars] (replace vs ty) (replace vs t)
+replace vs (Fix b pars ty t) = Fix (Text.pack <$> b) (replacePars vs pars)
+                                   (replace vs ty) (replace vs t)
 
-instance Uniquify DataT
+replacePars :: Set Id -> [ParamV] -> [Param]
+replacePars vs pars = [(Text.pack <$> b', replace vs ty') | (b', ty') <- pars]
+
+instance Uniquify DataT where
+    uniquify (Data c pars₁ l cons) =
+        do (pars₁', Type _) <- paramsFun uniquify' pars₁ (Type l)
+           let bs = zip (map fst pars₁) (map fst pars₁')
+               -- We use this as a placeholder to use the 'paramsFun' functions
+               dummy = Var (bound "dummy")
+               sub (b, b') ps = fst (substParsTag b b' ps dummy)
+           cons' <- sequence
+                    [ ((,) c' . fst) <$> uniquifyPars (foldr sub pars₂ bs) dummy
+                    | (c', pars₂) <- cons]
+           let dd = Data c pars₁' l cons'
+               (vs, vsBound) = collectData dd
+           return (replaceData (Set.difference vs vsBound) dd)
+
+collectData :: DataV -> (Set Id, Set Id)
+collectData (Data _ pars _ cons) =
+    collectPars pars `dunion` dunions (map (collectPars . snd) cons)
+
+replaceData :: Set Id -> DataV -> Data
+replaceData vs (Data c pars l cons) =
+    Data c (replacePars vs pars) l (map (second (replacePars vs)) cons)
+
+instance Uniquify DeclT where
+    uniquify (Val n t) = Val n <$> uniquify t
+    uniquify (DataD dd) = DataD <$> uniquify dd
+    uniquify (Postulate n ty) = Postulate n <$> uniquify ty

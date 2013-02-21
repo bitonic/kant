@@ -205,13 +205,13 @@ unrollArr n        (Arr b ty₁ ty₂) | n == Nothing || n > Just 0 =
 unrollArr (Just 0) ty              = ([], ty)
 unrollArr _        ty              = ([], ty)
 
-paramsFun :: Monad m => (TermT f t -> m (TermT f t)) -> [ParamT f t] -> TermT f t
-          -> m ([ParamT f t], TermT f t)
+paramsFun :: Monad m => (TermT f t -> m (TermT f' t')) -> [ParamT f t] -> TermT f t
+          -> m ([ParamT f' t'], TermT f' t')
 paramsFun f pars ty =
     unrollArr (Just (fromIntegral (length pars))) `liftM` f (arrs pars ty)
 
-paramsFun' :: (TermT f t -> TermT f t) -> [ParamT f t] -> TermT f t
-           -> ([ParamT f t], TermT f t)
+paramsFun' :: (TermT f t -> TermT f' t') -> [ParamT f t] -> TermT f t
+           -> ([ParamT f' t'], TermT f' t')
 paramsFun' f pars ty = x where Just x = paramsFun (Just . f) pars ty
 
 unrollArr' :: TermT f t -> ([ParamT f t], TermT f t)

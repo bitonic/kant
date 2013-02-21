@@ -9,6 +9,8 @@ module Kant.Sugar
      , ConId
      , Level
      , Binder(..)
+     , name
+     , bound
      , SModule(..)
      , SDecl(..)
      , SValParams(..)
