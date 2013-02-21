@@ -12,6 +12,7 @@ module Kant.Environment
     , envDef
     , envData'
     , newEnv
+    , addCtx
     , addAbst
     , addVal
     , addData

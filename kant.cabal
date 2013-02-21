@@ -41,14 +41,14 @@ Library
                       Kant.Parser,
                       Kant.Pretty
                       Kant.Environment,
-                      Kant.Uniquify
-                      -- Kant.Reduce,
+                      Kant.Reduce
                       -- Kant.TyCheck
                       -- Kant.REPL
 
     Other-Modules:    Kant.Name,
                       Kant.Binder,
-                      Kant.Lexer
+                      Kant.Lexer,
+                      Kant.Uniquify
 --                      Kant.REPL.Types
 
 -- executable kant

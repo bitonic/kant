@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 module Kant.Reduce
     ( Reducer
@@ -6,17 +5,21 @@ module Kant.Reduce
     , whnf
     ) where
 
-import           Prelude hiding ((!!), length, splitAt)
+import           Control.Arrow (second)
 
-import           Bound
-import           Numeric.Natural
-
-import           Kant.Common
 import           Kant.Term
 import           Kant.Environment
 
--- TODO remove the Show when we're not debugging anymore...
-type Reducer = forall a. (Show a, Eq a) => EnvT a -> TermT a -> TermT a
+type Reducer = Env -> Term -> Term
+
+addJustVal :: Env -> Binder Tag -> Term -> Env
+addJustVal env Wild      _ = env
+addJustVal env (Bind ta) t =
+    -- We assert that the env does not contain that name yet
+    let Just env' = addCtx env (Bound "" ta) (t, Nothing) in env'
+
+addJustVals :: Env -> [(Binder Tag, Term)] -> Env
+addJustVals = foldr (\(b, t) env -> addJustVal env b t)
 
 -- | Reduces a term.  Assumes that the code is type checked:
 --
@@ -31,52 +34,41 @@ reduce r env t@(Var v) = maybe t (r env) (envDef env v)
 reduce _ _ (Type l) = Type l
 reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
-        Lam _ s -> reduce r env (instantiate1 t₂ s)
-        t₁'@(unrollApp -> (ft@(Fix _ (FixT i fss)), args)) ->
+        Lam b _ t -> reduce r (addJustVal env b t) t
+        t₁'@(unrollApp -> (ft@(Fix b pars _ t), args)) ->
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
             let t₂'           = reduce r env t₂
                 args'         = args ++ [t₂']
+                i             = length pars
                 (fargs, rest) = splitAt i args'
+                t'            = case b of
+                                    Wild    -> t
+                                    Bind ta -> subst' ta ft t
             in if i > length args' || not (all constr fargs)
                then App t₁' t₂'
-               else reduce r env (app (instantiateNatU fargs ft fss : rest))
+               else app (reduce r (addJustVals env (zip (map fst pars) fargs)) t' :
+                         rest)
         t₁'     -> App t₁' (r env t₂)
-reduce r env (Case t (CaseT ty brs)) =
-    case t' of
+reduce r env (Case b t ty brs) =
+    case t₁ of
         Constr c _ ts ->
-            case [ss | BranchT c' i ss <- brs, c == c', length ts == i] of
-                []       -> stuck
-                (ss : _) -> reduce r env (instantiateNatU ts t' ss)
+            case [(bs, t₂) | (c', bs, t₂) <- brs, c == c', length ts == length bs] of
+                []             -> stuck
+                ((bs, t₂) : _) -> reduce r (addJustVals env (zip bs ts)) t₂
         _ -> stuck
   where
-    t'    = reduce r env t
-    stuck = Case t' (CaseT (reduceScope r env ty)
-                           [ BranchT c i (reduceScope² r env ss)
-                           | BranchT c i ss <- brs ])
-reduce r env (Lam t s) =
-    Lam (reduce r env t) (reduceScope r env s)
-reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
-reduce r env (Constr c pars ts) = Constr c (map (r env) pars) (map (r env) ts)
-reduce r env (Fix ty (FixT i ss)) = Fix (r env ty) (FixT i (reduceScope² r env ss))
+    t₁    = reduce r env t
+    stuck = Case b t₁ (r env ty) [(c, bs, r env t₂) | (c, bs, t₂) <- brs ]
+reduce r env (Lam b ty t) = Lam b (r env ty) (r env t)
+reduce r env (Arr b ty₁ ty₂) = Arr b (r env ty₁) (r env ty₂)
+reduce r env (Constr c tys ts) = Constr c (map (r env) tys) (map (r env) ts)
+reduce r env (Fix b pars ty t) =
+    Fix b (map (second (r env)) pars) (r env ty) (r env t)
 
-constr :: TermT a -> Bool
+constr :: TermT f t -> Bool
 constr (Constr _ _ _) = True
 constr _              = False
-
-nestNothing :: EnvT a -> EnvT (Var (TName b) a)
-nestNothing env = nestEnv env (const Nothing)
-
-type TScopeNatU a = Scope (TName Natural) (Scope (TName ()) TermT) a
-
-reduceScope :: (Eq a, Show a)
-            => Reducer -> EnvT a -> TScope a -> TScope a
-reduceScope r env = toScope . reduce r (nestNothing env) . fromScope
-
-reduceScope² :: (Eq a, Show a)
-             => Reducer -> EnvT a -> TScopeNatU a -> TScopeNatU a
-reduceScope² r env = toScope . toScope . reduce r (nestNothing (nestNothing env)) .
-                     fromScope . fromScope
 
 -- | Reduces a term to its normal form - computes under binders, if you only
 --   want canonical constructors see 'whnf'.
