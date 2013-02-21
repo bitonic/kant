@@ -57,6 +57,8 @@ module Kant.Term
 import           Control.Arrow (first, second)
 import           Control.Monad (liftM)
 
+import           Data.Text (Text)
+
 import           Data.Void
 import           Numeric.Natural
 
@@ -84,8 +86,9 @@ dds   Map TName Data
 dd    Data
 -}
 
--- | Type to tag names uniquely
-type Tag = String
+-- | Type to tag names uniquely.  Note that I use 'Text' and not 'String' only
+--   so that the types are different.
+type Tag = Text
 
 -- | Identifiers for things
 type Id = String
@@ -132,7 +135,7 @@ type ConstrV = ConstrT Void Id
 
 -- | A 'Name' with an 'Id' name.
 type TNameT fr tag = Name fr Id tag
-type TName = TNameT Id Tag
+type TName  = TNameT Id Tag
 
 -- | Terms for our language.  This is what we typecheck and reduce.
 data TermT fr tag

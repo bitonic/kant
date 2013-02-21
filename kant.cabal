@@ -28,7 +28,8 @@ Library
                       void,
                       containers,
                       array,
-                      mtl
+                      mtl,
+                      text
 
     Build-Tools:      alex, happy
 
