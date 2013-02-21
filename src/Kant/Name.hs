@@ -2,6 +2,7 @@
 module Kant.Name
     ( Name(..)
     , name
+    , bound
     ) where
 
 data Name f n a
@@ -12,6 +13,9 @@ data Name f n a
 name :: Name n n a -> n
 name (Bound n _) = n
 name (Free n)    = n
+
+bound :: n -> Name f n n
+bound n = Bound n n
 
 instance (Eq a, Eq f) => Eq (Name f n a) where
     Bound _ a == Bound _ b = a  == b

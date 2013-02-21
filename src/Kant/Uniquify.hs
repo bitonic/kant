@@ -84,7 +84,33 @@ uniquifyPars :: [ParamV] -> TermV -> UniqueM ([ParamV], TermV)
 uniquifyPars pars ty = paramsFun uniquify' pars ty
 
 collect :: TermV -> (Set Id, Set Id)
-collect = undefined
+collect (Var (Free v)) = absurd v
+collect (Var (Bound _ ta)) = lsingle ta
+collect (Type _) = (Set.empty, Set.empty)
+collect (App t₁ t₂) = collect t₁ `dunion` collect t₂
+collect (Arr b ty₁ ty₂) = rsingle b `dunion` collect ty₁ `dunion` collect ty₂
+collect (Lam b ty t) = rsingle b `dunion` collect ty `dunion` collect t
+collect (Case b t ty brs) =
+    rsingle b `dunion` collect t `dunion` collect ty `dunion`
+    dunions [dunions (map rsingle bs) `dunion` collect t' | (_, bs, t') <- brs]
+collect (Constr _ tys ts) = dunions (map collect tys) `dunion` dunions (map collect ts)
+collect (Fix b pars ty t) =
+    rsingle b `dunion`
+    dunions [rsingle b' `dunion` collect ty' | (b', ty') <- pars] `dunion`
+    collect ty `dunion` collect t
+
+lsingle :: a -> (Set a, Set b)
+lsingle ta = (Set.singleton ta, Set.empty)
+
+rsingle :: Binder t -> (Set a, Set t)
+rsingle Wild = (Set.empty, Set.empty)
+rsingle (Bind ta) = (Set.empty, Set.singleton ta)
+
+dunion :: (Set Id, Set Id) -> (Set Id, Set Id) -> (Set Id, Set Id)
+(vs, vsb) `dunion` (vs', vsb') = (Set.union vs vs', Set.union vsb vsb')
+
+dunions :: [(Set Id, Set Id)] -> (Set Id, Set Id)
+dunions = foldr1 dunion
 
 replace :: Set Id -> TermV -> Term
 replace _  (Var (Free v)) = absurd v

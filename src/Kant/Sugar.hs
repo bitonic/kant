@@ -161,13 +161,13 @@ desugarPars pars = concat [ zip (case mns of Wild -> [Wild]; Bind ns -> map Bind
                           | (mns, t) <- pars ]
 
 instance a ~ TermV => Desugar STerm a where
-    desugar (SVar n)            = Var (Bound n n)
+    desugar (SVar n)            = Var (bound n)
     desugar (SType l)           = Type l
     desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase n ty brs)    =
-        Case (Bind n) (Var (Bound n n))
+        Case (Bind n) (Var (bound n))
              (desugar ty) [(c, ns, desugar t) | (c, ns, t) <- brs]
     desugar (SFix b pars ty t) = Fix b (desugarPars pars) (desugar ty) (desugar t)
 
