@@ -3,7 +3,10 @@ module Kant.Name
     ( Name(..)
     , name
     , bound
+    , noName
     ) where
+
+import           Data.Monoid (Monoid(..))
 
 data Name f n a
     = Bound n a
@@ -16,6 +19,9 @@ name (Free n)    = n
 
 bound :: n -> Name f n n
 bound n = Bound n n
+
+noName :: Monoid n => a -> Name f n a
+noName ta = Bound mempty ta
 
 instance (Eq a, Eq f) => Eq (Name f n a) where
     Bound _ a == Bound _ b = a  == b

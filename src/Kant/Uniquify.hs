@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Kant.Uniquify
     ( Uniquify(..)
     , UniqueM
@@ -79,7 +80,7 @@ uniquifyBrs :: [BranchV] -> UniqueM [BranchV]
 uniquifyBrs = mapM go
   where
     go :: BranchV -> UniqueM BranchV
-    go (c, bs, t) = do bsFresh <- mapM (\b -> (,) b <$> freshBinder b) bs
+    go (c, bs, t) = do bsFresh <- mapM (\b -> (b,) <$> freshBinder b) bs
                        let t' = foldr (\(b, b') -> substTag b b') t bsFresh
                        return (c, map snd bsFresh, t')
 
@@ -143,7 +144,7 @@ instance Uniquify DataT where
                dummy = Var (bound "dummy")
                sub (b, b') ps = fst (substParsTag b b' ps dummy)
            cons' <- sequence
-                    [ ((,) c' . fst) <$> uniquifyPars (foldr sub pars₂ bs) dummy
+                    [ ((c',) . fst) <$> uniquifyPars (foldr sub pars₂ bs) dummy
                     | (c', pars₂) <- cons]
            let dd = Data c pars₁' l cons'
                (vs, vsBound) = collectData dd

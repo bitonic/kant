@@ -7,19 +7,18 @@ module Kant.Reduce
 
 import           Control.Arrow (second)
 
+import           Kant.Name
 import           Kant.Term
 import           Kant.Environment
 
 type Reducer = Env -> Term -> Term
 
-addJustVal :: Env -> Binder Tag -> Term -> Env
-addJustVal env Wild      _ = env
-addJustVal env (Bind ta) t =
-    -- We assert that the env does not contain that name yet
-    let Just env' = addCtx env (Bound "" ta) (t, Nothing) in env'
+upJustVal' :: Env -> Binder Tag -> Term -> Env
+upJustVal' env Wild      _ = env
+upJustVal' env (Bind ta) t = upJustVal env (noName ta) t
 
-addJustVals :: Env -> [(Binder Tag, Term)] -> Env
-addJustVals = foldr (\(b, t) env -> addJustVal env b t)
+upJustVals' :: Env -> [(Binder Tag, Term)] -> Env
+upJustVals' = foldr (\(b, t) env -> upJustVal' env b t)
 
 -- | Reduces a term.  Assumes that the code is type checked:
 --
@@ -34,7 +33,7 @@ reduce r env t@(Var v) = maybe t (r env) (envDef env v)
 reduce _ _ (Type l) = Type l
 reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
-        Lam b _ t -> reduce r (addJustVal env b t) t
+        Lam b _ t -> reduce r (upJustVal' env b t) t
         t₁'@(unrollApp -> (ft@(Fix b pars _ t), args)) ->
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
@@ -47,7 +46,7 @@ reduce r env (App t₁ t₂) =
                                     Bind ta -> subst' ta ft t
             in if i > length args' || not (all constr fargs)
                then App t₁' t₂'
-               else app (reduce r (addJustVals env (zip (map fst pars) fargs)) t' :
+               else app (reduce r (upJustVals' env (zip (map fst pars) fargs)) t' :
                          rest)
         t₁'     -> App t₁' (r env t₂)
 reduce r env (Case b t ty brs) =
@@ -55,7 +54,7 @@ reduce r env (Case b t ty brs) =
         Constr c _ ts ->
             case [(bs, t₂) | (c', bs, t₂) <- brs, c == c', length ts == length bs] of
                 []             -> stuck
-                ((bs, t₂) : _) -> reduce r (addJustVals env (zip bs ts)) t₂
+                ((bs, t₂) : _) -> reduce r (upJustVals' env (zip bs ts)) t₂
         _ -> stuck
   where
     t₁    = reduce r env t
