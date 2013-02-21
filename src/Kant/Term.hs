@@ -50,6 +50,7 @@ module Kant.Term
     , substPars
     , substBrs
     , subst'
+    , subst''
     , substPars'
     , substBrs'
     ) where
@@ -249,6 +250,10 @@ subst ta f (Fix b pars ty t) = Fix b pars' ty' (substBind ta f b t)
 
 subst' :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
 subst' ta t = subst ta (const t)
+
+subst'' :: Eq t => Binder t -> TermT f t -> TermT f t -> TermT f t
+subst'' Wild      _  t = t
+subst'' (Bind ta) t₁ t₂ = subst' ta t₁ t₂
 
 substBind :: Eq tag => tag -> Subst fr tag -> Binder tag -> TermT fr tag
           -> TermT fr tag

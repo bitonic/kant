@@ -8,18 +8,13 @@ module Kant.TyCheck
     , tyCheckT
     ) where
 
-import           Control.Applicative ((<$>), (<$))
-import           Control.Arrow ((***))
+import           Control.Applicative ((<$))
 import           Control.Monad (unless, forM_)
 import           Prelude hiding ((!!), length, splitAt)
 
 import           Control.Monad.Error (Error(..), MonadError(..))
-import qualified Data.Set as Set
-
-import           Numeric.Natural
 
 import           Kant.Term
-import           Kant.Name
 import qualified Kant.Environment as Env
 import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
 import           Kant.Reduce
@@ -87,26 +82,26 @@ envTy env v = maybe (throwError (OutOfBounds v)) return (Env.envTy env v)
 tyCheckT :: Env -> Term -> TyCheckM Term
 tyCheckT env (Var v) = envTy env v
 tyCheckT _ (Type l) = return (Type (l + 1))
--- -- TODO we manually have a "large" arrow here, but ideally we'd like to have
--- -- some kind of level polymorphism so that the arrow operator can be postulated
--- -- like any other.
--- tyCheckT env (Arr b ty₁ ty₂) =
---     do tyty₁ <- tyCheckT env ty₁
---        case nf env tyty₁ of
---            Type l₁ ->
---                do let env' = nestEnv' env (const (Just ty))
---                   tys <- tyCheckT env' (fromScope s)
---                   case nf env' tys of
---                       Type l₂ -> return (Type (max l₁ l₂))
---                       _       -> expectingType env' (fromScope s) tys
---            _ -> expectingType env ty ty'
+-- TODO we manually have a "large" arrow here, but ideally we'd like to have
+-- some kind of level polymorphism so that the arrow operator can be postulated
+-- like any other.
+tyCheckT env (Arr b ty₁ ty₂) =
+    do tyty₁ <- tyCheckT env ty₁
+       case nf env tyty₁ of
+           Type l₁ ->
+               do let env' = upAbst' env b tyty₁
+                  tyty₂ <- tyCheckT env' ty₂
+                  case nf env' tyty₂ of
+                      Type l₂ -> return (Type (max l₁ l₂))
+                      _       -> throwError (ExpectingType ty₂ tyty₂)
+           _ -> throwError (ExpectingType ty₁ tyty₁)
+tyCheckT env (App t₁ t₂) =
+    do ty₁ <- tyCheckT env t₁
+       case nf env ty₁ of
+           Arr b ty₂ ty₃ -> subst'' b t₁ ty₃ <$ tyCheckEq env ty₂ t₂
+           _             -> throwError (ExpectingFunction t₁ ty₁)
 tyCheckT _ _ = undefined
 
--- tyCheckT env (App t₁ t₂) =
---     do ty₁ <- tyCheckT env t₁
---        case nf env ty₁ of
---            Arr ty₂ s -> instantiate1 t₂ s <$ tyCheckEq env ty₂ t₂
---            _         -> expectingFunction env t₁ ty₁
 -- tyCheckT env (Lam ty s) =
 --     do tyCheckT env ty
 --        tys <- toScope <$> nestTyCheckM env s ty tyCheckT
@@ -176,11 +171,11 @@ tyCheckT _ _ = undefined
 --                   | i <- [0..(length nested₁ - 1)] ]
 --     in nestEnv env (\i -> Just (nested₂ !! i))
 
--- -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
--- tyCheckEq :: (Ord a, Show a) => EnvT a -> TermT a -> TermT a -> TyCheckM ()
--- tyCheckEq env ty t =
---     do ty' <- tyCheckT env t
---        unless (eqCum env ty' ty) (mismatch env ty t ty')
+-- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
+tyCheckEq :: Env -> Term -> Term -> TyCheckM ()
+tyCheckEq env ty t =
+    do ty' <- tyCheckT env t
+       unless (eqCum env ty' ty) (throwError (Mismatch ty t ty'))
 
 -- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
 --   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
