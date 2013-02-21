@@ -17,6 +17,7 @@ import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
 import           Kant.Sugar
+import           Kant.Uniquify
 -- import           Kant.TyCheck
 -- import           Kant.REPL.Types
 
@@ -35,8 +36,8 @@ spaceIfCons _  = " "
 instance IsString Doc where
     fromString = pretty
 
-instance (f ~ Void, t ~ Id) => Pretty (TermT f t) where
-    pretty = pretty . (distill :: TermV -> STerm)
+instance (f ~ Id, t ~ Tag) => Pretty (TermT f t) where
+    pretty = pretty . (distill :: TermV -> STerm) . revert
 
 instance a ~ Id => Pretty (Binder a) where
     pretty (Bind n) = pretty n

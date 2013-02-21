@@ -2,6 +2,7 @@ module Kant.Uniquify
     ( Uniquify(..)
     , UniqueM
     , Count
+    , revert
     ) where
 
 import           Control.Applicative ((<$>), (<*>), (<$))
@@ -71,7 +72,7 @@ uniquify' (Case b t ty brs) =
 uniquify' (Fix b pars ty t) =
     do b' <- freshBinder b
        (pars', ty') <- uncurry uniquifyPars (substParsTag b b' pars ty)
-       Fix b pars' ty' <$> uniquify' (substTag b b' t)
+       Fix b' pars' ty' <$> uniquify' (substTag b b' t)
 uniquify' (Constr c tys ts) = Constr c <$> mapM uniquify' tys <*> mapM uniquify' ts
 
 uniquifyBrs :: [BranchV] -> UniqueM [BranchV]
@@ -160,3 +161,19 @@ instance Uniquify DeclT where
     uniquify (Val n t) = Val n <$> uniquify t
     uniquify (DataD dd) = DataD <$> uniquify dd
     uniquify (Postulate n ty) = Postulate n <$> uniquify ty
+
+revert :: Term -> TermV
+revert (Var (Free n)) = Var (bound n)
+-- TODO make names better
+revert (Var (Bound _ v)) = Var (bound (Text.unpack v))
+revert (Type l) = Type l
+revert (App t₁ t₂) = App (revert t₁) (revert t₂)
+revert (Arr b ty₁ ty₂) = Arr (Text.unpack <$> b) (revert ty₁) (revert ty₂)
+revert (Lam b ty t) = Lam (Text.unpack <$> b) (revert ty) (revert t)
+revert (Case b t ty brs) =
+    Case (Text.unpack <$> b) (revert t) (revert ty)
+         [(c, map (Text.unpack <$>) bs, revert t') | (c, bs, t') <- brs]
+revert (Constr c tys ts) = Constr c (map revert tys) (map revert ts)
+revert (Fix b pars ty t) = Fix (Text.unpack <$> b)
+                          [(Text.unpack <$> b', revert ty') | (b', ty') <- pars]
+                          (revert ty) (revert t)
