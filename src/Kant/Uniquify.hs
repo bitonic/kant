@@ -76,9 +76,9 @@ uniquifyBrs :: [BranchV] -> UniqueM [BranchV]
 uniquifyBrs = mapM go
   where
     go :: BranchV -> UniqueM BranchV
-    go (c, bs, t) = do bs_tas <- mapM (\b -> (,) b <$> fresh) bs
-                       let t' = foldr (\(b, ta) t -> undefined) t bs_tas
-                       return (c, [const ta <$> b | (b, ta) <- bs_tas], t')
+    go (c, bs, t) = do bsFresh <- mapM (\b -> (,) b <$> freshBinder b) bs
+                       let t' = foldr (\(b, b') -> substTag b b') t bsFresh
+                       return (c, map snd bsFresh, t')
 
 uniquifyPars :: [ParamV] -> TermV -> UniqueM ([ParamV], TermV)
 uniquifyPars pars ty = paramsFun uniquify' pars ty
