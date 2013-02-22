@@ -130,7 +130,7 @@ dataDecl :: Data -> ((Id, Item), [(Id, Item)])
 dataDecl (Data c pars l cons) =
     ((c, (Just (arrs pars (Type l)), Nothing)), cons')
   where
-    cons' = [(c', (Just (conFun c' pars'), Just (resTy pars'))) | (c', pars') <- cons]
+    cons' = [(c', (Just (resTy pars'), Just (conFun c' pars'))) | (c', pars') <- cons]
     resTy pars' = arrs (pars ++ pars') (Var (Free c))
     conFun c' pars' =
         lams (pars ++ pars') (Constr c' (map snd pars) (map snd pars'))

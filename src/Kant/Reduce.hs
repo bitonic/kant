@@ -25,7 +25,7 @@ reduce r env t@(Var v) = maybe t (r env) (envDef env v)
 reduce _ _ (Type l) = Type l
 reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
-        Lam b _ t -> reduce r (upJustVal' env b t) t
+        Lam b _ t -> reduce r env (subst' b t₂ t)
         t₁'@(unrollApp -> (ft@(Fix b pars _ t), args)) ->
             -- TODO check that all this works with whnf, for example check that
             -- we don't have to normalise fty and fss manually.
@@ -36,15 +36,14 @@ reduce r env (App t₁ t₂) =
                 t'            = subst' b ft t
             in if i > length args' || not (all constr fargs)
                then App t₁' t₂'
-               else app (reduce r (upJustVals' env (zip (map fst pars) fargs)) t' :
-                         rest)
+               else app (reduce r env (substMany (zip (map fst pars) fargs) t') : rest)
         t₁'     -> App t₁' (r env t₂)
 reduce r env (Case b t ty brs) =
     case t₁ of
         Constr c _ ts ->
             case [(bs, t₂) | (c', bs, t₂) <- brs, c == c', length ts == length bs] of
                 []             -> stuck
-                ((bs, t₂) : _) -> reduce r (upJustVals' env (zip bs ts)) t₂
+                ((bs, t₂) : _) -> reduce r env (substMany (zip bs ts) t₂)
         _ -> stuck
   where
     t₁    = reduce r env t

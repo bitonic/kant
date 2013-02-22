@@ -104,7 +104,7 @@ tyCheckT env (App t₁ t₂) =
 tyCheckT env (Lam b ty t) =
     do tyty <- tyCheckT env ty
        case nf env tyty of
-           Type _ -> do tyt <- tyCheckT (upAbst' env b tyty) t
+           Type _ -> do tyt <- tyCheckT (upAbst' env b ty) t
                         return (Arr b ty tyt)
            _ -> throwError (ExpectingType ty tyty)
 tyCheckT env (Constr c pars args) =
