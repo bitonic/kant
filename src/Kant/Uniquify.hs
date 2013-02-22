@@ -225,23 +225,26 @@ bumpName (Bind n ta) = do (ixs, vs) <- get
                           put (Map.insert n ix ixs, Map.insert ta n vs)
                           Bind n <$> getName ta
 
+forget :: RevertM a -> RevertM a
+forget m = do s <- get; x <- m; put s; return x
+
 revert' :: Term -> RevertM TermV
--- TODO don't worry about duplicate names in different branches
 revert' (Var (Free n)) = return (bound n)
 revert' (Var (Bound ta)) = bound <$> getName ta
 revert' (Type l) = return (Type l)
 revert' (Arr b ty₁ ty₂) =
-    Arr <$> bumpName b <*> revert' ty₁ <*> revert' ty₂
-revert' (App t₁ t₂) = App <$> revert' t₁ <*> revert' t₂
-revert' (Lam b ty t) = Lam <$> bumpName b <*> revert' ty <*> revert' t
+    Arr <$> bumpName b <*> forget (revert' ty₁) <*> forget (revert' ty₂)
+revert' (App t₁ t₂) = App <$> forget (revert' t₁) <*> forget (revert' t₂)
+revert' (Lam b ty t) =
+    Lam <$> bumpName b <*> forget (revert' ty) <*> forget (revert' t)
 revert' (Case b t ty brs) =
-    Case <$> bumpName b <*> revert' t <*> revert' ty
-         <*> sequence [ do bs' <- mapM bumpName bs
-                           (c, bs',) <$> revert' t'
+    Case <$> bumpName b <*> forget (revert' t) <*> forget (revert' ty)
+         <*> sequence [ forget (do bs' <- mapM bumpName bs; (c, bs',) <$> revert' t')
                       | (c, bs, t') <- brs ]
 revert' (Fix b pars ty t) =
     do b' <- bumpName b
-       (pars', ty') <- paramsFun revert' pars ty
-       Fix b' pars' ty' <$> revert' t
-revert' (Constr c tys ts) = Constr c <$> mapM revert' tys <*> mapM revert' ts
+       forget $ do (pars', ty') <- paramsFun revert' pars ty
+                   Fix b' pars' ty' <$> revert' t
+revert' (Constr c tys ts) =
+    Constr c <$> mapM (forget . revert') tys <*> mapM (forget . revert') ts
 
