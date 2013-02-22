@@ -23,9 +23,6 @@ module Kant.Environment
     , upAbst'
     , upVal
     , upVal'
-    , upJustVal
-    , upJustVal'
-    , upJustVals'
     ) where
 
 import           Control.Applicative ((<$>))
@@ -107,16 +104,6 @@ upVal env v ty t = upCtx env v (Just ty) (Just t)
 upVal' :: Env -> TBinder -> Term -> Term -> Env
 upVal' env (Bind _ ta) ty t = upVal env (Bound ta) ty t
 upVal' env Wild        _  _ = env
-
-upJustVal :: Env -> TName -> Term -> Env
-upJustVal env v t = upCtx env v Nothing (Just t)
-
-upJustVal' :: Env -> TBinder -> Term -> Env
-upJustVal' env Wild        _ = env
-upJustVal' env (Bind _ ta) t = upJustVal env (Bound ta) t
-
-upJustVals' :: Env -> [(TBinder, Term)] -> Env
-upJustVals' = foldr (\(b, t) env -> upJustVal' env b t)
 
 -- | Extracts the types out of a data declaration.
 --
