@@ -8,7 +8,7 @@
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
     ( Count
-    , Env
+    , Env(..)
       -- * Utilities
     , toTag
     , bumpCount

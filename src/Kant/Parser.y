@@ -5,9 +5,13 @@ module Kant.Parser
     ( ParseError
     , ParseResult
     , parseModule
+    , parseModule'
     , parseFile
+    , parseFile'
     , parseDecl
+    , parseDecl'
     , parseTerm
+    , parseTerm'
     ) where
 
 import           Control.Applicative ((<$>))
@@ -18,6 +22,8 @@ import           Data.List (foldl1)
 import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
+import           Kant.Environment
+import           Kant.Uniquify
 
 }
 
@@ -158,14 +164,26 @@ type ParseResult = Either ParseError
 parseModule :: String -> ParseResult ModuleV
 parseModule s = desugar <$> runAlex s parseModule_
 
+parseModule' :: Env -> String -> ParseResult (Env, Module)
+parseModule' env s = runUniquify env <$> parseModule s
+
 parseDecl :: String -> ParseResult DeclV
 parseDecl s = desugar <$> runAlex s parseDecl_
+
+parseDecl' :: Env -> String -> ParseResult (Env, Decl)
+parseDecl' env s = runUniquify env <$> parseDecl s
 
 parseTerm :: String -> ParseResult TermV
 parseTerm s = desugar <$> runAlex s parseTerm_
 
+parseTerm' :: Env -> String -> ParseResult (Env, Term)
+parseTerm' env s = runUniquify env <$> parseTerm s
+
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO ModuleV
 parseFile fp = readFile fp >>= either fail return . parseModule
+
+parseFile' :: Env -> FilePath -> IO (Env, Module)
+parseFile' env fp = runUniquify env <$> parseFile fp
 
 }

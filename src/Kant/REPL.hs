@@ -57,28 +57,28 @@ replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
 replOutput env s₁ =
     do c <- ret (parseInput s₁)
        case c of
-           ITyCheck s₂ -> do t <- parse s₂
+           ITyCheck s₂ -> do (env', t) <- parse env s₂
                              ty <- tyct t
-                             return (OTyCheck ty, env)
-           IEval s₂    -> do t <- parse s₂
+                             return (OTyCheck ty, env')
+           IEval s₂    -> do (env', t) <- parse env s₂
                              tyct t
-                             return (OPretty (nf env t), env)
-           IDecl s₂    -> do d <- parseE (parseDecl s₂)
-                             env' <- tyE (tyCheck env d)
-                             return (OOK, env')
+                             return (OPretty (nf env t), env')
+           IDecl s₂    -> do (env', d) <- parseE (parseDecl' env s₂)
+                             env'' <- tyE (tyCheck env' d)
+                             return (OOK, env'')
            ILoad fp    -> do s <- readSafe fp
-                             m <- parseE (parseModule s)
-                             env' <- tyE (tyCheck env m)
-                             return (OOK, env')
-           IPretty s₂  -> do t <- parse s₂
-                             return (OPretty (whnf env t), env)
+                             (env', m) <- parseE (parseModule' env s)
+                             env'' <- tyE (tyCheck env' m)
+                             return (OOK, env'')
+           IPretty s₂  -> do (env', t) <- parse env s₂
+                             return (OPretty (whnf env t), env')
            IQuit       -> return (OQuit, env)
            ISkip       -> return (OSkip, env)
   where
     ret     = ErrorT . return
     parseE  = ret . left TermParse
     tyE     = ret . left TyCheck
-    parse   = parseE . parseTerm
+    parse e = parseE . parseTerm' e
     tyct    = tyE . tyCheckT env
     readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
 

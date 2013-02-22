@@ -4,13 +4,14 @@
 module Kant.Uniquify
     ( Uniquify(..)
     , UniqueM
+    , runUniquify
     , Count
     , revert
     ) where
 
 import           Control.Applicative ((<$>), (<*>), (<$))
 
-import           Control.Monad.State (State, MonadState(..), evalState)
+import           Control.Monad.State (State, MonadState(..), evalState, runState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
@@ -26,6 +27,10 @@ type UniqueM = State Count
 
 class Uniquify f where
     uniquify :: f Void Id -> UniqueM (f Id Tag)
+
+runUniquify :: Uniquify f => Env -> f Void Id -> (Env, f Id Tag)
+runUniquify env@Env{envCount = c} t = (env{envCount = c'}, t')
+  where (t', c') = runState (uniquify t) c
 
 fresh :: State Count Id
 fresh = do ta <- get
@@ -181,6 +186,9 @@ instance Uniquify DataT where
                              | (c', pars₂) <- cons]
            return (Data c (packPars pars₁') l cons')
 
+
+instance Uniquify ModuleT where
+    uniquify (Module decls) = Module <$> mapM uniquify decls
 
 revert :: Term -> TermV
 revert t = evalState (revert' t) (ixs, Map.empty)
