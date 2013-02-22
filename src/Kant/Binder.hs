@@ -3,39 +3,28 @@ module Kant.Binder
     ( Binder(..)
     , isBind
     , isWild
-    , fromBinder
+    , bindElem
+    , bind
     ) where
 
-import           Control.Applicative (Applicative(..))
-import           Control.Monad (ap, MonadPlus(..))
+-- | The @n@ is a forgettable name.
+data Binder n a
+    = Bind n a
+    | Wild
+    deriving (Show, Functor)
 
--- | Something isomorphic to 'Maybe' for the time being, might change in the
---   future.
-data Binder n = Bind n | Wild
-    deriving (Show, Eq, Functor)
-
-isBind, isWild :: Binder n -> Bool
-isBind (Bind _) = True
-isBind Wild     = False
+isBind, isWild :: Binder n a -> Bool
+isBind (Bind _ _) = True
+isBind Wild       = False
 isWild = not . isBind
 
-fromBinder :: n -> Binder n -> n
-fromBinder x Wild     = x
-fromBinder _ (Bind x) = x
+instance Eq a => Eq (Binder n a) where
+    Wild     == Wild     = True
+    Bind _ a == Bind _ b = a == b
+    _        == _        = False
 
-instance Monad Binder where
-    return = Bind
+bindElem :: Eq a => a -> [Binder n a] -> Bool
+bindElem x bs = not (null ([() | Bind _ x' <- bs, x == x']))
 
-    Bind n >>= f = f n
-    Wild   >>= _ = Wild
-
-instance Applicative Binder where
-    pure = return
-    (<*>) = ap
-
-instance MonadPlus Binder where
-    mzero = Wild
-
-    Wild `mplus` b    = b
-    b    `mplus` Wild = b
-    b    `mplus` _    = b
+bind :: a -> Binder a a
+bind n = Bind n n

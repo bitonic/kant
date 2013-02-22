@@ -98,14 +98,11 @@ tyCheckT env (Arr b ty₁ ty₂) =
 tyCheckT env (App t₁ t₂) =
     do ty₁ <- tyCheckT env t₁
        case nf env ty₁ of
-           Arr b ty₂ ty₃ -> subst'' b t₁ ty₃ <$ tyCheckEq env ty₂ t₂
+           Arr b ty₂ ty₃ -> subst' b t₁ ty₃ <$ tyCheckEq env ty₂ t₂
            _             -> throwError (ExpectingFunction t₁ ty₁)
+tyCheckT env (Lam b ty t) = undefined
 tyCheckT _ _ = undefined
 
--- tyCheckT env (Lam ty s) =
---     do tyCheckT env ty
---        tys <- toScope <$> nestTyCheckM env s ty tyCheckT
---        return (Arr ty tys)
 -- tyCheckT env@Env{envNest = nest} (Constr c pars args) =
 --     tyCheckT env (app (Var (nest c) : pars ++ args))
 -- tyCheckT env (Fix ty (FixT i ss)) =

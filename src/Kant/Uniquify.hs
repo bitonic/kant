@@ -1,4 +1,6 @@
 {-# LANGUAGE TupleSections #-}
+-- TODO this is *really* ugly, I should really look for some good abstractions
+-- and reimplement those functions.
 module Kant.Uniquify
     ( Uniquify(..)
     , UniqueM
@@ -7,17 +9,13 @@ module Kant.Uniquify
     ) where
 
 import           Control.Applicative ((<$>), (<*>), (<$))
-import           Control.Arrow (second)
 
 import           Control.Monad.State (State, MonadState(..))
-import           Data.Set (Set)
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import           Data.Void
 
 import           Kant.Term
-import           Kant.Name
 
 type Count = Integer
 
@@ -31,32 +29,38 @@ fresh = do ta <- get
            put (ta + 1)
            return (show ta)
 
-freshBinder :: Binder Id -> State Count (Binder Id)
+freshBinder :: TBinderT Id -> State Count (TBinderT Id)
 freshBinder b = (<$ b) <$> fresh
 
 instance Uniquify TermT where
-    uniquify t = do t' <- uniquify' t
-                    let (vs, vsBound) = collect t'
-                    return (replace (Set.difference vs vsBound) t')
+    uniquify t = packt <$> doUniquify t
 
-substTag :: Binder Id -> Binder Id -> TermV -> TermV
-substTag Wild      _          t = t
-substTag (Bind ta) (Bind ta') t = subst ta (\n -> Var (Bound n ta')) t
-substTag _         _          _ = error "Uniquify.substTag': Binder mismatch"
 
-substBrsTag :: Binder Id -> Binder Id -> [BranchV] -> [BranchV]
-substBrsTag Wild      _          brs = brs
-substBrsTag (Bind ta) (Bind ta') brs = substBrs ta (\n -> Var (Bound n ta')) brs
-substBrsTag _         _          _   =
-    error "Uniquify.substBrsTag: Binder mismatch"
+doUniquify :: TermV -> UniqueM (TermT Id Id)
+doUniquify = uniquify' . collect . separate
 
-substParsTag :: Binder Id -> Binder Id -> [ParamV] -> TermV -> ([ParamV], TermV)
-substParsTag Wild       _         brs t = (brs, t)
-substParsTag (Bind ta) (Bind ta') brs t = substPars ta (\n -> Var (Bound n ta')) brs t
-substParsTag _         _          _   _ =
-    error "Uniquify.substParsTag: Binder mismatch"
+instance Uniquify DeclT where
+    uniquify (Val n t) = Val n <$> uniquify t
+    uniquify (DataD dd) = DataD <$> uniquify dd
+    uniquify (Postulate n ty) = Postulate n <$> uniquify ty
 
-uniquify' :: TermV -> UniqueM TermV
+packt :: TermT Id Id -> Term
+packt (Var (Bound n)) = bound (Text.pack n)
+packt (Var (Free n))  = free n
+packt (Type l) = Type l
+packt (App t₁ t₂) = App (packt t₁) (packt t₂)
+packt (Arr b ty₁ ty₂) = Arr (Text.pack <$> b) (packt ty₁) (packt ty₂)
+packt (Lam b ty t) = Lam (Text.pack <$> b) (packt ty) (packt t)
+packt (Case b t ty brs) =
+    Case (Text.pack <$> b) (packt t) (packt ty)
+         [(c, map (Text.pack <$>) bs, packt t') | (c, bs, t') <- brs]
+packt (Fix b pars ty t) = Fix (Text.pack <$> b) (packPars pars) (packt ty) (packt t)
+packt (Constr c tys ts) = Constr c (map packt tys) (map packt ts)
+
+packPars :: [(TBinderT Id, TermT Id Id)] -> [(TBinder, Term)]
+packPars pars = [(Text.pack <$> b', packt ty') | (b', ty') <- pars]
+
+uniquify' :: TermT Id Id -> UniqueM (TermT Id Id)
 uniquify' t@(Var _) = return t
 uniquify' t@(Type _) = return t
 uniquify' (App t₁ t₂) = App <$> uniquify' t₁ <*> uniquify' t₂
@@ -76,105 +80,116 @@ uniquify' (Fix b pars ty t) =
        Fix b' pars' ty' <$> uniquify' (substTag b b' t)
 uniquify' (Constr c tys ts) = Constr c <$> mapM uniquify' tys <*> mapM uniquify' ts
 
-uniquifyBrs :: [BranchV] -> UniqueM [BranchV]
+uniquifyBrs :: [BranchT Id Id] -> UniqueM [BranchT Id Id]
 uniquifyBrs = mapM go
   where
-    go :: BranchV -> UniqueM BranchV
     go (c, bs, t) = do bsFresh <- mapM (\b -> (b,) <$> freshBinder b) bs
                        let t' = foldr (\(b, b') -> substTag b b') t bsFresh
                        return (c, map snd bsFresh, t')
 
-uniquifyPars :: [ParamV] -> TermV -> UniqueM ([ParamV], TermV)
+-- uniquifyPars :: [ParamV] -> TermV -> UniqueM ([ParamV], TermV)
 uniquifyPars pars ty = paramsFun uniquify' pars ty
 
-collect :: TermV -> (Set Id, Set Id)
+-- substTag :: TBinderT Id -> TBinderT Id -> TermT Id Id -> TermT Id Id
+substTag Wild        _            t = t
+substTag (Bind _ ta) (Bind _ ta') t = subst ta (bound ta') t
+substTag _           _            _ = error "Uniquify.substTag': Binder mismatch"
+
+-- substBrsTag :: TBinderT Id -> TBinderT Id -> [BranchV] -> [BranchV]
+substBrsTag Wild        _            brs = brs
+substBrsTag (Bind _ ta) (Bind _ ta') brs = substBrs ta (bound ta') brs
+substBrsTag _           _            _   =
+    error "Uniquify.substBrsTag: Binder mismatch"
+
+-- substParsTag :: TBinderT Id -> TBinderT Id -> [ParamT Id Id] -> Term -> ([ParamV], TermV)
+substParsTag Wild        _            brs t = (brs, t)
+substParsTag (Bind _ ta) (Bind _ ta') brs t = substPars ta (bound ta') brs t
+substParsTag _           _            _   _ =
+    error "Uniquify.substParsTag: Binder mismatch"
+
+collect :: TermT Void (Either Id Id) -> TermT Id Id
 collect (Var (Free v)) = absurd v
-collect (Var (Bound _ ta)) = lsingle ta
-collect (Type _) = (Set.empty, Set.empty)
-collect (App t₁ t₂) = collect t₁ `dunion` collect t₂
-collect (Arr b ty₁ ty₂) = rsingle b `dunion` collect ty₁ `dunion` collect ty₂
-collect (Lam b ty t) = rsingle b `dunion` collect ty `dunion` collect t
+collect (Var (Bound (Left n))) = free n
+collect (Var (Bound (Right n))) = bound n
+collect (Type l) = Type l
+collect (App t₁ t₂) = App (collect t₁) (collect t₂)
+collect (Arr b ty₁ ty₂) = Arr (collectRight <$> b) (collect ty₁) (collect ty₂)
+collect (Lam b ty t) = Lam (collectRight <$> b) (collect ty) (collect t)
 collect (Case b t ty brs) =
-    rsingle b `dunion` collect t `dunion` collect ty `dunion`
-    dunions [dunions (map rsingle bs) `dunion` collect t' | (_, bs, t') <- brs]
-collect (Constr _ tys ts) = dunions (map collect tys) `dunion` dunions (map collect ts)
+    Case (collectRight <$> b) (collect t) (collect ty)
+         [(c, map (collectRight <$>) bs, collect t') | (c, bs, t') <- brs]
+collect (Constr c tys ts) = Constr c (map collect tys) (map collect ts)
 collect (Fix b pars ty t) =
-    rsingle b `dunion` collectPars pars `dunion` collect ty `dunion` collect t
+    Fix (collectRight <$> b)
+        [(collectRight <$> b', collect ty') | (b', ty') <- pars]
+        (collect ty) (collect t)
 
-collectPars :: [(Binder Id, TermV)] -> (Set Id, Set Id)
-collectPars pars = dunions [rsingle b' `dunion` collect ty' | (b', ty') <- pars]
+collectRight :: Either Id Id -> Id
+collectRight (Right n) = n
+collectRight (Left _)  = error "collect: got a Left binder"
 
-lsingle :: a -> (Set a, Set b)
-lsingle ta = (Set.singleton ta, Set.empty)
+separate :: TermV -> TermT Void (Either Id Id)
+separate (Var (Free v)) = absurd v
+separate (Var (Bound n)) = bound (Left n)
+separate (Type l) = Type l
+separate (App t₁ t₂) = App (separate t₁) (separate t₂)
+separate (Arr b ty₁ ty₂) =
+    Arr (Right <$> b) (separate ty₁) (substE' b ty₂)
+separate (Lam b ty t) =
+    Lam (Right <$> b) (separate ty) (substE' b t)
+separate (Case b t ty brs) =
+    Case (Right <$> b) (separate t) (substE' b ty) (substBrsE' b brs)
+separate (Constr c tys ts) = Constr c (map separate tys) (map separate ts)
+separate (Fix b pars ty t) =
+    Fix (Right <$> b) pars' ty' (substE' b t)
+  where (pars', ty') = paramsFun' separate pars ty
 
-rsingle :: Binder t -> (Set a, Set t)
-rsingle Wild = (Set.empty, Set.empty)
-rsingle (Bind ta) = (Set.empty, Set.singleton ta)
+separateBrs :: [BranchV] -> [BranchT Void (Either Id Id)]
+separateBrs brs = [ (c, map (Right <$>) bs,
+                     foldr (\b t' -> substE b t') (separate t) bs)
+                  | (c, bs, t) <- brs]
 
-dunion :: (Set Id, Set Id) -> (Set Id, Set Id) -> (Set Id, Set Id)
-(vs, vsb) `dunion` (vs', vsb') = (Set.union vs vs', Set.union vsb vsb')
+substE :: TBinderT Id -> TermT Void (Either Id Id)
+       -> TermT Void (Either Id Id)
+substE (Bind _ ta) t = subst (Left ta) (Var (Bound (Right ta))) t
+substE _           t = t
 
-dunions :: [(Set Id, Set Id)] -> (Set Id, Set Id)
-dunions []  = (Set.empty, Set.empty)
-dunions vss = foldr1 dunion vss
+substE' :: TBinderT Id -> TermV -> TermT Void (Either Id Id)
+substE' b t = substE b (separate t)
 
-replace :: Set Id -> TermV -> Term
-replace _  (Var (Free v)) = absurd v
-replace vs (Var (Bound n v)) | Set.member v vs = Var (Free n)
-replace _  (Var (Bound n v)) = Var (Bound n (Text.pack v))
-replace _  (Type l) = Type l
-replace vs (App t₁ t₂) = App (replace vs t₁) (replace vs t₂)
-replace vs (Arr b ty₁ ty₂) = Arr (Text.pack <$> b) (replace vs ty₁) (replace vs ty₂)
-replace vs (Lam b ty t) = Lam (Text.pack <$> b) (replace vs ty) (replace vs t)
-replace vs (Case b t ty brs) =
-    Case (Text.pack <$> b) (replace vs t) (replace vs ty)
-         [(c, map (Text.pack <$>) bs, replace vs t') | (c, bs, t') <- brs]
-replace vs (Constr c tys ts) = Constr c (map (replace vs) tys) (map (replace vs) ts)
-replace vs (Fix b pars ty t) = Fix (Text.pack <$> b) (replacePars vs pars)
-                                   (replace vs ty) (replace vs t)
+substBrsE :: TBinderT Id -> [BranchT Void (Either Id Id)]
+          -> [BranchT Void (Either Id Id)]
+substBrsE (Bind _ ta) brs = substBrs (Left ta) (Var (Bound (Right ta))) brs
+substBrsE Wild        brs = brs
 
-replacePars :: Set Id -> [ParamV] -> [Param]
-replacePars vs pars = [(Text.pack <$> b', replace vs ty') | (b', ty') <- pars]
+substBrsE' :: TBinderT Id -> [BranchV] -> [BranchT Void (Either Id Id)]
+substBrsE' b brs = substBrsE b (separateBrs brs)
 
 instance Uniquify DataT where
     uniquify (Data c pars₁ l cons) =
-        do (pars₁', Type _) <- paramsFun uniquify' pars₁ (Type l)
+        do (pars₁', Type _) <- paramsFun doUniquify pars₁ (Type l)
            let bs = zip (map fst pars₁) (map fst pars₁')
-               -- We use this as a placeholder to use the 'paramsFun' functions
-               dummy = Var (bound "dummy")
+         -- We use this as a placeholder to use the 'paramsFun' functions
+               dummy = bound "dummy"
                sub (b, b') ps = fst (substParsTag b b' ps dummy)
-           cons' <- sequence
-                    [ ((c',) . fst) <$> uniquifyPars (foldr sub pars₂ bs) dummy
-                    | (c', pars₂) <- cons]
-           let dd = Data c pars₁' l cons'
-               (vs, vsBound) = collectData dd
-           return (replaceData (Set.difference vs vsBound) dd)
-
-collectData :: DataV -> (Set Id, Set Id)
-collectData (Data _ pars _ cons) =
-    collectPars pars `dunion` dunions (map (collectPars . snd) cons)
-
-replaceData :: Set Id -> DataV -> Data
-replaceData vs (Data c pars l cons) =
-    Data c (replacePars vs pars) l (map (second (replacePars vs)) cons)
-
-instance Uniquify DeclT where
-    uniquify (Val n t) = Val n <$> uniquify t
-    uniquify (DataD dd) = DataD <$> uniquify dd
-    uniquify (Postulate n ty) = Postulate n <$> uniquify ty
+           cons' <- sequence [ (\(pars₂', _) -> (c', packPars pars₂')) <$>
+                               paramsFun doUniquify (foldr sub pars₂ bs) dummy
+                             | (c', pars₂) <- cons]
+           return (Data c (packPars pars₁') l cons')
 
 revert :: Term -> TermV
-revert (Var (Free n)) = Var (bound n)
--- TODO make names better
-revert (Var (Bound _ v)) = Var (bound (Text.unpack v))
-revert (Type l) = Type l
-revert (App t₁ t₂) = App (revert t₁) (revert t₂)
-revert (Arr b ty₁ ty₂) = Arr (Text.unpack <$> b) (revert ty₁) (revert ty₂)
-revert (Lam b ty t) = Lam (Text.unpack <$> b) (revert ty) (revert t)
-revert (Case b t ty brs) =
-    Case (Text.unpack <$> b) (revert t) (revert ty)
-         [(c, map (Text.unpack <$>) bs, revert t') | (c, bs, t') <- brs]
-revert (Constr c tys ts) = Constr c (map revert tys) (map revert ts)
-revert (Fix b pars ty t) = Fix (Text.unpack <$> b)
-                          [(Text.unpack <$> b', revert ty') | (b', ty') <- pars]
-                          (revert ty) (revert t)
+revert = undefined
+-- revert (Var (Free n)) = Var (bound n)
+-- -- TODO make names better
+-- revert (Var (Bound _ v)) = Var (bound (Text.unpack v))
+-- revert (Type l) = Type l
+-- revert (App t₁ t₂) = App (revert t₁) (revert t₂)
+-- revert (Arr b ty₁ ty₂) = Arr (Text.unpack <$> b) (revert ty₁) (revert ty₂)
+-- revert (Lam b ty t) = Lam (Text.unpack <$> b) (revert ty) (revert t)
+-- revert (Case b t ty brs) =
+--     Case (Text.unpack <$> b) (revert t) (revert ty)
+--          [(c, map (Text.unpack <$>) bs, revert t') | (c, bs, t') <- brs]
+-- revert (Constr c tys ts) = Constr c (map revert tys) (map revert ts)
+-- revert (Fix b pars ty t) = Fix (Text.unpack <$> b)
+--                           [(Text.unpack <$> b', revert ty') | (b', ty') <- pars]
+--                           (revert ty) (revert t)

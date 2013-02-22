@@ -7,7 +7,6 @@ module Kant.Reduce
 
 import           Control.Arrow (second)
 
-import           Kant.Name
 import           Kant.Term
 import           Kant.Environment
 
@@ -34,9 +33,7 @@ reduce r env (App t₁ t₂) =
                 args'         = args ++ [t₂']
                 i             = length pars
                 (fargs, rest) = splitAt i args'
-                t'            = case b of
-                                    Wild    -> t
-                                    Bind ta -> subst' ta ft t
+                t'            = subst' b ft t
             in if i > length args' || not (all constr fargs)
                then App t₁' t₂'
                else app (reduce r (upJustVals' env (zip (map fst pars) fargs)) t' :

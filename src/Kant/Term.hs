@@ -10,6 +10,8 @@ module Kant.Term
     , Tag
     , Name(..)
     , Binder(..)
+    , TBinderT
+    , TBinder
     , ModuleT(..)
     , Module
     , ModuleV
@@ -25,7 +27,6 @@ module Kant.Term
     , ConstrT
     , Constr
     , ConstrV
-    , TNameT
     , TName
     , TermT(..)
     , Term
@@ -34,6 +35,8 @@ module Kant.Term
     , Branch
     , BranchV
       -- * Smart constructors
+    , bound
+    , free
     , lams
     , arrs
     , arr
@@ -50,9 +53,6 @@ module Kant.Term
     , substPars
     , substBrs
     , subst'
-    , subst''
-    , substPars'
-    , substBrs'
     ) where
 
 import           Control.Arrow (first, second)
@@ -104,9 +104,12 @@ newtype ModuleT fr tag = Module {unModule :: [DeclT fr tag]}
 type Module = ModuleT Id Tag
 type ModuleV = ModuleT Void Id
 
+type TBinderT = Binder Id
+type TBinder = TBinderT Tag
+
 -- | Parameters for binders - we mostly use it when forming things and for
 --   data/type constructors.
-type ParamT fr tag = (Binder tag, TermT fr tag)
+type ParamT fr tag = (TBinderT tag, TermT fr tag)
 type Param = ParamT Id Tag
 type ParamV = ParamT Void Id
 
@@ -135,12 +138,11 @@ type Constr = ConstrT Id Tag
 type ConstrV = ConstrT Void Id
 
 -- | A 'Name' with an 'Id' name.
-type TNameT fr tag = Name fr Id tag
-type TName  = TNameT Id Tag
+type TName  = Name Id Tag
 
 -- | Terms for our language.  This is what we typecheck and reduce.
 data TermT fr tag
-    = Var (TNameT fr tag)
+    = Var (Name fr tag)
       -- | The type of types
     | Type Level
       -- | Function application.  To the left we expect either a 'Lam' or a
@@ -148,11 +150,11 @@ data TermT fr tag
     | App (TermT fr tag) (TermT fr tag)
       -- | Constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
       --   Type (n ⊔ m)@.
-    | Arr (Binder tag) (TermT fr tag) (TermT fr tag)
+    | Arr (TBinderT tag) (TermT fr tag) (TermT fr tag)
       -- | Lambda abstraction.
-    | Lam (Binder tag) (TermT fr tag) (TermT fr tag)
+    | Lam (TBinderT tag) (TermT fr tag) (TermT fr tag)
       -- | Pattern matching.
-    | Case (Binder tag)         -- Name for the scrutined
+    | Case (TBinderT tag)       -- Name for the scrutined
            (TermT fr tag)       -- Scrutined
            (TermT fr tag)       -- Return type
            [BranchT  fr tag]
@@ -160,7 +162,7 @@ data TermT fr tag
     | Constr ConId              -- Constructor
              [TermT fr tag]     -- Type parameters
              [TermT fr tag]     -- Data Parameters
-    | Fix (Binder tag)
+    | Fix (TBinderT tag)
           [ParamT fr tag]       -- Arguments to the function.
           (TermT fr tag)        -- Return type
           (TermT fr tag)        -- Body
@@ -168,12 +170,18 @@ data TermT fr tag
 type Term = TermT Id Tag
 type TermV = TermT Void Id
 
-type BranchT fr tag = (ConId, [Binder tag], TermT fr tag)
+type BranchT fr tag = (ConId, [TBinderT tag], TermT fr tag)
 type Branch = BranchT Id Tag
 type BranchV = BranchT Void Id
 
+bound :: t -> TermT f t
+bound = Var . Bound
+
+free :: f -> TermT f t
+free = Var . Free
+
 -- | Folds a list of parameters.
-params :: (Binder t -> TermT f t -> TermT f t -> TermT f t)
+params :: (TBinderT t -> TermT f t -> TermT f t -> TermT f t)
        -> [ParamT f t] -> TermT f t -> TermT f t
 params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
 
@@ -227,14 +235,12 @@ moduleNames = concatMap go . unModule
 
 ------
 
-jumpBind :: Eq tag => tag -> Binder tag -> a -> a -> a
-jumpBind ta₁ (Bind ta₂) x _ | ta₁ == ta₂ = x
-jumpBind _   _          _ x = x
+jumpBind :: Eq tag => tag -> TBinderT tag -> a -> a -> a
+jumpBind ta₁ (Bind _ ta₂) x _ | ta₁ == ta₂ = x
+jumpBind _   _            _ x = x
 
-type Subst fr tag = Id -> TermT fr tag
-
-subst :: Eq tag => tag -> Subst fr tag -> TermT fr tag -> TermT fr tag
-subst ta₁ f (Var (Bound n ta₂)) | ta₁ == ta₂ = f n
+subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
+subst ta₁ f (Var (Bound ta₂)) | ta₁ == ta₂ = f
 subst _ _ t@(Var _) = t
 subst _ _ t@(Type _) = t
 subst ta f (App t₁ t₂) = App (subst ta f t₁) (subst ta f t₂)
@@ -248,33 +254,22 @@ subst ta f (Constr c tys ts) = Constr c (map (subst ta f) tys) (map (subst ta f)
 subst ta f (Fix b pars ty t) = Fix b pars' ty' (substBind ta f b t)
   where (pars', ty') = substPars ta f pars ty
 
-subst' :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
-subst' ta t = subst ta (const t)
+subst' :: Eq t => TBinderT t -> TermT f t -> TermT f t -> TermT f t
+subst' Wild        _  t = t
+subst' (Bind _ ta) t₁ t₂ = subst ta t₁ t₂
 
-subst'' :: Eq t => Binder t -> TermT f t -> TermT f t -> TermT f t
-subst'' Wild      _  t = t
-subst'' (Bind ta) t₁ t₂ = subst' ta t₁ t₂
-
-substBind :: Eq tag => tag -> Subst fr tag -> Binder tag -> TermT fr tag
+substBind :: Eq tag => tag -> TermT fr tag -> TBinderT tag -> TermT fr tag
           -> TermT fr tag
 substBind ta f b t = jumpBind ta b t (subst ta f t)
 
 substPars :: Eq tag
-          => tag -> Subst fr tag -> [ParamT fr tag] -> TermT fr tag
+          => tag -> TermT fr tag -> [ParamT fr tag] -> TermT fr tag
           -> ([ParamT fr tag], TermT fr tag)
-substPars ta f pars ty = paramsFun' (subst ta f) pars ty
+substPars ta t pars ty = paramsFun' (subst ta t) pars ty
 
-substPars' :: Eq tag
-           => tag -> TermT fr tag -> [ParamT fr tag] -> TermT fr tag
-           -> ([ParamT fr tag], TermT fr tag)
-substPars' ta t = substPars ta (const t)
-
-substBrs :: Eq tag => tag -> Subst fr tag -> [BranchT fr tag] -> [BranchT fr tag]
-substBrs ta f brs = [ (c, bs, if Bind ta `elem` bs then t else subst ta f t)
-                    | (c, bs, t) <- brs ]
-
-substBrs' :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
-substBrs' ta t = substBrs ta (const t)
+substBrs :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
+substBrs ta t brs = [ (c, bs, if ta `bindElem` bs then t' else subst ta t t')
+                    | (c, bs, t') <- brs ]
 
 instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
     Var n           == Var n'              = n == n'
@@ -289,24 +284,22 @@ instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
         t == t' && bindEq b ty b' ty' && brEq b brs b' brs'
     _               == _                   = False
 
-bindEq :: (Eq tag, Eq fr) => Binder tag -> TermT fr tag -> Binder tag
+bindEq :: (Eq tag, Eq fr) => TBinderT tag -> TermT fr tag -> TBinderT tag
        -> TermT fr tag -> Bool
 bindEq b t b' t' = t == bindSubst b b' t'
 
-bindSubst :: (Eq tag, Eq fr) => Binder tag -> Binder tag
-          -> TermT fr tag -> TermT fr tag
-bindSubst Wild      _          t  = t
-bindSubst _         Wild       t  = t
-bindSubst (Bind ta) (Bind ta') t' = subst ta' (\n -> Var (Bound n ta)) t'
+bindSubst :: (Eq t, Eq f) => TBinderT t -> TBinderT t -> TermT f t -> TermT f t
+bindSubst Wild        _            t  = t
+bindSubst _           Wild         t  = t
+bindSubst (Bind _ ta) (Bind _ ta') t' = subst ta' (bound ta) t'
 
 brEq :: (Eq tag, Eq fr)
-     => Binder tag -> [BranchT fr tag]
-     -> Binder tag -> [BranchT fr tag]
+     => TBinderT tag -> [BranchT fr tag]
+     -> TBinderT tag -> [BranchT fr tag]
      -> Bool
-brEq Wild      brs _    brs' = brEq' brs brs'
-brEq _         brs Wild brs' = brEq' brs brs'
-brEq (Bind ta) brs (Bind ta') brs' =
-    brEq' brs (substBrs ta' (\n -> Var (Bound n ta)) brs')
+brEq Wild        brs _            brs' = brEq' brs brs'
+brEq _           brs Wild         brs' = brEq' brs brs'
+brEq (Bind _ ta) brs (Bind _ ta') brs' = brEq' brs (substBrs ta' (bound ta) brs')
 
 brEq' :: (Eq tag, Eq fr) => [BranchT fr tag] -> [BranchT fr tag] -> Bool
 brEq' [] [] = True

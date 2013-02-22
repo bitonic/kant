@@ -94,8 +94,8 @@ Params : Seq0(Param)                         { $1 }
 
 Param :: { SParam }
 Param
-    : '[' Seq(name) ':' Term ']'             { (Bind $2, $4) }
-    | SingleTerm                             { (Wild, $1) }
+    : '[' Seq(name) ':' Term ']'             { (Just $2, $4) }
+    | SingleTerm                             { (Nothing, $1) }
 
 DataCon :: { SConstr }
 DataCon : name Params                        { ($1, $2) }
@@ -117,17 +117,17 @@ SingleTerm
     | '(' Term ')'                           { $2 }
 
 Arr :: { ([SParam], STerm) }
-Arr : App '->' Arr                           { first ((Wild, $1):) $3 }
-    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Bind $2, $4):) $7 }
+Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
+    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Just $2, $4):) $7 }
     | App                                    { ([], $1) }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 
-Binder :: { Binder Id }
+Binder :: { Maybe Id }
 Binder
-    : name                                   { Bind $1 }
-    | '_'                                    { Wild }
+    : name                                   { Just $1 }
+    | '_'                                    { Nothing }
 
 {
 

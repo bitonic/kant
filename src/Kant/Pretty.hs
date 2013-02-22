@@ -39,9 +39,9 @@ instance IsString Doc where
 instance (f ~ Id, t ~ Tag) => Pretty (TermT f t) where
     pretty = pretty . (distill :: TermV -> STerm) . revert
 
-instance a ~ Id => Pretty (Binder a) where
-    pretty (Bind n) = pretty n
-    pretty Wild     = "_"
+prettyBinder :: Pretty a => Maybe a -> Doc
+prettyBinder (Just n) = pretty n
+prettyBinder Nothing  = "_"
 
 instance Pretty STerm where
     pretty (SVar v) = pretty v
@@ -79,8 +79,8 @@ prettyPars pars' d = hcat (intersperse d (go pars'))
     go [] = []
     go ((mns, ty) : pars) =
         (case mns of
-             Wild    -> singleParens ty
-             Bind ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
+             Nothing -> singleParens ty
+             Just ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
         : go pars
 
 prettyPars' :: [SParam] -> Doc
@@ -114,8 +114,8 @@ instance Pretty SDecl where
 
     prettyList = vcat . intersperse "" . map pretty
 
-prettyFixPars :: Binder Id -> [SParam] -> STerm -> Doc
-prettyFixPars b pars ty = pretty b <+> prettyPars' pars <> ":" <+> pretty ty
+prettyFixPars :: Maybe Id -> [SParam] -> STerm -> Doc
+prettyFixPars b pars ty = prettyBinder b <+> prettyPars' pars <> ":" <+> pretty ty
 
 prettyValPars :: Id -> SValParams -> STerm -> Doc
 prettyValPars n (SValParams pars rest) ty =
