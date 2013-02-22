@@ -120,6 +120,9 @@ dataDecl (Data c pars l cons) =
     cons' = [(c', (Just (resTy pars'), Just (conFun c' pars'))) | (c', pars') <- cons]
     resTy pars' = arrs (pars ++ pars') (Var (Free c))
     conFun c' pars' =
+        -- TODO this is wrong, we are putting the body of the parameters and
+        -- not the binders!  Fresh names need to be generated for the arguments
+        -- and then substituted in each type...
         lams (pars ++ pars') (Constr c' (map snd pars) (map snd pars'))
 
 -- | Adds the type constructors and the data declarations as abstracted variable

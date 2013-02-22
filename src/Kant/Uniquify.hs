@@ -1,6 +1,9 @@
 {-# LANGUAGE TupleSections #-}
 -- TODO this is *really* ugly, I should really look for some good abstractions
 -- and reimplement those functions.
+-- TODO the Fix stuff is broken, since we do not consider the fact that the
+-- arguments scope over the whole body.  I've marked the offending sites with
+-- FIXME.
 module Kant.Uniquify
     ( Uniquify(..)
     , UniqueM
@@ -82,6 +85,7 @@ uniquify' (Case b t ty brs) =
     do b' <- freshBinder b
        Case b' <$> uniquify' t <*> uniquify' (substTag b b' ty)
                <*> uniquifyBrs (substBrsTag b b' brs)
+-- FIXME
 uniquify' (Fix b pars ty t) =
     do b' <- freshBinder b
        (pars', ty') <- uncurry uniquifyPars (substParsTag b b' pars ty)
@@ -149,6 +153,7 @@ separate (Lam b ty t) =
 separate (Case b t ty brs) =
     Case (Right <$> b) (separate t) (substE' b ty) (substBrsE' b brs)
 separate (Constr c tys ts) = Constr c (map separate tys) (map separate ts)
+-- FIXME
 separate (Fix b pars ty t) =
     Fix (Right <$> b) pars' ty' (substE' b t)
   where (pars', ty') = paramsFun' separate pars ty
@@ -190,6 +195,8 @@ instance Uniquify DataT where
 instance Uniquify ModuleT where
     uniquify (Module decls) = Module <$> mapM uniquify decls
 
+-- TODO this is broken when it gets passed non-closed terms, fix by accepting an
+-- environment with names.
 revert :: Term -> TermV
 revert t = evalState (revert' t) (ixs, Map.empty)
   where ixs = Map.fromList (zip (Set.toList (collectFree t)) (repeat 0))

@@ -252,6 +252,8 @@ subst ta f (Case b t ty brs) =
   where
     (ty', brs') = jumpBind ta b (ty, brs) ((subst ta f ty), substBrs ta f brs)
 subst ta f (Constr c tys ts) = Constr c (map (subst ta f) tys) (map (subst ta f) ts)
+-- TODO this is broken for the same reason that Fix is broken in Uniquify: the
+-- parameters scope over the body as well.
 subst ta f (Fix b pars ty t) = Fix b pars' ty' (substBind ta f b t)
   where (pars', ty') = substPars ta f pars ty
 
