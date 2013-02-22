@@ -10,7 +10,11 @@ module Kant.Uniquify
 
 import           Control.Applicative ((<$>), (<*>), (<$))
 
-import           Control.Monad.State (State, MonadState(..))
+import           Control.Monad.State (State, MonadState(..), evalState)
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import           Data.Void
@@ -177,19 +181,59 @@ instance Uniquify DataT where
                              | (c', pars₂) <- cons]
            return (Data c (packPars pars₁') l cons')
 
+
 revert :: Term -> TermV
-revert = undefined
--- revert (Var (Free n)) = Var (bound n)
--- -- TODO make names better
--- revert (Var (Bound _ v)) = Var (bound (Text.unpack v))
--- revert (Type l) = Type l
--- revert (App t₁ t₂) = App (revert t₁) (revert t₂)
--- revert (Arr b ty₁ ty₂) = Arr (Text.unpack <$> b) (revert ty₁) (revert ty₂)
--- revert (Lam b ty t) = Lam (Text.unpack <$> b) (revert ty) (revert t)
--- revert (Case b t ty brs) =
---     Case (Text.unpack <$> b) (revert t) (revert ty)
---          [(c, map (Text.unpack <$>) bs, revert t') | (c, bs, t') <- brs]
--- revert (Constr c tys ts) = Constr c (map revert tys) (map revert ts)
--- revert (Fix b pars ty t) = Fix (Text.unpack <$> b)
---                           [(Text.unpack <$> b', revert ty') | (b', ty') <- pars]
---                           (revert ty) (revert t)
+revert t = evalState (revert' t) (ixs, Map.empty)
+  where ixs = Map.fromList (zip (Set.toList (collectFree t)) (repeat 0))
+
+collectFree :: Term -> Set Id
+collectFree (Var (Free n)) = Set.singleton n
+collectFree (Var _) = Set.empty
+collectFree (Type _) = Set.empty
+collectFree (App t₁ t₂) = collectFree t₁ `Set.union` collectFree t₂
+collectFree (Arr _ ty t) = collectFree ty `Set.union` collectFree t
+collectFree (Lam _ ty t) = collectFree ty `Set.union` collectFree t
+collectFree (Case _ t ty brs) =
+    collectFree t `Set.union` collectFree ty `Set.union`
+    Set.unions [collectFree t' | (_, _, t') <- brs]
+collectFree (Constr _ tys ts) =
+    Set.unions (map collectFree tys) `Set.union` Set.unions (map collectFree ts)
+collectFree (Fix _ pars ty t) =
+    Set.unions [collectFree t' | (_, t') <- pars] `Set.union`
+    collectFree ty `Set.union` collectFree t
+
+type RevertM = State (Map Id Int, Map Tag Id)
+
+getName :: Tag -> RevertM Id
+getName ta = do (ixs, vs) <- get
+                let n  = vs Map.! ta
+                    ix = ixs Map.! n
+                return (n ++ (if ix > 0 then show ix else ""))
+
+bumpName :: TBinder -> RevertM (TBinderT Id)
+bumpName Wild        = return Wild
+bumpName (Bind n ta) = do (ixs, vs) <- get
+                          let ix = maybe 0 (+1) (Map.lookup n ixs)
+                          put (Map.insert n ix ixs, Map.insert ta n vs)
+                          Bind n <$> getName ta
+
+revert' :: Term -> RevertM TermV
+-- TODO don't worry about duplicate names in different branches
+revert' (Var (Free n)) = return (bound n)
+revert' (Var (Bound ta)) = bound <$> getName ta
+revert' (Type l) = return (Type l)
+revert' (Arr b ty₁ ty₂) =
+    Arr <$> bumpName b <*> revert' ty₁ <*> revert' ty₂
+revert' (App t₁ t₂) = App <$> revert' t₁ <*> revert' t₂
+revert' (Lam b ty t) = Lam <$> bumpName b <*> revert' ty <*> revert' t
+revert' (Case b t ty brs) =
+    Case <$> bumpName b <*> revert' t <*> revert' ty
+         <*> sequence [ do bs' <- mapM bumpName bs
+                           (c, bs',) <$> revert' t'
+                      | (c, bs, t') <- brs ]
+revert' (Fix b pars ty t) =
+    do b' <- bumpName b
+       (pars', ty') <- paramsFun revert' pars ty
+       Fix b' pars' ty' <$> revert' t
+revert' (Constr c tys ts) = Constr c <$> mapM revert' tys <*> mapM revert' ts
+
