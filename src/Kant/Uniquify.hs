@@ -91,21 +91,22 @@ uniquifyBrs = mapM go
                        let t' = foldr (\(b, b') -> substTag b b') t bsFresh
                        return (c, map snd bsFresh, t')
 
--- uniquifyPars :: [ParamV] -> TermV -> UniqueM ([ParamV], TermV)
+uniquifyPars :: [ParamT Id Id] -> TermT Id Id -> UniqueM ([ParamT Id Id], TermT Id Id)
 uniquifyPars pars ty = paramsFun uniquify' pars ty
 
--- substTag :: TBinderT Id -> TBinderT Id -> TermT Id Id -> TermT Id Id
+substTag :: Eq t => Binder n t -> Binder n t -> TermT f t -> TermT f t
 substTag Wild        _            t = t
 substTag (Bind _ ta) (Bind _ ta') t = subst ta (bound ta') t
 substTag _           _            _ = error "Uniquify.substTag': Binder mismatch"
 
--- substBrsTag :: TBinderT Id -> TBinderT Id -> [BranchV] -> [BranchV]
+substBrsTag :: Eq t => Binder n t -> Binder n t -> [BranchT f t] -> [BranchT f t]
 substBrsTag Wild        _            brs = brs
 substBrsTag (Bind _ ta) (Bind _ ta') brs = substBrs ta (bound ta') brs
 substBrsTag _           _            _   =
     error "Uniquify.substBrsTag: Binder mismatch"
 
--- substParsTag :: TBinderT Id -> TBinderT Id -> [ParamT Id Id] -> Term -> ([ParamV], TermV)
+substParsTag :: Eq t => Binder n t -> Binder t t -> [ParamT f t] -> TermT f t
+             -> ([ParamT f t], TermT f t)
 substParsTag Wild        _            brs t = (brs, t)
 substParsTag (Bind _ ta) (Bind _ ta') brs t = substPars ta (bound ta') brs t
 substParsTag _           _            _   _ =
