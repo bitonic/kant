@@ -20,8 +20,7 @@ import qualified Data.Text as Text
 import           Data.Void
 
 import           Kant.Term
-
-type Count = Integer
+import           Kant.Environment
 
 type UniqueM = State Count
 

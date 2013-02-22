@@ -53,6 +53,7 @@ module Kant.Term
     , substPars
     , substBrs
     , subst'
+    , substMany
     ) where
 
 import           Control.Arrow (first, second)
@@ -270,6 +271,9 @@ substPars ta t pars ty = paramsFun' (subst ta t) pars ty
 substBrs :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
 substBrs ta t brs = [ (c, bs, if ta `bindElem` bs then t' else subst ta t t')
                     | (c, bs, t') <- brs ]
+
+substMany :: Eq t => [ParamT f t] -> TermT f t -> TermT f t
+substMany pars t = foldr (\(b, t₁) t' -> subst' b t₁ t') t pars
 
 instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
     Var n           == Var n'              = n == n'

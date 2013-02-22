@@ -7,8 +7,11 @@
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
-    ( Env
+    ( Count
+    , Env
       -- * Utilities
+    , toTag
+    , bumpCount
     , envTy
     , envDef
     , envData'
@@ -19,6 +22,7 @@ module Kant.Environment
     , upAbst
     , upAbst'
     , upVal
+    , upVal'
     , upJustVal
     , upJustVal'
     , upJustVals'
@@ -29,15 +33,16 @@ import           Control.Monad (join)
 import           Data.Foldable (foldr)
 import           Prelude hiding (foldr)
 
-import           Control.Monad.State (runState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import           Kant.Name
 import           Kant.Term
-import           Kant.Uniquify
 
 type Item = (Maybe Term, Maybe Term)
+
+type Count = Integer
 
 -- | Bringing it all together
 data Env = Env
@@ -45,6 +50,12 @@ data Env = Env
     , envData  :: Map ConId Data
     , envCount :: Count
     }
+
+bumpCount :: Env -> (Count, Env)
+bumpCount env@Env{envCount = c} = (c, env{envCount = c+1})
+
+toTag :: Count -> Tag
+toTag = Text.pack . show
 
 -- | Looks up the type of a variable.
 envTy :: Env -> TName -> Maybe Term
@@ -93,6 +104,10 @@ upAbst' env (Bind _ ta) t = upAbst env (Bound ta) t
 upVal :: Env -> TName -> Term -> Term -> Env
 upVal env v ty t = upCtx env v (Just ty) (Just t)
 
+upVal' :: Env -> TBinder -> Term -> Term -> Env
+upVal' env (Bind _ ta) ty t = upVal env (Bound ta) ty t
+upVal' env Wild        _  _ = env
+
 upJustVal :: Env -> TName -> Term -> Env
 upJustVal env v t = upCtx env v Nothing (Just t)
 
@@ -132,12 +147,3 @@ addData env@Env{envData = dds} dd@(Data c₁ _ _ _) =
                do env₂ <- enve;
                   maybe (Left c₂) Right (addCtx env₂ c₂ tym tm))
              (Right env₁) (tyc : cons)
-
------
-
-runUniquify' :: Env -> UniqueM a -> (Env, a)
-runUniquify' env@Env{envCount = ta} s = (env{envCount = ta'}, x)
-  where (x, ta') = runState s ta
-
-runUniquify :: Uniquify f => Env -> f Void Id -> (Env, f Id Tag)
-runUniquify env x = runUniquify' env (uniquify x)

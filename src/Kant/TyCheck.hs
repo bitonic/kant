@@ -9,10 +9,11 @@ module Kant.TyCheck
     ) where
 
 import           Control.Applicative ((<$))
+import           Control.Arrow (first)
 import           Control.Monad (unless, forM_)
-import           Prelude hiding ((!!), length, splitAt)
 
 import           Control.Monad.Error (Error(..), MonadError(..))
+import qualified Data.Set as Set
 
 import           Kant.Term
 import qualified Kant.Environment as Env
@@ -89,7 +90,7 @@ tyCheckT env (Arr b ty₁ ty₂) =
     do tyty₁ <- tyCheckT env ty₁
        case nf env tyty₁ of
            Type l₁ ->
-               do let env' = upAbst' env b tyty₁
+               do let env' = upAbst' env b ty₁
                   tyty₂ <- tyCheckT env' ty₂
                   case nf env' tyty₂ of
                       Type l₂ -> return (Type (max l₁ l₂))
@@ -100,73 +101,65 @@ tyCheckT env (App t₁ t₂) =
        case nf env ty₁ of
            Arr b ty₂ ty₃ -> subst' b t₁ ty₃ <$ tyCheckEq env ty₂ t₂
            _             -> throwError (ExpectingFunction t₁ ty₁)
-tyCheckT env (Lam b ty t) = undefined
-tyCheckT _ _ = undefined
+tyCheckT env (Lam b ty t) =
+    do tyty <- tyCheckT env ty
+       case nf env tyty of
+           Type _ -> do tyt <- tyCheckT (upAbst' env b tyty) t
+                        return (Arr b ty tyt)
+           _ -> throwError (ExpectingType ty tyty)
+tyCheckT env (Constr c pars args) =
+    tyCheckT env (app (free c : pars ++ args))
+tyCheckT env (Fix b pars ty t) =
+     do let ty' = (arrs pars ty)
+        tyCheckT env ty'
+        return ty'
+tyCheckT env ct@(Case b t ty brs) =
+    do tyt <- tyCheckT env t
+       tyCheckT (upAbst' env b tyt) ty
+       case unrollApp tyt of
+           (Var (envData' env -> Just (Data _ pars _ cons)), args)
+               | length pars == length args ->
+                   -- Check that the number of branches is just right
+                   if length brs /= Set.size (Set.fromList [c | (c, _, _) <- brs])
+                   then throwError (WrongBranchNumber ct)
+                   else subst' b t ty <$
+                        forM_ brs (checkBr tyt (zip (map fst pars) args) cons)
+           _ -> throwError (ExpectingCanonical t tyt)
+  where
+    checkBr :: Term -> [Param] -> [Constr] -> Branch -> TyCheckM ()
+    checkBr tyt parsty cons (c, bs, t') =
+        -- Check that the constructor is indeed a constructor for our datatype
+        case lookup c cons of
+            Nothing -> throwError (NotConstructor c ct)
+            -- Check that the number of arguments given to the constructor are
+            -- all there
+            Just parsd | length parsd == length bs ->
+                do let -- First, we substitute the type parameters with the
+                       -- actual ones in the data parameters
+                       parsd₁ = [substMany parsty ty' | (_, ty') <- parsd]
+                       -- Then, we substitute the parameters names with the
+                       -- names given by the branch.  First we make sure that
+                       -- each parameter has a name
+                       (bs', env₁) = fillNames env bs
+                       vs = zip (map fst parsd) [bound ta | Bind _ ta <- bs']
+                       -- Then we replace the references to data parameters
+                       parsd₂ = [(b', substMany vs ty') | (b', ty') <- zip bs' parsd₁]
+                       -- We put all the matched variables in the context
+                       env₂ = foldr (\(b', ty') e -> upAbst' e b' ty') env₁ parsd₂
+                       -- Finally, we replace the abstracted variable with the
+                       -- refined variable
+                       env₃ = upVal' env₂ b tyt
+                                     (Constr c (map snd parsty) (map snd parsd₂))
+                   tyCheckEq env₃ ty t'
+            _ -> throwError (WrongArity c ct)
 
--- tyCheckT env@Env{envNest = nest} (Constr c pars args) =
---     tyCheckT env (app (Var (nest c) : pars ++ args))
--- tyCheckT env (Fix ty (FixT i ss)) =
---      do tyCheckT env ty
---         return ty
--- tyCheckT env@Env{envNest = nest} ct@(Case t (CaseT s brs)) =
---     do ty <- tyCheckT env t
---        -- Check if the scrutined's type is canonical, which amounts to checking
---        -- that it is an application, we can find a matching type constructor,
---        -- and the arguments are all there.
---        case unrollApp ty of
---            (Var (envData' env -> Just (Data _ pars _ cons)), args)
---                | length pars == length args ->
---                    -- Check that the number of branches is just right
---                    if length brs /=
---                       fi (Set.size (Set.fromList [c | BranchT c _ _ <- brs]))
---                    then wrongBranchNumber env ct
---                    else instantiate1 t s <$ forM_ brs (checkBr args cons s)
---            _ -> expectingCanonical env t ty
---   where
---     -- TODO this is quite messy. The main culprit is the type-silent invariant
---     -- that all the lists are of the same length, and thus all the unsafe
---     -- indexing. It would be nice to have it to be safer and more "obviously
---     -- correct".
---     checkBr :: [TermT a] -> [Constr] -> TScope a -> BranchT TermT a -> TyCheckM ()
---     checkBr args cons tys (BranchT c i ss) =
---         -- Check that each constructor is indeed a constructor for our datatype
---         case [con | con@(ConstrT c' _) <- cons, c == c'] of
---             [] -> notConstructor env c ct
---             -- Check that the number of arguments given to the constructor are
---             -- all there
---             (ConstrT _ pars : _) | length pars == i ->
---                 do let -- Get the new environment with the types for the bound
---                        -- variables.  Note that we replace the scoped arguments
---                        -- to the type constructors with what we actually have.
---                        env' = intVars env
---                               (map (nest *** (instantiateList args . fmap nest)) pars)
---                        -- Prepare the term for this branch
---                        cont = Constr c (map (fmap F) args)
---                               (map (Var . B) (zipWith Name (map fst pars) [0..]))
---                        -- The type that we'd expect for the body
---                        ty' = instantiate1 cont (F <$> tys)
---                        -- Remove the branch scope's inner scope
---                        s' = toScope (instantiate1 cont (fromScope ss))
---                    tyCheckEq env' ty' (fromScope s')
---             _ -> wrongArity env c ct
-
--- -- | Prepares an environment with where variable `n' has type `pars !! n', and
--- --   all the references to previous elements in `pars' are int variables as
--- --   well.
--- intVars :: (Eq a) => EnvT a -> [(a, TermT a)] -> EnvT (Var (TName Natural) a)
--- intVars env@Env{envPull = pull} pars =
---     let -- First, bring all the types of the parameters of the data
---         -- constructor to the right level of boundness
---         nested₁ = [(n, F <$> t) | (n, t) <- pars]
---         -- Then the tricky part: for each parameter of the data
---         -- constructor, replace the variables that represent previous
---         -- arguments with the variables that will represent them in the
---         -- current scope.
---         nested₂ = [ foldr (\(n, j) t -> substitute (F n) (Var (B (Name (pull n) j))) t)
---                           (snd (nested₁ !! i))
---                           (zip (map fst nested₁) (if i == 0 then [] else [0..(i-1)]))
---                   | i <- [0..(length nested₁ - 1)] ]
---     in nestEnv env (\i -> Just (nested₂ !! i))
+-- TODO I don't think it's safe to generate names here considering that then we
+-- throw away the Env.
+fillNames :: Env -> [TBinder] -> ([TBinder], Env)
+fillNames env [] = ([], env)
+fillNames env (b@(Bind _ _) : bs) = first (b :) (fillNames env bs)
+fillNames env (Wild : bs) = first (Bind "_" (toTag c) :) (fillNames env' bs)
+  where (c, env') = bumpCount env
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: Env -> Term -> Term -> TyCheckM ()
