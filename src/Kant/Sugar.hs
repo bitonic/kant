@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
--- TODO revise variable names
 module Kant.Sugar
      ( -- * Abstract syntax tree
        Id
@@ -100,7 +99,6 @@ instance a ~ DeclV => Desugar SDecl a where
     desugar (SData c pars l cons) =
         DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
 
--- TODO broken, fix soon, the rec call should include the lambdas
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
 buildVal n (SValParams pars mfpars) ty t =
     SLam pars $
