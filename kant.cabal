@@ -47,8 +47,7 @@ Library
                       -- Kant.TyCheck
                       -- Kant.REPL
 
-    Other-Modules:    Kant.Name,
-                      Kant.Binder,
+    Other-Modules:    Kant.Binder,
                       Kant.Lexer
                       -- Kant.Uniquify
                       -- Kant.REPL.Types
