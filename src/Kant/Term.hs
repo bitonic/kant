@@ -18,9 +18,7 @@ module Kant.Term
     , ModuleT(..)
     , Module
     , ModuleV
-    , ParamT
     , TeleFT(..)
-    , Param
     , ScopeT
     , ScopeFT(..)
     , FixT(..)
@@ -44,6 +42,7 @@ module Kant.Term
     , arr
     , app
     , lamv
+    , lamsv
     , arrv
     , fixv
     , casev
@@ -53,8 +52,6 @@ module Kant.Term
     , unrollArr
     , unrollArr'
     , moduleNames
-    , paramsFun
-    , paramsFun'
     -- * Substitutions
     , Subst(..)
     , substV
@@ -120,17 +117,12 @@ type Level  = Natural
 
 -- | A Kant module.
 newtype ModuleT n = Module {unModule :: [DeclT n]}
-    deriving (Show, Eq)
+    deriving (Show, Eq, Functor)
 type Module = ModuleT Tag
 type ModuleV = ModuleT Id
 
 type TBinderT = Binder Id
 type TBinder = TBinderT Tag
-
--- | Parameters for binders - we mostly use it when forming things and for
---   data/type constructors.
-type ParamT n = (TBinderT n, TermT n)
-type Param = ParamT Tag
 
 -- | Value or datatype declaration.
 data DeclT n
@@ -218,21 +210,16 @@ unrollApp :: TermT t -> (TermT t, [TermT t])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
 
+-- | Parameters for binders - we mostly use it when forming things and for
+--   data/type constructors.
+type ParamT n = (TBinderT n, TermT n)
+
 -- | Dual of 'Arr' (but with more general types).
 unrollArr :: Maybe Natural -> TermT t -> ([ParamT t], TermT t)
 unrollArr n        (Arr ty₁ (Scope b ty₂)) | n == Nothing || n > Just 0 =
     first ((b, ty₁) :) (unrollArr (fmap (\n' -> n' - 1) n)  ty₂)
 unrollArr (Just 0) ty                      = ([], ty)
 unrollArr _        ty                      = ([], ty)
-
-paramsFun :: Monad m => (TermT t -> m (TermT t')) -> [ParamT t] -> TermT t
-          -> m ([ParamT t'], TermT t')
-paramsFun f pars ty =
-    unrollArr (Just (fromIntegral (length pars))) `liftM` f (arrs pars ty)
-
-paramsFun' :: (TermT t -> TermT t') -> [ParamT t] -> TermT t
-           -> ([ParamT t'], TermT t')
-paramsFun' f pars ty = x where Just x = paramsFun (Just . f) pars ty
 
 unrollArr' :: TermT t -> ([ParamT t], TermT t)
 unrollArr' = unrollArr Nothing
@@ -246,26 +233,25 @@ moduleNames = concatMap go . unModule
 
 ------
 
-maybeToBind :: Maybe a -> Binder a a
-maybeToBind Nothing = Wild
-maybeToBind (Just x) = Bind x x
+lamsv :: [(Maybe Id, TermV)] -> TermV -> TermV
+lamsv pars = lams (map (first toBinder) pars)
 
 arrv :: TermV -> Maybe Id -> TermV -> TermV
-arrv ty₁ n ty₂ = Arr ty₁ (Scope (maybeToBind n) ty₂)
+arrv ty₁ n ty₂ = Arr ty₁ (Scope (toBinder n) ty₂)
 
 lamv :: TermV -> Maybe Id -> TermV -> TermV
-lamv ty n t = Lam ty(Scope (maybeToBind n) t)
+lamv ty n t = Lam ty(Scope (toBinder n) t)
 
 paramsv :: [(Maybe Id, TermV)] -> f Id -> TeleFT f Id
-paramsv pars t = Tele (map (first maybeToBind) pars) t
+paramsv pars t = Tele (map (first toBinder) pars) t
 
 fixv :: [(Maybe Id, TermV)] -> TermV -> Maybe Id -> TermV -> TermV
 fixv pars ty n t =
-    Fix (paramsv pars (FixT ty (Scope (maybeToBind n) t)))
+    Fix (paramsv pars (FixT ty (Scope (toBinder n) t)))
 
 casev :: TermV -> Maybe Id -> TermV -> [(ConId, [Maybe Id], TermV)] -> TermV
-casev t b ty brs = Case t (Scope (maybeToBind b) ty)
-                        [(c, Branch (map maybeToBind bs) t') | (c, bs, t') <- brs]
+casev t b ty brs = Case t (Scope (toBinder b) ty)
+                        [(c, Branch (map toBinder bs) t') | (c, bs, t') <- brs]
 
 dataD :: ConId -> [(Maybe Id, TermV)] -> Level
       -> [(ConId, [(Maybe Id, TermV)])]
@@ -331,6 +317,9 @@ instance Subst DeclT where
 
 instance Subst Proxy where
     subst _ _ Proxy = return Proxy
+
+instance Subst ModuleT where
+    subst f g (Module decls) = Module `liftM` mapM (subst f g) decls
 
 substV :: (Eq a, Subst f) => a -> TermT a -> f a -> f a
 substV v₁ t = runIdentity .

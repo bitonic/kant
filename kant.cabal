@@ -40,16 +40,16 @@ Library
     Exposed-Modules:  Kant.Term,
                       Kant.Environment,
                       Kant.Uniquify,
-                      -- Kant.Sugar,
-                      -- Kant.Parser,
+                      Kant.Sugar,
+                      Kant.Parser,
                       -- Kant.Pretty,
                       Kant.Reduce
                       -- Kant.TyCheck
                       -- Kant.REPL
 
     Other-Modules:    Kant.Name,
-                      Kant.Binder
-                      -- Kant.Lexer,
+                      Kant.Binder,
+                      Kant.Lexer
                       -- Kant.Uniquify
                       -- Kant.REPL.Types
 

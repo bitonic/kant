@@ -10,6 +10,7 @@ module Kant.Environment
     ( Count
     , Env(..)
     , EnvM
+    , runEnvM
       -- * Utilities
     , bumpCount
     , envTy
@@ -30,7 +31,7 @@ import           Control.Monad (join, liftM)
 import           Prelude hiding (foldr)
 
 import           Control.Monad.Error (MonadError(..))
-import           Control.Monad.State (StateT, MonadState(..))
+import           Control.Monad.State (StateT(..), MonadState(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -48,6 +49,9 @@ data Env = Env
     }
 
 type EnvM m = StateT Env m
+
+runEnvM :: Monad m => Env -> EnvM m a -> m (a, Env)
+runEnvM env (StateT f) = f env
 
 bumpCount :: Env -> (Count, Env)
 bumpCount env@Env{envCount = c} = (c, env{envCount = c+1})

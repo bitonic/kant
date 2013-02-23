@@ -4,8 +4,9 @@ module Kant.Binder
     , isBind
     , isWild
     , bindElem
-    , bind
     , binder
+    , fromBinder
+    , toBinder
     ) where
 
 -- | The @n@ is a forgettable name.
@@ -27,9 +28,14 @@ instance Eq a => Eq (Binder n a) where
 bindElem :: Eq a => a -> [Binder n a] -> Bool
 bindElem x bs = not (null ([() | Bind _ x' <- bs, x == x']))
 
-bind :: a -> Binder a a
-bind n = Bind n n
-
 binder :: b -> (a -> b) -> Binder n a -> b
 binder x _ Wild = x
 binder _ f (Bind _ x) = f x
+
+fromBinder :: Binder a a -> Maybe a
+fromBinder Wild       = Nothing
+fromBinder (Bind _ n) = Just n
+
+toBinder :: Maybe a -> Binder a a
+toBinder Nothing  = Wild
+toBinder (Just x) = Bind x x

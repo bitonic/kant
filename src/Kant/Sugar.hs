@@ -27,9 +27,6 @@ import           Data.List (groupBy, elemIndex)
 
 import qualified Data.Set as Set
 
-import           Data.Void
-
-import           Kant.Name
 import           Kant.Binder
 import           Kant.Term
 
@@ -58,15 +55,15 @@ data STerm
       -- TODO add a way to match on non-variables
       -- | Pattern matching.  Note that here we demand a variable as scrutined
       --   so that the return type can refer to that directly.
-    | SCase Id STerm [SBranch]
+    | SCase STerm (Maybe Id) STerm [SBranch]
     | SFix (Maybe Id) [SParam] STerm STerm
     deriving (Show)
 
 -- | Checks that all variables matched in branches are distinct.  Returns
 --   @'Left' v@ if `v' is duplicate somewhere.
-scase :: Id -> STerm -> [SBranch] -> Either Id STerm
-scase n₁ ty brs =
-    SCase n₁ ty brs
+scase :: STerm -> Maybe Id -> STerm -> [SBranch] -> Either Id STerm
+scase t n₁ ty brs =
+    SCase t n₁ ty brs
     <$ mapM (foldr (\b se -> se >>= \s ->
                      case b of
                          Nothing -> Right s
@@ -97,7 +94,7 @@ instance a ~ DeclV => Desugar SDecl a where
         Val n (desugar (buildVal n pars ty t))
     desugar (SPostulate n ty) = Postulate n (desugar ty)
     desugar (SData c pars l cons) =
-        DataD (Data c (desugarPars pars) l (map (second desugarPars) cons))
+        dataD c (desugarPars pars) l (map (second desugarPars) cons)
 
 buildVal :: Id -> SValParams -> STerm -> STerm -> STerm
 buildVal n (SValParams pars mfpars) ty t =
@@ -125,8 +122,8 @@ removeNotFix n i (SArr pars t) =
     case rnfPars n i pars of
         Left pars'  -> SArr pars' (removeNotFix n i t)
         Right pars' -> SArr pars' t
-removeNotFix n₁ i (SCase n₂ ty brs) =
-    SCase n₂ (removeNotFix n₁ i ty) (rnfBrs n₁ i brs)
+removeNotFix n₁ i (SCase t n₂ ty brs) =
+    SCase t n₂ (removeNotFix n₁ i ty) (rnfBrs n₁ i brs)
 removeNotFix n₁ _ t@(SFix (Just n₂) _ _ _) | n₁ == n₂ = t
 removeNotFix n i (SFix nm pars ty t) =
     case rnfPars n i pars of
@@ -152,62 +149,51 @@ rnfBrs :: Id -> Int -> [SBranch] -> [SBranch]
 rnfBrs n i brs = [ (c, ns, if Just n `elem` ns then t else removeNotFix n i t)
                  | (c, ns, t) <- brs ]
 
-desugarPars :: [SParam] -> [ParamV]
-desugarPars pars = concat [ zip (maybe [Wild] (map bind) mns) (repeat (desugar t))
+desugarPars :: [SParam] -> [(Maybe Id, TermV)]
+desugarPars pars = concat [ zip (maybe [Nothing] (map Just) mns) (repeat (desugar t))
                           | (mns, t) <- pars ]
 
-toBinder :: Maybe a -> Binder a a
-toBinder = maybe Wild bind
-
-fromBinder :: Binder a a -> Maybe a
-fromBinder Wild       = Nothing
-fromBinder (Bind _ n) = Just n
-
 instance a ~ TermV => Desugar STerm a where
-    desugar (SVar n)            = bound n
+    desugar (SVar n)            = Var n
     desugar (SType l)           = Type l
-    desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
+    desugar (SLam pars t)       = lamsv (desugarPars pars) (desugar t)
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
-    desugar (SCase n ty brs)    =
-        Case (Bind n n) (bound n)
-             (desugar ty) [(c, map toBinder ns, desugar t) | (c, ns, t) <- brs]
+    desugar (SCase t n ty brs)  =
+        casev (desugar t) n (desugar ty) [(c, ns, desugar t') | (c, ns, t') <- brs]
     desugar (SFix b pars ty t) =
-        Fix (toBinder b) (desugarPars pars) (desugar ty) (desugar t)
+        fixv (desugarPars pars) (desugar ty) b (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
 desugarArr []                          ty  = desugar ty
 desugarArr ((Nothing,     ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
 desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
-    Arr (bind n) (desugar ty₁) (desugarArr ((Just ns, ty₁) : pars) ty₂)
+    arrv (desugar ty₁) (Just n) (desugarArr ((Just ns, ty₁) : pars) ty₂)
 desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
 
 class Distill a b where
     distill :: a -> b
 
-instance (a ~ STerm, f ~ Void, t ~ Id) => Distill (TermT f t) a where
-    distill (Var (Free v)) = absurd v
-    distill (Var (Bound n)) = SVar n
+instance (a ~ STerm, v ~ Id) => Distill (TermT v) a where
+    distill (Var n) = SVar n
     distill (Type l) = SType l
-    distill to@(Arr _ _ _) = SArr (distillPars pars) (distill ty)
+    distill to@(Arr _ _) = SArr (distillPars pars) (distill ty)
       where (pars, ty) = unrollArr' to
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
-    distill to@(Lam _ _ _)  =
+    distill to@(Lam _ _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
       where
-         go (Lam b ty t) = first ((b, ty):) (go t)
-         go t            = ([], t)
-    distill (Case (Bind _ _) (Var (Free v)) _ _) = absurd v
-    distill (Case (Bind _ ta) b@(Var (Bound n)) ty brs) =
-        SCase n (distill (subst ta b ty))
-              [(c, map fromBinder bs, distill t) | (c, bs, t) <- substBrs ta b brs]
-    distill (Case _ _ _ _) = error "distill: got non-var scrutined"
+         go (Lam ty (Scope b t)) = first ((b, ty):) (go t)
+         go t                    = ([], t)
+    distill (Case t (Scope b ty) brs) =
+        SCase (distill t) (fromBinder b) (distill ty)
+              [(c, map fromBinder bs, distill t') | (c, Branch bs t') <- brs]
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
-    distill (Fix b pars ty t) =
+    distill (Fix (Tele pars (FixT ty (Scope b t)))) =
         SFix (fromBinder b) (distillPars pars) (distill ty) (distill t)
 
-distillPars :: [ParamV] -> [SParam]
+distillPars :: [(TBinderT Id, TermV)] -> [(Maybe [Id], STerm)]
 distillPars pars =
     [(sequence (map (fromBinder . fst) pars'), distill ty) | pars'@((_, ty):_) <- go]
   where

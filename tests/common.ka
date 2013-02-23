@@ -61,7 +61,7 @@ ite [A : Type] [B : Bool -> Type] [b : Bool] [x : B true] [y : B false] : B b =>
 )
 
 ite' [A : Type] [B : Type] : Bool -> B -> B -> B => (
-  ite A (\[_ : Bool] => B)
+  ite A (\Bool => B)
 )
 
 data Empty : Type { }

@@ -19,6 +19,8 @@ import           Control.Arrow (first)
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
+import           Control.Monad.Identity (runIdentity)
+
 import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
@@ -53,6 +55,7 @@ import           Kant.Uniquify
     'case'              { CASE }
     'postulate'         { POSTULATE }
     'return'            { RETURN }
+    'as'                { AS }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -110,7 +113,9 @@ Term :: { STerm }
 Term
     : '\\' Seq(Param) '=>' Term              { SLam $2 $4 }
     | 'case' name 'return' Term '{' Bar(Branch) '}'
-      {% checkCase $2 $4 $6 }
+      {% checkCase (SVar $2) (Just $2) $4 $6 }
+    | 'case' Term 'as' name 'return' Term '{' Bar(Branch) '}'
+      {% checkCase $2 (Just $4) $6 $8 }
     | Arr                                    { uncurry SArr $1 }
 
 Branch :: { SBranch }
@@ -140,9 +145,9 @@ Binder
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
 
-checkCase :: Id -> STerm -> [SBranch] -> Alex STerm
-checkCase n ty brs =
-    case scase n ty brs of
+checkCase :: STerm -> Maybe Id -> STerm -> [SBranch] -> Alex STerm
+checkCase t n ty brs =
+    case scase t n ty brs of
         Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
         Right t -> return t
 
@@ -164,26 +169,28 @@ type ParseResult = Either ParseError
 parseModule :: String -> ParseResult ModuleV
 parseModule s = desugar <$> runAlex s parseModule_
 
-parseModule' :: Env -> String -> ParseResult (Env, Module)
-parseModule' env s = runUniquify env <$> parseModule s
+parseEnvM p = either (return . Left) (\m -> Right `liftM` toEnvM (uniquify m)) . p
+
+parseModule' :: Monad m => String -> EnvM m (ParseResult Module)
+parseModule' = parseEnvM parseModule
 
 parseDecl :: String -> ParseResult DeclV
 parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseDecl' :: Env -> String -> ParseResult (Env, Decl)
-parseDecl' env s = runUniquify env <$> parseDecl s
+parseDecl' :: Monad m => String -> EnvM m (ParseResult Decl)
+parseDecl' = parseEnvM parseDecl
 
 parseTerm :: String -> ParseResult TermV
 parseTerm s = desugar <$> runAlex s parseTerm_
 
-parseTerm' :: Env -> String -> ParseResult (Env, Term)
-parseTerm' env s = runUniquify env <$> parseTerm s
+parseTerm' :: Monad m => String -> EnvM m (ParseResult Term)
+parseTerm' = parseEnvM parseTerm
 
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO ModuleV
 parseFile fp = readFile fp >>= either fail return . parseModule
 
-parseFile' :: Env -> FilePath -> IO (Env, Module)
-parseFile' env fp = runUniquify env <$> parseFile fp
+parseFile' :: Env -> FilePath -> IO (Module, Env)
+parseFile' env fp = runIdentity . runEnvM env . toEnvM . uniquify <$> parseFile fp
 
 }
