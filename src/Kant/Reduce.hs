@@ -17,10 +17,6 @@ import           Kant.Environment
 
 type Reducer f = forall m. (Monad m, Functor m) => f Tag -> EnvM m (f Tag)
 
-substB :: (Eq v, Subst f) => Binder t v -> TermT v -> f v -> f v
-substB Wild _ t = t
-substB (Bind _ v) t t' = substV v t t'
-
 class Subst f => Reduce f where
     reduce :: (forall g. Reduce g => Reducer g) -> Reducer f
 
@@ -53,7 +49,7 @@ instance Reduce TermT where
                       return $
                           if i > length args' || not (all constr fargs)
                           then App t₁' t₂'
-                          else app (substPars (zip (map fst pars) args) t' : rest)
+                          else app (substManyB (zip (map fst pars) args) t' : rest)
                _ -> return t₁'
     reduce r (Case t s brs) =
         do t₁ <- reduce r t
@@ -63,17 +59,21 @@ instance Reduce TermT where
                    case [ (bs, t₂) | (c', (Branch bs t₂)) <- brs, c == c',
                           length ts == length bs ]
                     of  []             -> return stuck
-                        ((bs, t₂) : _) -> reduce r (substPars (zip bs ts) t₂)
+                        ((bs, t₂) : _) -> reduce r (substManyB (zip bs ts) t₂)
                _ -> return stuck
     reduce r (Lam ty s) = Lam <$> r ty <*> r s
     reduce r (Arr ty s) = Arr <$> r ty <*> r s
     reduce r (Constr c tys ts) = Constr c <$> mapM r tys <*> mapM r ts
     reduce r (Fix pars) = Fix <$> r pars
 
-substPars :: Subst f => [(TBinder, Term)] -> f Tag -> f Tag
-substPars [] t = t
-substPars ((Wild, _) : pars) t = substPars pars t
-substPars ((Bind _ v, t) : pars) t' = substPars pars t''
+substB :: (Eq v, Subst f) => Binder t v -> TermT v -> f v -> f v
+substB Wild _ t = t
+substB (Bind _ v) t t' = substV v t t'
+
+substManyB :: Subst f => [(TBinder, Term)] -> f Tag -> f Tag
+substManyB [] t = t
+substManyB ((Wild, _) : pars) t = substManyB pars t
+substManyB ((Bind _ v, t) : pars) t' = substManyB pars t''
   where Branch _ t'' = substV v t (Branch (map fst pars) t')
 
 constr :: TermT v -> Bool
