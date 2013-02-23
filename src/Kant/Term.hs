@@ -11,7 +11,6 @@ module Kant.Term
     , Tag
     , toId
     , toTag
-    , Name(..)
     , Binder(..)
     , TBinderT
     , TBinder
@@ -75,14 +74,12 @@ import           Data.Proxy
 import           Numeric.Natural
 
 import           Kant.Binder
-import           Kant.Name
 
 {-
 t     Term
 ty    Terms that are types
 v     Name
 n     Id inside Name and Id in general
-ta    the no-id part in the TName
 b     Binder
 con   Constr
 c     constructor Id

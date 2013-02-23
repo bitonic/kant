@@ -42,7 +42,7 @@ Library
                       Kant.Uniquify,
                       Kant.Sugar,
                       Kant.Parser,
-                      -- Kant.Pretty,
+                      Kant.Pretty,
                       Kant.Reduce
                       -- Kant.TyCheck
                       -- Kant.REPL
