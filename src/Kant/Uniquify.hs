@@ -31,7 +31,7 @@ fresh = do ta <- get
 
 uniquify :: (Functor f, Subst f) => f Id -> UniqueM (f Tag)
 uniquify t =
-    fmap Text.pack <$>
+    fmap toTag <$>
     subst Var
           (\b f -> case b of
                        Wild -> return (Wild, f)
@@ -42,7 +42,7 @@ uniquify t =
           t
 
 revert :: (Functor f, Subst f) => f Tag -> f Id
-revert t = evalState (revert' (Text.unpack <$> t)) Map.empty
+revert t = evalState (revert' (toId <$> t)) Map.empty
 
 showIx :: Id -> Count -> Id
 showIx v n = v ++ show n

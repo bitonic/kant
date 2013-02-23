@@ -12,18 +12,17 @@ import           Control.Applicative ((<$))
 import           Control.Arrow (first)
 import           Control.Monad (unless, forM_)
 
-import           Control.Monad.Error (Error(..), MonadError(..))
+import           Control.Monad.Error (Error(..), ErrorT, MonadError(..))
 import qualified Data.Set as Set
 
 import           Kant.Term
-import qualified Kant.Environment as Env
-import           Kant.Environment hiding (envTy, addAbst, addVal, addData)
+import           Kant.Environment
 import           Kant.Reduce
 
 data TyCheckError
     = TyCheckError
-    | OutOfBounds TName
-    | DuplicateName Id
+    | OutOfBounds Tag
+    | DuplicateName Tag
     | Mismatch Term Term Term
     | ExpectingFunction Term Term
     | ExpectingType Term Term
@@ -37,23 +36,23 @@ data TyCheckError
 instance Error TyCheckError where
     noMsg = TyCheckError
 
-type TyCheckM = Either TyCheckError
+type TyCheckM = EnvM (ErrorT TyCheckError)
 
 class TyCheck a where
     tyCheck :: Env -> a -> TyCheckM Env
 
-instance (f ~ Id, t ~ Tag) => TyCheck (ModuleT f t) where
+instance (v ~ Tag) => TyCheck (ModuleT v) where
     tyCheck env' (Module decls') = go decls' env'
       where
         go []             env = Right env
         go (decl : decls) env = tyCheck env decl >>= go decls
 
-instance (f ~ Id, t ~ Tag) => TyCheck (DeclT f t) where
+instance (v ~ Tag) => TyCheck (DeclT v) where
     tyCheck env (DataD dat)      = tyCheck env dat
     tyCheck env (Val n t)        = do ty <- tyCheckT env t; addVal env n ty t
     tyCheck env (Postulate n ty) = do tyCheckT env ty; addAbst env n ty
 
-instance (f ~ Id, t ~ Tag) => TyCheck (DataT f t) where
+instance (v ~ Tag) => TyCheck (DataT v) where
     tyCheck env dd@(Data tyc _ _ cons) =
         do env₁ <- addData env dd
            -- We assert that the type constructor is present

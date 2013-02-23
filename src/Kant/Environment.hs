@@ -22,12 +22,14 @@ module Kant.Environment
     , upAbst'
     , upVal
     , upVal'
+    , addData
     ) where
 
 import           Control.Applicative ((<$>))
-import           Control.Monad (join)
+import           Control.Monad (join, liftM)
 import           Prelude hiding (foldr)
 
+import           Control.Monad.Error (MonadError(..))
 import           Control.Monad.State (StateT, MonadState(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -106,35 +108,35 @@ upVal' :: Monad m => TBinder -> Term -> Term -> EnvM m ()
 upVal' (Bind _ ta) ty t = upVal ta ty t
 upVal' Wild        _  _ = return ()
 
--- -- | Extracts the types out of a data declaration.
--- --
--- --   A type function will be generated as type constructor, taking the
--- --   parameters as arguments and returning someting of @Type l@, where @l@ is
--- --   the level specified in the declaration.
--- --
--- --   Another function will be generated for each data constructor, taking all
--- --   the parameters of the type constructor plus its own parameter.
--- dataDecl :: Data -> ((Id, Item), [(Id, Item)])
--- dataDecl (Data c pars l cons) =
---     ((c, (Just (arrs pars (Type l)), Nothing)), cons')
---   where
---     cons' = [(c', (Just (resTy pars'), Just (conFun c' pars'))) | (c', pars') <- cons]
---     resTy pars' = arrs (pars ++ pars') (Var (Free c))
---     conFun c' pars' =
---         -- TODO this is wrong, we are putting the body of the parameters and
---         -- not the binders!  Fresh names need to be generated for the arguments
---         -- and then substituted in each type...
---         lams (pars ++ pars') (Constr c' (map snd pars) (map snd pars'))
-
--- -- | Adds the type constructors and the data declarations as abstracted variable
--- --   to an environment, @'Left' n@ if name @n@ is already present.
--- addData :: Env -> ConId -> DataBody -> Either ConId Env
--- addData env@Env{envData = dds} dd@(Data c₁ _ _ _) =
---     do env₁ <- if Map.member c₁ dds
---                then Left c₁
---                else Right (env{envData = Map.insert c₁ dd dds})
---        let (tyc, cons) = dataDecl dd
---        foldr (\(c₂, (tym, tm)) enve ->
---                do env₂ <- enve;
---                   maybe (Left c₂) Right (addCtx env₂ c₂ tym tm))
---              (Right env₁) (tyc : cons)
+-- | Adds the type constructors and the data declarations as abstracted variable
+--   to an environment, @'Left' n@ if name @n@ is already present.
+addData :: (MonadError e m) => ConId -> DataBody -> (ConId -> e) -> EnvM m ()
+addData tyc dd@(ParamsT pars (DataT l cons)) err =
+    do env₁@Env{envData = dds} <- get
+       checkDup tyc env₁
+       put env₁{envData = Map.insert tyc dd dds}
+       True <- addAbst (toTag tyc) (arrs pars (Type l))
+       sequence_ [ do checkDup dc =<< get
+                      let allPars = pars ++ pars'
+                          parsn ps = zipWith merge ps `liftM`
+                                     mapM (\_ -> fresh) [1..length ps]
+                      vars₁ <- parsn allPars
+                      vars₂ <- parsn pars; vars₃ <- parsn pars'
+                      let resTy = app (Var (toTag tyc) : getv vars₁)
+                          f     = conFun dc vars₂ vars₃
+                      True <- addVal (toTag dc) (arrs vars₁ resTy) f
+                      return ()
+                 | ConstrT dc (ParamsT pars' Proxy) <- cons ]
+  where
+    checkDup c Env{envCtx = ctx, envData = dds} =
+        if Map.member c dds || Map.member (toTag c) ctx
+        then throwError (err c)
+        else return ()
+    getv = map (\((Bind _ v), _) -> Var v)
+    conFun dc vars₁ vars₂ =
+        lams (vars₁ ++ vars₂) (Constr dc (getv vars₁) (getv vars₂))
+    fresh = do env@Env{envCount = c} <- get
+               put env{envCount = c+1}
+               return (toTag (show c))
+    merge (Wild, ty)         v = (Bind "_" v, ty)
+    merge (b@(Bind _ _), ty) _ = (b, ty)

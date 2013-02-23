@@ -9,6 +9,8 @@ module Kant.Term
     , ConId
     , Level
     , Tag
+    , toId
+    , toTag
     , Name(..)
     , Binder(..)
     , TBinderT
@@ -28,8 +30,9 @@ module Kant.Term
     , DataBodyT
     , DataBody
     , DataT(..)
-    , ConstrT
+    , ConstrT(..)
     , Constr
+    , Proxy(..)
     , TermT(..)
     , Term
     , TermV
@@ -68,6 +71,7 @@ import           Data.Foldable (foldrM)
 import           Data.Maybe (fromMaybe, catMaybes)
 
 import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Control.Monad.Identity (runIdentity)
 
 import           Data.Proxy
@@ -105,6 +109,12 @@ type Tag = Text
 type Id = String
 type ConId = Id
 
+toId :: Tag -> Id
+toId = Text.unpack
+
+toTag :: Id -> Tag
+toTag = Text.pack
+
 -- | Type levels
 type Level  = Natural
 
@@ -132,7 +142,7 @@ type Decl = DeclT Tag
 type DeclV = DeclT Id
 
 type DataBodyT n = ParamsFT DataT n
-type DataBody = DataBodyT Id
+type DataBody = DataBodyT Tag
 
 data DataT n = DataT Level [ConstrT n]
     deriving (Show, Eq, Functor)
