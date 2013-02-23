@@ -43,6 +43,7 @@ module Kant.Term
     , lamv
     , arrv
     , fixv
+    , casev
     , dataD
       -- * Utilities
     , unrollApp
@@ -251,6 +252,10 @@ paramsv pars t = ParamsT (map (first maybeToBind) pars) t
 fixv :: [(Maybe Id, TermV)] -> TermV -> Maybe Id -> TermV -> TermV
 fixv pars ty n t =
     Fix (paramsv pars (FixT ty (Scope (maybeToBind n) t)))
+
+casev :: TermV -> Maybe Id -> TermV -> [(ConId, [Maybe Id], TermV)] -> TermV
+casev t b ty brs = Case t (Scope (maybeToBind b) ty)
+                        [(c, Branch (map maybeToBind bs) t') | (c, bs, t') <- brs]
 
 dataD :: ConId -> [(Maybe Id, TermV)] -> Level
       -> [(ConId, [(Maybe Id, TermV)])]
