@@ -1,37 +1,28 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
--- TODO this is *really* ugly, I should really look for some good abstractions
--- and reimplement those functions.
--- TODO the Fix stuff is broken, since we do not consider the fact that the
--- arguments scope over the whole body.  I've marked the offending sites with
--- FIXME.
 module Kant.Uniquify
-    -- ( Uniquify(..)
-    -- , UniqueM
-    -- , runUniquify
-    -- , Count
-    -- , revert
-    -- )
+    ( UniqueM
+    , toEnvM
+    , uniquify
+    , revert
+    )
     where
 
 import           Control.Applicative ((<$>))
+import           Data.Maybe (fromMaybe)
 
-import           Control.Monad.State (State, MonadState(..), evalState, runState)
+import           Control.Monad.Identity (runIdentity)
+import           Control.Monad.State (State, StateT(..), MonadState(..), evalState)
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 
 import           Kant.Term
--- import           Kant.Environment
-
-type Count = Integer
+import           Kant.Environment
 
 type UniqueM = State Count
 
--- class Uniquify f where
---     uniquify :: f Void Id -> UniqueM (f Id Tag)
-
--- runUniquify :: Uniquify f => Env -> f Void Id -> (Env, f Id Tag)
--- runUniquify env@Env{envCount = c} t = (env{envCount = c'}, t')
---   where (t', c') = runState (uniquify t) c
+toEnvM :: Monad m => UniqueM a -> EnvM m a
+toEnvM (StateT f) = StateT $ \s-> let (x, c) = runIdentity (f (envCount s))
+                                  in return (x, s{envCount = c})
 
 fresh :: State Count Id
 fresh = do ta <- get
@@ -42,6 +33,29 @@ uniquify :: (Functor f, Subst f) => f Id -> UniqueM (f Tag)
 uniquify t =
     fmap Text.pack <$>
     subst Var
-          (\v₁ f -> do v₂ <- fresh
-                       return (v₂, \v₃ -> if v₃ == v₁ then Var v₂ else f v₃))
+          (\b f -> case b of
+                       Wild -> return (Wild, f)
+                       Bind n v₁ ->
+                           do v₂ <- fresh
+                              return (Bind n v₂,
+                                      \v₃ -> if v₃ == v₁ then Var v₂ else f v₃))
           t
+
+revert :: (Functor f, Subst f) => f Tag -> f Id
+revert t = evalState (revert' (Text.unpack <$> t)) Map.empty
+
+showIx :: Id -> Count -> Id
+showIx v n = v ++ show n
+
+revert' :: (Subst f) => f Id -> State (Map Id Count) (f Id)
+revert' =
+    subst Var
+    (\b f -> case b of
+                 Wild -> return (Wild, f)
+                 Bind n v₁ ->
+                     do ixs <- get
+                        let ix = fromMaybe 0 (Map.lookup n ixs)
+                            v₂ = showIx n ix
+                        put (Map.insert n (ix+1) ixs)
+                        return (Bind n v₂, \v₃ -> if v₃ == v₁ then Var v₂ else f v₃))
+

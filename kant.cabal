@@ -38,11 +38,11 @@ Library
     GHC-Options:      -Wall -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant.Term,
+                      Kant.Environment,
                       Kant.Uniquify
                       -- Kant.Sugar,
                       -- Kant.Parser,
                       -- Kant.Pretty
-                      -- Kant.Environment,
                       -- Kant.Reduce,
                       -- Kant.TyCheck
                       -- Kant.REPL

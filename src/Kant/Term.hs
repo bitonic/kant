@@ -16,12 +16,15 @@ module Kant.Term
     , Module
     , ModuleV
     , ParamT
+    , ParamsFT
     , Param
     , ScopeT
     , FixT(..)
     , DeclT(..)
     , Decl
     , DeclV
+    , DataBodyT
+    , DataBody
     , DataT(..)
     , ConstrT
     , Constr
@@ -123,6 +126,9 @@ data DeclT n
     deriving (Show, Eq, Functor)
 type Decl = DeclT Tag
 type DeclV = DeclT Id
+
+type DataBodyT n = ParamsFT DataT n
+type DataBody = DataBodyT Id
 
 data DataT n = DataT Level [ConstrT n]
     deriving (Show, Eq, Functor)
@@ -257,21 +263,16 @@ type UpFun v = v -> TermT v
 class Subst f where
     subst :: (Eq v, Monad m)
           => UpFun v
-          -> (v -> UpFun v -> m (v, UpFun v))
+          -> (Binder Id v -> UpFun v -> m (Binder Id v, UpFun v))
           -> f v -> m (f v)
 
 instance Subst f => Subst (ScopeFT f) where
-    subst f g (Scope Wild x)         = Scope Wild `liftM` subst f g x
-    subst f g (Scope (Bind n v) x) = do (v', f') <- g v f
-                                        Scope (Bind n v') `liftM` subst f' g x
+    subst f g (Scope b x) = do (b', f') <- g b f; Scope b' `liftM` subst f' g x
 
 instance Subst BranchT where
     subst f g (Branch c bs t) =
         do (bs', f') <- foldrM (\b (bs₁, f₁) ->
-                                 case b of
-                                     Wild -> return (Wild : bs₁, f₁)
-                                     Bind n v -> do (v', f₁') <- g v f
-                                                    return (Bind n v' : bs₁, f₁'))
+                                 do (b', f₁') <- g b f₁; return (b' : bs₁, f₁'))
                         ([], f) bs
            Branch c bs' `liftM` subst f' g t
 
@@ -282,13 +283,9 @@ instance (Subst f) => Subst (ParamsFT f) where
     subst fo g (ParamsT pars' t) = go pars' [] fo
       where
         go [] out f = ParamsT out `liftM` subst f g t
-        go ((Wild, ty) : in_) out f =
-            do ty' <- subst f g ty
-               go in_ (out ++ [(Wild, ty')]) f
-        go ((Bind n v, ty) : in_) out f =
-            do ty' <- subst f g ty
-               (v', f') <- g v f
-               go in_ (out ++ [(Bind n v', ty')]) f'
+        go ((b, ty) : in_) out f = do ty' <- subst f g ty
+                                      (b', f') <- g b f
+                                      go in_ (out ++ [(b', ty')]) f'
 
 instance Subst FixT where
     subst f g (FixT ty s) = FixT `liftM` subst f g ty `ap` subst f g s
@@ -321,13 +318,17 @@ instance Subst Proxy where
 substV :: (Eq a, Subst f) => a -> TermT a -> f a -> f a
 substV v₁ t = runIdentity .
               subst (\v₂ -> if v₁ == v₂ then t else Var v₂)
-                    (\v₂ f -> return (v₂, \v₃ -> if v₂ == v₃ then Var v₂ else f v₃))
+                    (\b f -> return (b, \v₃ -> case b of
+                                                    Bind _ v₂ | v₂ == v₃ -> Var v₃
+                                                    _ -> f v₃))
 
 substManyV :: (Eq a, Subst f) => [(a, TermT a)] -> f a -> f a
 substManyV pars =
     runIdentity .
     subst (\v -> fromMaybe (Var v) (lookup v pars))
-          (\v f -> return (v, \v' -> if v == v' then Var v else f v'))
+          (\b f -> return (b, \v' -> case b of
+                                         Bind _ v | v == v' -> Var v
+                                         _ -> f v'))
 
 instance (Eq v, Eq (f v), Subst f) => Eq (ScopeFT f v) where
     Scope Wild        t₁ == Scope _           t₂ = t₁ == t₂
