@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Kant.Term
     ( -- * Modules, data declarations, terms.
       Id
-    , Void
     , ConId
     , Level
     , Tag
@@ -14,33 +14,27 @@ module Kant.Term
     , TBinder
     , ModuleT(..)
     , Module
-    , ModuleV
     , ParamT
     , Param
-    , ParamV
+    , ScopeT
+    , FixT(..)
     , DeclT(..)
     , Decl
-    , DeclV
     , DataT(..)
-    , Data
-    , DataV
     , ConstrT
     , Constr
-    , ConstrV
-    , TName
     , TermT(..)
     , Term
-    , TermV
-    , BranchT
-    , Branch
-    , BranchV
+    , BranchT(..)
       -- * Smart constructors
-    , bound
-    , free
     , lams
     , arrs
     , arr
     , app
+    , lamv
+    , arrv
+    , fixv
+    , dataD
       -- * Utilities
     , unrollApp
     , unrollArr
@@ -48,20 +42,25 @@ module Kant.Term
     , moduleNames
     , paramsFun
     , paramsFun'
-      -- * Substitutions
-    , subst
-    , substPars
-    , substBrs
-    , subst'
-    , substMany
+    -- * Substitutions
+    , Subst(..)
+    , substV
+    -- , subst
+    -- , substPars
+    -- , substBrs
+    -- , subst'
+    -- , substMany
     ) where
 
 import           Control.Arrow (first, second)
-import           Control.Monad (liftM)
+import           Control.Monad (liftM, ap)
+import           Data.Foldable (foldrM)
+import           Data.Maybe (fromMaybe, catMaybes)
 
 import           Data.Text (Text)
+import           Control.Monad.Identity (runIdentity)
 
-import           Data.Void
+import           Data.Proxy
 import           Numeric.Natural
 
 import           Kant.Binder
@@ -100,216 +99,251 @@ type ConId = Id
 type Level  = Natural
 
 -- | A Kant module.
-newtype ModuleT fr tag = Module {unModule :: [DeclT fr tag]}
+newtype ModuleT n = Module {unModule :: [DeclT n]}
     deriving (Show, Eq)
-type Module = ModuleT Id Tag
-type ModuleV = ModuleT Void Id
+type Module = ModuleT Tag
 
 type TBinderT = Binder Id
 type TBinder = TBinderT Tag
 
 -- | Parameters for binders - we mostly use it when forming things and for
 --   data/type constructors.
-type ParamT fr tag = (TBinderT tag, TermT fr tag)
-type Param = ParamT Id Tag
-type ParamV = ParamT Void Id
+type ParamT n = (TBinderT n, TermT n)
+type Param = ParamT Tag
 
 -- | Value or datatype declaration.
-data DeclT fr tag
-    = Val Id (TermT fr tag)
-    | DataD (DataT fr tag)
-    | Postulate Id (TermT fr tag)
-    deriving (Show, Eq)
-type Decl = DeclT Id Tag
-type DeclV = DeclT Void Id
+data DeclT n
+    = Val Id (TermT n)
+    | Data ConId (ParamsFT DataT n)
+    | Postulate Id (TermT n)
+    deriving (Show, Eq, Functor)
+type Decl = DeclT Tag
+type DeclV = DeclT Id
 
--- | Inductive data types declarations.
-data DataT fr tag
-    = Data ConId            -- Name
-           [ParamT fr tag]  -- Parameters' types
-           Level            -- Resulting level
-           [ConstrT fr tag] -- Constructors
-    deriving (Show, Eq)
-type Data = DataT Id Tag
-type DataV = DataT Void Id
+data DataT n = DataT Level [ConstrT n]
+    deriving (Show, Eq, Functor)
 
--- | A constructor declaration.
-type ConstrT fr tag = (ConId, [ParamT fr tag])
-type Constr = ConstrT Id Tag
-type ConstrV = ConstrT Void Id
-
--- | A 'Name' with an 'Id' name.
-type TName  = Name Id Tag
+data ConstrT n = ConstrT ConId (ParamsFT Proxy n)
+    deriving (Show, Eq, Functor)
+type Constr = ConstrT Tag
 
 -- | Terms for our language.  This is what we typecheck and reduce.
-data TermT fr tag
-    = Var (Name fr tag)
+data TermT n
+    = Var n
       -- | The type of types
     | Type Level
       -- | Function application.  To the left we expect either a 'Lam' or a
       --   'Fix'.
-    | App (TermT fr tag) (TermT fr tag)
+    | App (TermT n) (TermT n)
       -- | Constructor for arrow types, of type @(A : Type n) -> (A -> Type m) ->
       --   Type (n ⊔ m)@.
-    | Arr (TBinderT tag) (TermT fr tag) (TermT fr tag)
+    | Arr (TermT n) (ScopeT n)
       -- | Lambda abstraction.
-    | Lam (TBinderT tag) (TermT fr tag) (TermT fr tag)
+    | Lam (TermT n) (ScopeT n)
       -- | Pattern matching.
-    | Case (TBinderT tag)       -- Name for the scrutined
-           (TermT fr tag)       -- Scrutined
-           (TermT fr tag)       -- Return type
-           [BranchT  fr tag]
+    | Case (ScopeFT CaseT n)
       -- | An instance of some inductive data type created by the user.
-    | Constr ConId              -- Constructor
-             [TermT fr tag]     -- Type parameters
-             [TermT fr tag]     -- Data Parameters
-    | Fix (TBinderT tag)
-          [ParamT fr tag]       -- Arguments to the function.
-          (TermT fr tag)        -- Return type
-          (TermT fr tag)        -- Body
+    | Constr ConId         -- Constructor
+             [TermT n]     -- Type parameters
+             [TermT n]     -- Data Parameters
+    | Fix (ParamsFT FixT n)
+    deriving (Show, Functor, Eq)
+type Term = TermT Tag
+type TermV = TermT Id
+
+data ScopeFT f n = Scope (TBinderT n) (f n)
     deriving (Show, Functor)
-type Term = TermT Id Tag
-type TermV = TermT Void Id
+type ScopeT = ScopeFT TermT
 
-type BranchT fr tag = (ConId, [TBinderT tag], TermT fr tag)
-type Branch = BranchT Id Tag
-type BranchV = BranchT Void Id
+data BranchT n = Branch ConId [TBinderT n] (TermT n)
+    deriving (Show, Functor)
 
-bound :: t -> TermT f t
-bound = Var . Bound
+data ParamsFT f n = ParamsT [ParamT n] (f n)
+    deriving (Show, Functor)
 
-free :: f -> TermT f t
-free = Var . Free
+data FixT n = FixT (TermT n) (ScopeT n)
+    deriving (Show, Functor, Eq)
+
+data CaseT n = CaseT (TermT n) [BranchT n]
+    deriving (Show, Functor, Eq)
 
 -- | Folds a list of parameters.
-params :: (TBinderT t -> TermT f t -> TermT f t -> TermT f t)
-       -> [ParamT f t] -> TermT f t -> TermT f t
-params f pars t = foldr (\(v, t₁) t₂ -> f v t₁ t₂) t pars
+params :: (TermT t -> TBinderT t -> TermT t -> TermT t)
+       -> [ParamT t] -> TermT t -> TermT t
+params f pars t = foldr (\(v, t₁) t₂ -> f t₁ v t₂) t pars
 
 -- | Like 'lam', but abstracts over several parameters
-lams :: [ParamT f t] -> TermT f t -> TermT f t
-lams = params Lam
+lams :: [ParamT t] -> TermT t -> TermT t
+lams = params (\ty b t -> Lam ty (Scope b t))
 
 -- | @lam : lams = pi_ : pis@.
-arrs :: [ParamT f t] -> TermT f t -> TermT f t
-arrs = params Arr
+arrs :: [ParamT t] -> TermT t -> TermT t
+arrs = params (\ty₁ b ty₂ -> Arr ty₁ (Scope b ty₂))
 
 -- | Non-dependent function, @A -> B@
-arr :: TermT f t -> TermT f t -> TermT f t
-arr ty₁ ty₂ = Arr Wild ty₁ ty₂
+arr :: TermT t -> TermT t -> TermT t
+arr ty₁ ty₂ = Arr ty₁ (Scope Wild ty₂)
 
 -- | @app a b c@ will return the term corresponding to @a b c@, i.e. @a@ applied
 --   to @b@ applied to @c@.  Fails with empty lists.
-app :: [TermT f a] -> TermT f a
+app :: [TermT a] -> TermT a
 app = foldl1 App
 
 -- | Dual of 'App'.
-unrollApp :: TermT f t -> (TermT f t, [TermT f t])
+unrollApp :: TermT t -> (TermT t, [TermT t])
 unrollApp (App t₁ t₂) = second (++ [t₂]) (unrollApp t₁)
 unrollApp t           = (t, [])
 
 -- | Dual of 'Arr' (but with more general types).
-unrollArr :: Maybe Natural -> TermT f t -> ([ParamT f t], TermT f t)
-unrollArr n        (Arr b ty₁ ty₂) | n == Nothing || n > Just 0 =
+unrollArr :: Maybe Natural -> TermT t -> ([ParamT t], TermT t)
+unrollArr n        (Arr ty₁ (Scope b ty₂)) | n == Nothing || n > Just 0 =
     first ((b, ty₁) :) (unrollArr (fmap (\n' -> n' - 1) n)  ty₂)
-unrollArr (Just 0) ty              = ([], ty)
-unrollArr _        ty              = ([], ty)
+unrollArr (Just 0) ty                      = ([], ty)
+unrollArr _        ty                      = ([], ty)
 
-paramsFun :: Monad m => (TermT f t -> m (TermT f' t')) -> [ParamT f t] -> TermT f t
-          -> m ([ParamT f' t'], TermT f' t')
+paramsFun :: Monad m => (TermT t -> m (TermT t')) -> [ParamT t] -> TermT t
+          -> m ([ParamT t'], TermT t')
 paramsFun f pars ty =
     unrollArr (Just (fromIntegral (length pars))) `liftM` f (arrs pars ty)
 
-paramsFun' :: (TermT f t -> TermT f' t') -> [ParamT f t] -> TermT f t
-           -> ([ParamT f' t'], TermT f' t')
+paramsFun' :: (TermT t -> TermT t') -> [ParamT t] -> TermT t
+           -> ([ParamT t'], TermT t')
 paramsFun' f pars ty = x where Just x = paramsFun (Just . f) pars ty
 
-unrollArr' :: TermT f t -> ([ParamT f t], TermT f t)
+unrollArr' :: TermT t -> ([ParamT t], TermT t)
 unrollArr' = unrollArr Nothing
 
-moduleNames :: ModuleT f t -> [Id]
+moduleNames :: ModuleT t -> [Id]
 moduleNames = concatMap go . unModule
   where
-    go (Val n _)                   = [n]
-    go (Postulate n _)             = [n]
-    go (DataD (Data tyc _ _ cons)) = tyc : map fst cons
+    go (Val n _)                               = [n]
+    go (Postulate n _)                         = [n]
+    go (Data tyc ((ParamsT _ (DataT _ cons)))) = tyc : map (\(ConstrT c _) -> c) cons
 
 ------
 
-jumpBind :: Eq tag => tag -> TBinderT tag -> a -> a -> a
-jumpBind ta₁ (Bind _ ta₂) x _ | ta₁ == ta₂ = x
-jumpBind _   _            _ x = x
+maybeToBind :: Maybe a -> Binder a a
+maybeToBind Nothing = Wild
+maybeToBind (Just x) = Bind x x
 
-subst :: Eq tag => tag -> TermT fr tag -> TermT fr tag -> TermT fr tag
-subst ta₁ f (Var (Bound ta₂)) | ta₁ == ta₂ = f
-subst _ _ t@(Var _) = t
-subst _ _ t@(Type _) = t
-subst ta f (App t₁ t₂) = App (subst ta f t₁) (subst ta f t₂)
-subst ta f (Arr b ty₁ ty₂) = Arr b (subst ta f ty₁) (substBind ta f b ty₂)
-subst ta f (Lam b ty t) = Lam b (subst ta f ty) (substBind ta f b t)
-subst ta f (Case b t ty brs) =
-    Case b (subst ta f t) ty' brs'
-  where
-    (ty', brs') = jumpBind ta b (ty, brs) ((subst ta f ty), substBrs ta f brs)
-subst ta f (Constr c tys ts) = Constr c (map (subst ta f) tys) (map (subst ta f) ts)
--- TODO this is broken for the same reason that Fix is broken in Uniquify: the
--- parameters scope over the body as well.
-subst ta f (Fix b pars ty t) = Fix b pars' ty' (substBind ta f b t)
-  where (pars', ty') = substPars ta f pars ty
+arrv :: TermV -> Maybe Id -> TermV -> TermV
+arrv ty₁ n ty₂ = Arr ty₁ (Scope (maybeToBind n) ty₂)
 
-subst' :: Eq t => TBinderT t -> TermT f t -> TermT f t -> TermT f t
-subst' Wild        _  t = t
-subst' (Bind _ ta) t₁ t₂ = subst ta t₁ t₂
+lamv :: TermV -> Maybe Id -> TermV -> TermV
+lamv ty n t = Lam ty(Scope (maybeToBind n) t)
 
-substBind :: Eq tag => tag -> TermT fr tag -> TBinderT tag -> TermT fr tag
-          -> TermT fr tag
-substBind ta f b t = jumpBind ta b t (subst ta f t)
+paramsv :: [(Maybe Id, TermV)] -> f Id -> ParamsFT f Id
+paramsv pars t = ParamsT (map (first maybeToBind) pars) t
 
-substPars :: Eq tag
-          => tag -> TermT fr tag -> [ParamT fr tag] -> TermT fr tag
-          -> ([ParamT fr tag], TermT fr tag)
-substPars ta t pars ty = paramsFun' (subst ta t) pars ty
+fixv :: [(Maybe Id, TermV)] -> TermV -> Maybe Id -> TermV -> TermV
+fixv pars ty n t =
+    Fix (paramsv pars (FixT ty (Scope (maybeToBind n) t)))
 
-substBrs :: Eq tag => tag -> TermT fr tag -> [BranchT fr tag] -> [BranchT fr tag]
-substBrs ta t brs = [ (c, bs, if ta `bindElem` bs then t' else subst ta t t')
-                    | (c, bs, t') <- brs ]
+dataD :: ConId -> [(Maybe Id, TermV)] -> Level
+      -> [(ConId, [(Maybe Id, TermV)])]
+      -> DeclV
+dataD c pars l cons =
+    Data c (paramsv pars (DataT l [ ConstrT c' (paramsv pars' Proxy)
+                                  | (c', pars') <- cons ]))
 
-substMany :: Eq t => [ParamT f t] -> TermT f t -> TermT f t
-substMany pars t = foldr (\(b, t₁) t' -> subst' b t₁ t') t pars
+------
 
-instance (Eq fr, Eq tag) => Eq (TermT fr tag) where
-    Var n           == Var n'              = n == n'
-    Type l          == Type l'             = l == l'
-    App t₁ t₂       == App t₁' t₂'         = t₁ == t₁' && t₂ == t₂'
-    Arr b ty₁ ty₂   == Arr b' ty₁' ty₂'    = ty₁ == ty₁' && bindEq b ty₂ b' ty₂'
-    Lam b ty t      == Lam b' ty' t'       = ty == ty' && bindEq b t b' t'
-    Constr c tys ts == Constr c' tys' ts'  = c == c' && tys == tys' && ts == ts'
-    Fix b pars ty t == Fix b' pars' ty' t' =
-        bindEq b (arrs pars ty) b' (arrs pars' ty') && bindEq b t b' t'
-    Case b t ty brs == Case b' t' ty' brs' =
-        t == t' && bindEq b ty b' ty' && brEq b brs b' brs'
-    _               == _                   = False
+type UpFun v = v -> TermT v
 
-bindEq :: (Eq tag, Eq fr) => TBinderT tag -> TermT fr tag -> TBinderT tag
-       -> TermT fr tag -> Bool
-bindEq b t b' t' = t == bindSubst b b' t'
+class Subst f where
+    subst :: (Eq v, Monad m)
+          => UpFun v
+          -> (v -> UpFun v -> m (v, UpFun v))
+          -> f v -> m (f v)
 
-bindSubst :: (Eq t, Eq f) => TBinderT t -> TBinderT t -> TermT f t -> TermT f t
-bindSubst Wild        _            t  = t
-bindSubst _           Wild         t  = t
-bindSubst (Bind _ ta) (Bind _ ta') t' = subst ta' (bound ta) t'
+instance Subst f => Subst (ScopeFT f) where
+    subst f g (Scope Wild x)         = Scope Wild `liftM` subst f g x
+    subst f g (Scope (Bind n v) x) = do (v', f') <- g v f
+                                        Scope (Bind n v') `liftM` subst f' g x
 
-brEq :: (Eq tag, Eq fr)
-     => TBinderT tag -> [BranchT fr tag]
-     -> TBinderT tag -> [BranchT fr tag]
-     -> Bool
-brEq Wild        brs _            brs' = brEq' brs brs'
-brEq _           brs Wild         brs' = brEq' brs brs'
-brEq (Bind _ ta) brs (Bind _ ta') brs' = brEq' brs (substBrs ta' (bound ta) brs')
+instance Subst BranchT where
+    subst f g (Branch c bs t) =
+        do (bs', f') <- foldrM (\b (bs₁, f₁) ->
+                                 case b of
+                                     Wild -> return (Wild : bs₁, f₁)
+                                     Bind n v -> do (v', f₁') <- g v f
+                                                    return (Bind n v' : bs₁, f₁'))
+                        ([], f) bs
+           Branch c bs' `liftM` subst f' g t
 
-brEq' :: (Eq tag, Eq fr) => [BranchT fr tag] -> [BranchT fr tag] -> Bool
-brEq' [] [] = True
-brEq' ((c, bs, t) : brs) ((c', bs', t') : brs') =
-    c == c' && brEq' brs brs' && length bs == length bs' &&
-    t == foldr (\(b, b') t'' -> bindSubst b b' t'') t' (zip bs bs')
-brEq' _ _ = False
+instance Subst CaseT where
+    subst f g (CaseT t brs) = CaseT `liftM` subst f g t `ap` mapM (subst f g) brs
+
+instance (Subst f) => Subst (ParamsFT f) where
+    subst fo g (ParamsT pars' t) = go pars' [] fo
+      where
+        go [] out f = ParamsT out `liftM` subst f g t
+        go ((Wild, ty) : in_) out f =
+            do ty' <- subst f g ty
+               go in_ (out ++ [(Wild, ty')]) f
+        go ((Bind n v, ty) : in_) out f =
+            do ty' <- subst f g ty
+               (v', f') <- g v f
+               go in_ (out ++ [(Bind n v', ty')]) f'
+
+instance Subst FixT where
+    subst f g (FixT ty s) = FixT `liftM` subst f g ty `ap` subst f g s
+
+instance Subst TermT where
+    subst f _ (Var v) = return (f v)
+    subst _ _ (Type l) = return (Type l)
+    subst f g (App t₁ t₂) = App `liftM` subst f g t₁ `ap` subst f g t₂
+    subst f g (Arr ty s) = Arr `liftM` subst f g ty `ap` subst f g s
+    subst f g (Lam ty s) = Lam `liftM` subst f g ty `ap` subst f g s
+    subst f g (Case s) = Case `liftM` subst f g s
+    subst f g (Constr c ts tys) =
+        Constr c `liftM` mapM (subst f g) ts `ap` mapM (subst f g) tys
+    subst f g (Fix ft) = Fix `liftM` subst f g ft
+
+instance Subst ConstrT where
+    subst f g (ConstrT c pars) = ConstrT c `liftM` subst f g pars
+
+instance Subst DataT where
+    subst f g (DataT l cons) = DataT l `liftM` mapM (subst f g) cons
+
+instance Subst DeclT where
+    subst f g (Val n t) = Val n `liftM` subst f g t
+    subst f g (Data c pars) = Data c `liftM` subst f g pars
+    subst f g (Postulate n ty) = Postulate n `liftM` subst f g ty
+
+instance Subst Proxy where
+    subst _ _ Proxy = return Proxy
+
+substV :: (Eq a, Subst f) => a -> TermT a -> f a -> f a
+substV v₁ t = runIdentity .
+              subst (\v₂ -> if v₁ == v₂ then t else Var v₂)
+                    (\v₂ f -> return (v₂, \v₃ -> if v₂ == v₃ then Var v₂ else f v₃))
+
+substManyV :: (Eq a, Subst f) => [(a, TermT a)] -> f a -> f a
+substManyV pars =
+    runIdentity .
+    subst (\v -> fromMaybe (Var v) (lookup v pars))
+          (\v f -> return (v, \v' -> if v == v' then Var v else f v'))
+
+instance (Eq v, Eq (f v), Subst f) => Eq (ScopeFT f v) where
+    Scope Wild        t₁ == Scope _           t₂ = t₁ == t₂
+    Scope _           t₁ == Scope Wild        t₂ = t₁ == t₂
+    Scope (Bind _ v₁) t₁ == Scope (Bind _ v₂) t₂ = t₁ == substV v₂ (Var v₁) t₂
+
+instance (Eq v) => Eq (BranchT v) where
+    Branch c₁ bs₁ t₁ == Branch c₂ bs₂ t₂ =
+        c₁ == c₂ && t₁ == substManyV (catMaybes (zipWith merge bs₂ bs₁)) t₂
+      where merge Wild        _           = Nothing
+            merge _           Wild        = Nothing
+            merge (Bind _ v₂) (Bind _ v₁) = Just (v₂, Var v₁)
+
+instance (Eq v, Eq (f v), Subst f) => Eq (ParamsFT f v) where
+    ParamsT [] t₁ == ParamsT [] t₂ =
+        t₁ == t₂
+    ParamsT ((Wild, ty₁) : pars₁) t₁ == ParamsT ((_, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && ParamsT pars₁ t₁ == ParamsT pars₂ t₂
+    ParamsT ((_, ty₁) : pars₁) t₁ == ParamsT ((Wild, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && ParamsT pars₁ t₁ == ParamsT pars₂ t₂
+    ParamsT ((Bind _ v₁, ty₁) : pars₁) t₁ == ParamsT ((Bind _ v₂, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && ParamsT pars₁ t₁ == substV v₂ (Var v₁) (ParamsT pars₂ t₂)
+    _ == _ = False

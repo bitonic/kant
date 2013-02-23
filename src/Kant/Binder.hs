@@ -5,6 +5,7 @@ module Kant.Binder
     , isWild
     , bindElem
     , bind
+    , binder
     ) where
 
 -- | The @n@ is a forgettable name.
@@ -28,3 +29,7 @@ bindElem x bs = not (null ([() | Bind _ x' <- bs, x == x']))
 
 bind :: a -> Binder a a
 bind n = Bind n n
+
+binder :: b -> (a -> b) -> Binder n a -> b
+binder x _ Wild = x
+binder _ f (Bind _ x) = f x
