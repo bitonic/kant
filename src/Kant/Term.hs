@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -16,9 +17,10 @@ module Kant.Term
     , Module
     , ModuleV
     , ParamT
-    , ParamsFT
+    , ParamsFT(..)
     , Param
     , ScopeT
+    , ScopeFT(..)
     , FixT(..)
     , DeclT(..)
     , Decl
@@ -31,7 +33,8 @@ module Kant.Term
     , TermT(..)
     , Term
     , TermV
-    , BranchT(..)
+    , BranchFT(..)
+    , BranchT
       -- * Smart constructors
     , lams
     , arrs
@@ -51,11 +54,11 @@ module Kant.Term
     -- * Substitutions
     , Subst(..)
     , substV
+    , substManyV
     -- , subst
     -- , substPars
     -- , substBrs
     -- , subst'
-    -- , substMany
     ) where
 
 import           Control.Arrow (first, second)
@@ -150,8 +153,10 @@ data TermT n
     | Arr (TermT n) (ScopeT n)
       -- | Lambda abstraction.
     | Lam (TermT n) (ScopeT n)
+      -- TODO is this good enough, or do I have to scope the scrutined acrosso
+      -- the whole thing?
       -- | Pattern matching.
-    | Case (ScopeFT CaseT n)
+    | Case (TermT n) (ScopeT n) [(ConId, BranchT n)]
       -- | An instance of some inductive data type created by the user.
     | Constr ConId         -- Constructor
              [TermT n]     -- Type parameters
@@ -165,16 +170,14 @@ data ScopeFT f n = Scope (TBinderT n) (f n)
     deriving (Show, Functor)
 type ScopeT = ScopeFT TermT
 
-data BranchT n = Branch ConId [TBinderT n] (TermT n)
+data BranchFT f n = Branch [TBinderT n] (f n)
     deriving (Show, Functor)
+type BranchT = BranchFT TermT
 
 data ParamsFT f n = ParamsT [ParamT n] (f n)
     deriving (Show, Functor)
 
 data FixT n = FixT (TermT n) (ScopeT n)
-    deriving (Show, Functor, Eq)
-
-data CaseT n = CaseT (TermT n) [BranchT n]
     deriving (Show, Functor, Eq)
 
 -- | Folds a list of parameters.
@@ -269,15 +272,12 @@ class Subst f where
 instance Subst f => Subst (ScopeFT f) where
     subst f g (Scope b x) = do (b', f') <- g b f; Scope b' `liftM` subst f' g x
 
-instance Subst BranchT where
-    subst f g (Branch c bs t) =
+instance Subst f => Subst (BranchFT f) where
+    subst f g (Branch bs t) =
         do (bs', f') <- foldrM (\b (bs₁, f₁) ->
                                  do (b', f₁') <- g b f₁; return (b' : bs₁, f₁'))
                         ([], f) bs
-           Branch c bs' `liftM` subst f' g t
-
-instance Subst CaseT where
-    subst f g (CaseT t brs) = CaseT `liftM` subst f g t `ap` mapM (subst f g) brs
+           Branch bs' `liftM` subst f' g t
 
 instance (Subst f) => Subst (ParamsFT f) where
     subst fo g (ParamsT pars' t) = go pars' [] fo
@@ -296,7 +296,9 @@ instance Subst TermT where
     subst f g (App t₁ t₂) = App `liftM` subst f g t₁ `ap` subst f g t₂
     subst f g (Arr ty s) = Arr `liftM` subst f g ty `ap` subst f g s
     subst f g (Lam ty s) = Lam `liftM` subst f g ty `ap` subst f g s
-    subst f g (Case s) = Case `liftM` subst f g s
+    subst f g (Case t s brs) =
+        Case `liftM` subst f g t `ap` subst f g s `ap`
+        sequence [(c,) `liftM` subst f g br | (c, br) <- brs]
     subst f g (Constr c ts tys) =
         Constr c `liftM` mapM (subst f g) ts `ap` mapM (subst f g) tys
     subst f g (Fix ft) = Fix `liftM` subst f g ft
@@ -335,9 +337,9 @@ instance (Eq v, Eq (f v), Subst f) => Eq (ScopeFT f v) where
     Scope _           t₁ == Scope Wild        t₂ = t₁ == t₂
     Scope (Bind _ v₁) t₁ == Scope (Bind _ v₂) t₂ = t₁ == substV v₂ (Var v₁) t₂
 
-instance (Eq v) => Eq (BranchT v) where
-    Branch c₁ bs₁ t₁ == Branch c₂ bs₂ t₂ =
-        c₁ == c₂ && t₁ == substManyV (catMaybes (zipWith merge bs₂ bs₁)) t₂
+instance (Eq v, Eq (f v), Subst f) => Eq (BranchFT f v) where
+    Branch bs₁ t₁ == Branch bs₂ t₂ =
+        t₁ == substManyV (catMaybes (zipWith merge bs₂ bs₁)) t₂
       where merge Wild        _           = Nothing
             merge _           Wild        = Nothing
             merge (Bind _ v₂) (Bind _ v₁) = Just (v₂, Var v₁)

@@ -39,11 +39,11 @@ Library
 
     Exposed-Modules:  Kant.Term,
                       Kant.Environment,
-                      Kant.Uniquify
+                      Kant.Uniquify,
                       -- Kant.Sugar,
                       -- Kant.Parser,
                       -- Kant.Pretty
-                      -- Kant.Reduce,
+                      Kant.Reduce
                       -- Kant.TyCheck
                       -- Kant.REPL
 
