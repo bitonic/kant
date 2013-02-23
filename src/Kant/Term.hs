@@ -14,17 +14,20 @@ module Kant.Term
     , TBinder
     , ModuleT(..)
     , Module
+    , ModuleV
     , ParamT
     , Param
     , ScopeT
     , FixT(..)
     , DeclT(..)
     , Decl
+    , DeclV
     , DataT(..)
     , ConstrT
     , Constr
     , TermT(..)
     , Term
+    , TermV
     , BranchT(..)
       -- * Smart constructors
     , lams
@@ -102,6 +105,7 @@ type Level  = Natural
 newtype ModuleT n = Module {unModule :: [DeclT n]}
     deriving (Show, Eq)
 type Module = ModuleT Tag
+type ModuleV = ModuleT Id
 
 type TBinderT = Binder Id
 type TBinder = TBinderT Tag
