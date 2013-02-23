@@ -26,9 +26,9 @@ instance (Reduce f, Subst f) => Reduce (ScopeFT f) where
 instance (Reduce f, Subst f) => Reduce (BranchFT f) where
     reduce r (Branch brs t) = Branch brs <$> r t
 
-instance (Reduce f, Subst f) => Reduce (ParamsFT f) where
-    reduce r (ParamsT pars t) = ParamsT <$> sequence [(b,) <$> r ty | (b, ty) <- pars]
-                                        <*> r t
+instance (Reduce f, Subst f) => Reduce (TeleFT f) where
+    reduce r (Tele pars t) = Tele <$> sequence [(b,) <$> r ty | (b, ty) <- pars]
+                                  <*> r t
 
 instance Reduce FixT where
     reduce r (FixT t s) = FixT <$> r t <*> r s
@@ -40,7 +40,7 @@ instance Reduce TermT where
         do t₁' <- reduce r t₁
            case t₁' of
                Lam _ (Scope b t) -> reduce r (substB b t₂ t)
-               (unrollApp -> (ft@(Fix (ParamsT pars (FixT _ (Scope b t)))), args)) ->
+               (unrollApp -> (ft@(Fix (Tele pars (FixT _ (Scope b t)))), args)) ->
                    do t₂' <- reduce r t₂
                       let args'         = args ++ [t₂']
                           i             = length pars

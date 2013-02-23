@@ -19,7 +19,7 @@ module Kant.Term
     , Module
     , ModuleV
     , ParamT
-    , ParamsFT(..)
+    , TeleFT(..)
     , Param
     , ScopeT
     , ScopeFT(..)
@@ -135,19 +135,19 @@ type Param = ParamT Tag
 -- | Value or datatype declaration.
 data DeclT n
     = Val Id (TermT n)
-    | Data ConId (ParamsFT DataT n)
+    | Data ConId (TeleFT DataT n)
     | Postulate Id (TermT n)
     deriving (Show, Eq, Functor)
 type Decl = DeclT Tag
 type DeclV = DeclT Id
 
-type DataBodyT n = ParamsFT DataT n
+type DataBodyT n = TeleFT DataT n
 type DataBody = DataBodyT Tag
 
 data DataT n = DataT Level [ConstrT n]
     deriving (Show, Eq, Functor)
 
-data ConstrT n = ConstrT ConId (ParamsFT Proxy n)
+data ConstrT n = ConstrT ConId (TeleFT Proxy n)
     deriving (Show, Eq, Functor)
 type Constr = ConstrT Tag
 
@@ -172,7 +172,7 @@ data TermT n
     | Constr ConId         -- Constructor
              [TermT n]     -- Type parameters
              [TermT n]     -- Data Parameters
-    | Fix (ParamsFT FixT n)
+    | Fix (TeleFT FixT n)
     deriving (Show, Functor, Eq)
 type Term = TermT Tag
 type TermV = TermT Id
@@ -185,7 +185,7 @@ data BranchFT f n = Branch [TBinderT n] (f n)
     deriving (Show, Functor)
 type BranchT = BranchFT TermT
 
-data ParamsFT f n = ParamsT [ParamT n] (f n)
+data TeleFT f n = Tele [ParamT n] (f n)
     deriving (Show, Functor)
 
 data FixT n = FixT (TermT n) (ScopeT n)
@@ -240,9 +240,9 @@ unrollArr' = unrollArr Nothing
 moduleNames :: ModuleT t -> [Id]
 moduleNames = concatMap go . unModule
   where
-    go (Val n _)                               = [n]
-    go (Postulate n _)                         = [n]
-    go (Data tyc ((ParamsT _ (DataT _ cons)))) = tyc : map (\(ConstrT c _) -> c) cons
+    go (Val n _)                            = [n]
+    go (Postulate n _)                      = [n]
+    go (Data tyc ((Tele _ (DataT _ cons)))) = tyc : map (\(ConstrT c _) -> c) cons
 
 ------
 
@@ -256,8 +256,8 @@ arrv ty₁ n ty₂ = Arr ty₁ (Scope (maybeToBind n) ty₂)
 lamv :: TermV -> Maybe Id -> TermV -> TermV
 lamv ty n t = Lam ty(Scope (maybeToBind n) t)
 
-paramsv :: [(Maybe Id, TermV)] -> f Id -> ParamsFT f Id
-paramsv pars t = ParamsT (map (first maybeToBind) pars) t
+paramsv :: [(Maybe Id, TermV)] -> f Id -> TeleFT f Id
+paramsv pars t = Tele (map (first maybeToBind) pars) t
 
 fixv :: [(Maybe Id, TermV)] -> TermV -> Maybe Id -> TermV -> TermV
 fixv pars ty n t =
@@ -294,10 +294,10 @@ instance Subst f => Subst (BranchFT f) where
                         ([], f) bs
            Branch bs' `liftM` subst f' g t
 
-instance (Subst f) => Subst (ParamsFT f) where
-    subst fo g (ParamsT pars' t) = go pars' [] fo
+instance (Subst f) => Subst (TeleFT f) where
+    subst fo g (Tele pars' t) = go pars' [] fo
       where
-        go [] out f = ParamsT out `liftM` subst f g t
+        go [] out f = Tele out `liftM` subst f g t
         go ((b, ty) : in_) out f = do ty' <- subst f g ty
                                       (b', f') <- g b f
                                       go in_ (out ++ [(b', ty')]) f'
@@ -359,13 +359,13 @@ instance (Eq v, Eq (f v), Subst f) => Eq (BranchFT f v) where
             merge _           Wild        = Nothing
             merge (Bind _ v₂) (Bind _ v₁) = Just (v₂, Var v₁)
 
-instance (Eq v, Eq (f v), Subst f) => Eq (ParamsFT f v) where
-    ParamsT [] t₁ == ParamsT [] t₂ =
+instance (Eq v, Eq (f v), Subst f) => Eq (TeleFT f v) where
+    Tele [] t₁ == Tele [] t₂ =
         t₁ == t₂
-    ParamsT ((Wild, ty₁) : pars₁) t₁ == ParamsT ((_, ty₂) : pars₂) t₂ =
-        ty₁ == ty₂ && ParamsT pars₁ t₁ == ParamsT pars₂ t₂
-    ParamsT ((_, ty₁) : pars₁) t₁ == ParamsT ((Wild, ty₂) : pars₂) t₂ =
-        ty₁ == ty₂ && ParamsT pars₁ t₁ == ParamsT pars₂ t₂
-    ParamsT ((Bind _ v₁, ty₁) : pars₁) t₁ == ParamsT ((Bind _ v₂, ty₂) : pars₂) t₂ =
-        ty₁ == ty₂ && ParamsT pars₁ t₁ == substV v₂ (Var v₁) (ParamsT pars₂ t₂)
+    Tele ((Wild, ty₁) : pars₁) t₁ == Tele ((_, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && Tele pars₁ t₁ == Tele pars₂ t₂
+    Tele ((_, ty₁) : pars₁) t₁ == Tele ((Wild, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && Tele pars₁ t₁ == Tele pars₂ t₂
+    Tele ((Bind _ v₁, ty₁) : pars₁) t₁ == Tele ((Bind _ v₂, ty₂) : pars₂) t₂ =
+        ty₁ == ty₂ && Tele pars₁ t₁ == substV v₂ (Var v₁) (Tele pars₂ t₂)
     _ == _ = False

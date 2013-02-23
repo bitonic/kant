@@ -111,7 +111,7 @@ upVal' Wild        _  _ = return ()
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
 addData :: (MonadError e m) => ConId -> DataBody -> (ConId -> e) -> EnvM m ()
-addData tyc dd@(ParamsT pars (DataT l cons)) err =
+addData tyc dd@(Tele pars (DataT l cons)) err =
     do env₁@Env{envData = dds} <- get
        checkDup tyc env₁
        put env₁{envData = Map.insert tyc dd dds}
@@ -126,7 +126,7 @@ addData tyc dd@(ParamsT pars (DataT l cons)) err =
                           f     = conFun dc vars₂ vars₃
                       True <- addVal (toTag dc) (arrs vars₁ resTy) f
                       return ()
-                 | ConstrT dc (ParamsT pars' Proxy) <- cons ]
+                 | ConstrT dc (Tele pars' Proxy) <- cons ]
   where
     checkDup c Env{envCtx = ctx, envData = dds} =
         if Map.member c dds || Map.member (toTag c) ctx

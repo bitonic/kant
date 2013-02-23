@@ -13,7 +13,6 @@ import           Control.Monad.Identity (runIdentity)
 import           Control.Monad.State (State, StateT(..), MonadState(..), evalState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 import           Kant.Term
 import           Kant.Environment
