@@ -169,21 +169,21 @@ type ParseResult = Either ParseError
 parseModule :: String -> ParseResult ModuleV
 parseModule s = desugar <$> runAlex s parseModule_
 
-parseEnvM p = either (return . Left) (\m -> Right `liftM` toEnvM (uniquify m)) . p
+parseEnvM p = either (return . Left) (\m -> Right `liftM` uniquify m) . p
 
-parseModule' :: Monad m => String -> EnvM m (ParseResult Module)
+parseModule' :: MonadEnv m => String -> m (ParseResult Module)
 parseModule' = parseEnvM parseModule
 
 parseDecl :: String -> ParseResult DeclV
 parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseDecl' :: Monad m => String -> EnvM m (ParseResult Decl)
+parseDecl' :: MonadEnv m => String -> m (ParseResult Decl)
 parseDecl' = parseEnvM parseDecl
 
 parseTerm :: String -> ParseResult TermV
 parseTerm s = desugar <$> runAlex s parseTerm_
 
-parseTerm' :: Monad m => String -> EnvM m (ParseResult Term)
+parseTerm' :: MonadEnv m => String -> m (ParseResult Term)
 parseTerm' = parseEnvM parseTerm
 
 -- | Explodes if things go wrong.
@@ -191,6 +191,6 @@ parseFile :: FilePath -> IO ModuleV
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 parseFile' :: Env -> FilePath -> IO (Module, Env)
-parseFile' env fp = runIdentity . runEnvM env . toEnvM . uniquify <$> parseFile fp
+parseFile' env fp = runIdentity . runEnv env . uniquify <$> parseFile fp
 
 }

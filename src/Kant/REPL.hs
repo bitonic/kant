@@ -8,8 +8,9 @@ import           Control.Exception (catch)
 import           Data.Char (isSpace)
 import           Prelude hiding (catch)
 
-import           Control.Monad.Error (ErrorT(..))
+import           Control.Monad.Error (ErrorT(..), throwError)
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.State (runState)
 import qualified Text.Parsec as Parsec
 import           Text.Parsec.Char (anyChar, char)
 
@@ -76,10 +77,15 @@ replOutput env s₁ =
            ISkip       -> return (OSkip, env)
   where
     ret     = ErrorT . return
-    parseE  = ret . left TermParse
-    tyE     = ret . left TyCheck
-    parse e = parseE . parseTerm' e
-    tyct    = tyE . tyCheckT env
+    -- parseE  = ret . left TermParse
+    parseE = undefined
+    -- tyE     = ret . left TyCheck
+    tyE = undefined
+    parse e = case (runState parseTerm' e) of
+                  (Right t, e') -> return (t, e')
+                  (Left err, _) -> throwError (TermParse err)
+    -- tyct    = tyE . tyCheckT env
+    tyct = undefined
     readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
 
 repl :: Env -> String -> REPL (Maybe Env)

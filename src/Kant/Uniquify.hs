@@ -1,41 +1,27 @@
 module Kant.Uniquify
-    ( UniqueM
-    , toEnvM
-    , uniquify
+    ( uniquify
     , revert
-    )
-    where
+    ) where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad (liftM)
 import           Data.Maybe (fromMaybe)
 
-import           Control.Monad.Identity (runIdentity)
-import           Control.Monad.State (State, StateT(..), MonadState(..), evalState)
+import           Control.Monad.State (State, MonadState(..), evalState)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
 import           Kant.Term
 import           Kant.Environment
 
-type UniqueM = State Count
-
-toEnvM :: Monad m => UniqueM a -> EnvM m a
-toEnvM (StateT f) = StateT $ \s-> let (x, c) = runIdentity (f (envCount s))
-                                  in return (x, s{envCount = c})
-
-fresh :: State Count Id
-fresh = do ta <- get
-           put (ta + 1)
-           return (show ta)
-
-uniquify :: (Functor f, Subst f) => f Id -> UniqueM (f Tag)
+uniquify :: (Functor f, Subst f, MonadEnv m) => f Id -> m (f Tag)
 uniquify t =
-    fmap toTag <$>
+    fmap toTag `liftM`
     subst Var
           (\b f -> case b of
                        Wild -> return (Wild, f)
                        Bind n v₁ ->
-                           do v₂ <- fresh
+                           do v₂ <- freshId
                               return (Bind n v₂,
                                       \v₃ -> if v₃ == v₁ then Var v₂ else f v₃))
           t

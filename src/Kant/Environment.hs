@@ -4,16 +4,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
     ( Count
     , Env(..)
-    , EnvM
-    , runEnvM
+    , MonadEnv
+    , runEnv
       -- * Utilities
     , bumpCount
     , freshTag
+    , freshId
     , envTy
     , envDef
     , envData'
@@ -27,7 +30,7 @@ module Kant.Environment
     , addData
     ) where
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative ((<$>), Applicative)
 import           Control.Monad (join, liftM)
 import           Prelude hiding (foldr)
 
@@ -49,30 +52,34 @@ data Env = Env
     , envCount :: Count
     }
 
-type EnvM m = StateT Env m
+class (Functor m, Applicative m, MonadState Env m) => MonadEnv m
+instance (Functor m, Applicative m, Monad m) => MonadEnv (StateT Env m)
 
-runEnvM :: Monad m => Env -> EnvM m a -> m (a, Env)
-runEnvM env (StateT f) = f env
+runEnv :: Env -> StateT Env m a -> m (a, Env)
+runEnv env (StateT f) = f env
 
-bumpCount :: Monad m => EnvM m Count
+bumpCount :: MonadEnv m => m Count
 bumpCount = do env@Env{envCount = c} <- get
                put env{envCount = c+1}
                return c
 
-freshTag :: Monad m => EnvM m Tag
+freshTag :: MonadEnv m => m Tag
 freshTag = (toTag . show) `liftM` bumpCount
 
+freshId :: MonadEnv m => m Id
+freshId = show `liftM` bumpCount
+
 -- | Looks up the type of a variable.
-envTy :: Monad m => Tag -> EnvM m (Maybe Term)
+envTy :: MonadEnv m => Tag -> m (Maybe Term)
 envTy v = do Env{envCtx = ctx} <- get
              return (join (fst <$> Map.lookup v ctx))
 
 -- | Looks up the body of a definition.
-envDef :: Monad m => Tag -> EnvM m (Maybe Term)
+envDef :: MonadEnv m => Tag -> m (Maybe Term)
 envDef v = do Env{envCtx = ctx} <- get
               return (join (snd <$> Map.lookup v ctx))
 
-envData' :: Monad m => ConId -> EnvM m (Maybe DataBody)
+envData' :: MonadEnv m => ConId -> m (Maybe DataBody)
 envData' v = do Env{envData = dds} <- get
                 return (Map.lookup v dds)
 
@@ -82,7 +89,7 @@ newEnv = Env{ envCtx   = Map.empty
             , envCount = 0
             }
 
-addCtx :: Monad m => Tag -> Maybe Term -> Maybe Term -> EnvM m Bool
+addCtx :: MonadEnv m => Tag -> Maybe Term -> Maybe Term -> m Bool
 addCtx v tym tm =
     do env@Env{envCtx = ctx} <- get
        case Map.lookup v ctx of
@@ -92,35 +99,36 @@ addCtx v tym tm =
 
 -- | Adds an abstracted variable to an environment, 'Nothing' if the name is
 --   already present.
-addAbst :: Monad m => Tag -> Term -> EnvM m Bool
+addAbst :: MonadEnv m => Tag -> Term -> m Bool
 addAbst n t = addCtx n (Just t) Nothing
 
 -- | Adds a value definition to an environment, 'Nothing' if the name is already
 --   present.
-addVal :: Monad m => Tag -> Term -> Term -> EnvM m Bool
+addVal :: MonadEnv m => Tag -> Term -> Term -> m Bool
 addVal v ty t = addCtx v (Just ty) (Just t)
 
-upCtx :: Monad m => Tag -> Maybe Term -> Maybe Term -> EnvM m ()
+upCtx :: MonadEnv m => Tag -> Maybe Term -> Maybe Term -> m ()
 upCtx v tym tm = do env@Env{envCtx = ctx} <- get
                     put env{envCtx = Map.insert v (tym, tm) ctx}
 
-upAbst :: Monad m => Tag -> Term -> EnvM m ()
+upAbst :: MonadEnv m => Tag -> Term -> m ()
 upAbst v t = upCtx v (Just t) Nothing
 
-upAbst' :: Monad m => TBinder -> Term -> EnvM m ()
+upAbst' :: MonadEnv m => TBinder -> Term -> m ()
 upAbst' Wild        _ = return ()
 upAbst' (Bind _ ta) t = upAbst ta t
 
-upVal :: Monad m => Tag -> Term -> Term -> EnvM m ()
+upVal :: MonadEnv m => Tag -> Term -> Term -> m ()
 upVal v ty t = upCtx v (Just ty) (Just t)
 
-upVal' :: Monad m => TBinder -> Term -> Term -> EnvM m ()
+upVal' :: MonadEnv m => TBinder -> Term -> Term -> m ()
 upVal' (Bind _ ta) ty t = upVal ta ty t
 upVal' Wild        _  _ = return ()
 
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
-addData :: (MonadError e m) => ConId -> DataBody -> (ConId -> e) -> EnvM m ()
+addData :: (MonadError e m, MonadEnv m)
+        => ConId -> DataBody -> (ConId -> e) -> m ()
 addData tyc dd@(Tele pars (DataT l cons)) err =
     do env₁@Env{envData = dds} <- get
        checkDup tyc env₁

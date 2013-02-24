@@ -15,7 +15,7 @@ import           Data.Maybe (fromMaybe)
 import           Kant.Term
 import           Kant.Environment
 
-type Reducer f = forall m. (Monad m, Functor m) => f Tag -> EnvM m (f Tag)
+type Reducer f = forall m. MonadEnv m => f Tag -> m (f Tag)
 
 class Subst f => Reduce f where
     reduce :: (forall g. Reduce g => Reducer g) -> Reducer f

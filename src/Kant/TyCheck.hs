@@ -1,19 +1,21 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Kant.TyCheck
-    -- ( TyCheckError(..)
-    -- , TyCheckM
-    -- , TyCheck(..)
-    -- , tyCheckT
-    -- )
+    ( TyCheckError(..)
+    , MonadTyCheck
+    , TyCheck(..)
+    , tyCheckT
+    )
     where
 
 import           Control.Applicative ((<$), (<$>), Applicative)
 import           Control.Monad (unless, forM_)
 
 import           Control.Monad.Error (Error(..), MonadError(..), ErrorT)
-import           Control.Monad.State (MonadState(..))
+import           Control.Monad.State (MonadState(..), StateT)
 import qualified Data.Set as Set
 
 import           Kant.Environment hiding (envTy)
@@ -38,12 +40,13 @@ data TyCheckError
 instance Error TyCheckError where
     noMsg = TyCheckError
 
-type TyCheckM m = EnvM (ErrorT TyCheckError m)
-
-class (Monad m, Functor m, Applicative m) => MFA m
+class (MonadEnv m, MonadError TyCheckError m, Functor m, Applicative m) =>
+      MonadTyCheck m
+instance (Monad m, Functor m, Applicative m) =>
+         MonadTyCheck (StateT Env (ErrorT TyCheckError m))
 
 class TyCheck a where
-    tyCheck :: MFA m => a -> TyCheckM m ()
+    tyCheck :: MonadTyCheck m => a -> m ()
 
 checkDup n m = do b <- m
                   unless b (throwError (DuplicateName (toTag n)))
@@ -62,10 +65,10 @@ instance (v ~ Tag) => TyCheck (DeclT v) where
 forget :: MonadState s m => m b -> m b
 forget m = do s <- get; x <- m; put s; return x
 
-envTy :: MFA m => Tag -> TyCheckM m Term
+envTy :: MonadTyCheck m => Tag -> m Term
 envTy v = maybe (throwError (OutOfBounds v)) return =<< Env.envTy v
 
-tyCheckT :: MFA m => Term -> TyCheckM m Term
+tyCheckT :: MonadTyCheck m => Term -> m Term
 tyCheckT (Var v) = envTy v
 tyCheckT (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -122,7 +125,6 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
-    checkBr :: MFA m => [(TBinder, Term)] -> [Constr] -> (ConId, Branch) -> TyCheckM m ()
     checkBr parsty cons (c, Branch bs t') =
         case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
             [] -> throwError (NotConstructor c ct)
@@ -148,14 +150,14 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
 
 -- TODO I don't think it's safe to generate names here considering that then we
 -- throw away the Env.
-fillNames :: MFA m => [TBinder] -> TyCheckM m [TBinder]
+fillNames :: MonadTyCheck m => [TBinder] -> m [TBinder]
 fillNames [] = return []
 fillNames (b@(Bind _ _) : bs) = (b :) <$> fillNames bs
 fillNames (Wild : bs) =
     do v <- freshTag; (Bind "_" v :) <$> fillNames bs
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: MFA m => Term -> Term -> TyCheckM m ()
+tyCheckEq :: MonadTyCheck m => Term -> Term -> m ()
 tyCheckEq ty t =
     do ty' <- tyCheckT t
        eqb <- eqCum ty' ty
@@ -164,7 +166,7 @@ tyCheckEq ty t =
 -- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
 --   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
 --   ('Type' 4) ('Type' 1)@ will fail.
-eqCum :: MFA m => Term -> Term -> TyCheckM m Bool
+eqCum :: MonadEnv m => Term -> Term -> m Bool
 eqCum t₁ t₂ = do t₁' <- nf t₁; t₂' <- nf t₂
                  return $ case (t₁', t₂') of
                               (Type l₁, Type l₂) -> l₁ <= l₂
