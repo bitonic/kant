@@ -43,11 +43,14 @@ instance Error TyCheckError where
 class (MonadEnv m, MonadError TyCheckError m, Functor m, Applicative m) =>
       MonadTyCheck m
 instance (Monad m, Functor m, Applicative m) =>
+         MonadTyCheck (ErrorT TyCheckError (StateT Env m))
+instance (Monad m, Functor m, Applicative m) =>
          MonadTyCheck (StateT Env (ErrorT TyCheckError m))
 
 class TyCheck a where
     tyCheck :: MonadTyCheck m => a -> m ()
 
+checkDup :: MonadTyCheck m => Id -> m Bool -> m ()
 checkDup n m = do b <- m
                   unless b (throwError (DuplicateName (toTag n)))
 

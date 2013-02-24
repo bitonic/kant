@@ -36,6 +36,7 @@ import           Prelude hiding (foldr)
 
 import           Control.Monad.Error (MonadError(..))
 import           Control.Monad.State (StateT(..), MonadState(..))
+import           Control.Monad.Error (Error(..), ErrorT)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -54,6 +55,8 @@ data Env = Env
 
 class (Functor m, Applicative m, MonadState Env m) => MonadEnv m
 instance (Functor m, Applicative m, Monad m) => MonadEnv (StateT Env m)
+instance (Functor m, Applicative m, Monad m, Error e) =>
+         MonadEnv (ErrorT e (StateT Env m))
 
 runEnv :: Env -> StateT Env m a -> m (a, Env)
 runEnv env (StateT f) = f env
