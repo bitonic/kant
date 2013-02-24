@@ -10,6 +10,7 @@ module Kant.Reduce
     where
 
 import           Control.Applicative ((<$>), (<*>))
+import           Data.Maybe (fromMaybe)
 
 import           Kant.Term
 import           Kant.Environment
@@ -33,7 +34,7 @@ instance Reduce FixT where
     reduce r (FixT t s) = FixT <$> r t <*> r s
 
 instance Reduce TermT where
-    reduce r t@(Var v) = maybe (return t) (reduce r) =<< envDef v
+    reduce r t@(Var v) = do tm <- envDef v; return (fromMaybe t tm)
     reduce _ t@(Type _) = return t
     reduce r (App t₁ t₂) =
         do t₁' <- reduce r t₁

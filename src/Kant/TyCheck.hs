@@ -59,7 +59,9 @@ instance (v ~ Tag) => TyCheck (ModuleT v) where
 
 instance (v ~ Tag) => TyCheck (DeclT v) where
     -- TODO we are tychecking before verifying that there are no duplicates
-    tyCheck (Val n t) = do ty <- tyCheckT t; checkDup n (addVal (toTag n) ty t)
+    tyCheck (Val n t) = do t' <- nf t
+                           ty <- tyCheckT t'
+                           checkDup n (addVal (toTag n) ty t')
     tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (toTag n) ty)
     tyCheck (Data c dd@(Tele pars (DataT l cons))) =
         -- TODO finish
