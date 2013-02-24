@@ -63,7 +63,7 @@ instance (v ~ Tag) => TyCheck (DeclT v) where
     tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (toTag n) ty)
     tyCheck (Data c dd@(Tele pars (DataT l cons))) =
         -- TODO finish
-        addData c dd undefined
+        addData c dd (DuplicateName . toTag)
 
 forget :: MonadState s m => m b -> m b
 forget m = do s <- get; x <- m; put s; return x

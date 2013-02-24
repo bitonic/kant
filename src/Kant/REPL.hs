@@ -1,16 +1,17 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 -- TODO write usage
 module Kant.REPL (main) where
 
 import           Control.Applicative ((*>), (<$>), (<|>), (<$))
 import           Control.Arrow (left)
-import           Control.Monad (msum)
 import           Control.Exception (catch)
+import           Control.Monad (msum)
 import           Data.Char (isSpace)
 import           Prelude hiding (catch)
 
-import           Control.Monad.Error (ErrorT(..), throwError)
+import           Control.Monad.Error (ErrorT(..), throwError, mapErrorT)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.State (runState)
+import           Control.Monad.State (StateT(..))
 import qualified Text.Parsec as Parsec
 import           Text.Parsec.Char (anyChar, char)
 
@@ -39,9 +40,11 @@ data Input
 trim :: String -> String
 trim = reverse . f . reverse . f where f = dropWhile isSpace
 
-parseInput :: String -> Either REPLError Input
+type REPLM = ErrorT REPLError (StateT Env IO)
+
+parseInput :: String -> REPLM Input
 parseInput =
-    either (Left . CmdParse) Right . Parsec.parse (Parsec.spaces *> go) ""
+    either (throwError . CmdParse) return . Parsec.parse (Parsec.spaces *> go) ""
   where
     go       =     Parsec.string ":" *> msum [char ch *> p | (ch, p) <- commands]
                <|> ISkip <$ Parsec.eof
@@ -54,51 +57,49 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
--- mapTyCheckM :: 
+mapTyCheckM :: ErrorT TyCheckError (StateT Env IO) a -> REPLM a
+mapTyCheckM = mapErrorT (left TyCheck <$>)
 
-replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
-replOutput = undefined
--- replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
--- replOutput env s₁ =
---     do c <- ret (parseInput s₁)
---        case c of
---            ITyCheck s₂ -> do (env', t) <- parse env s₂
---                              ty <- tyct t
---                              return (OTyCheck ty, env')
---            IEval s₂    -> do (env', t) <- parse env s₂
---                              tyct t
---                              return (OPretty (nf env t), env')
---            IDecl s₂    -> do (env', d) <- parseE (parseDecl' env s₂)
---                              env'' <- tyE (tyCheck env' d)
---                              return (OOK, env'')
---            ILoad fp    -> do s <- readSafe fp
---                              (env', m) <- parseE (parseModule' env s)
---                              env'' <- tyE (tyCheck env' m)
---                              return (OOK, env'')
---            IPretty s₂  -> do (env', t) <- parse env s₂
---                              return (OPretty (whnf env t), env')
---            IQuit       -> return (OQuit, env)
---            ISkip       -> return (OSkip, env)
---   where
---     nf' e t = evalState (nf t) e
---     ret     = ErrorT . return
---     -- parseE  = ret . left TermParse
---     parseE = undefined
---     -- tyE     = ret . left TyCheck
---     tyE = undefined
---     parse e = case (runState parseTerm' e) of
---                   (Right t, e') -> return (t, e')
---                   (Left err, _) -> throwError (TermParse err)
---     -- tyct    = tyE . tyCheckT env
---     tyct = undefined
---     readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
+replOutput :: String -> REPLM Output
+replOutput s₁ =
+    do c <- parseInput s₁
+       case c of
+           ITyCheck s₂ -> do t <- parse s₂
+                             ty <- tyct t
+                             return (OTyCheck ty)
+           IEval s₂    -> do t <- parse s₂
+                             tyct t
+                             t' <- nf t
+                             return (OPretty t')
+           IDecl s₂    -> do d <- parseDecl' s₂ >>= parseE
+                             tyck d
+                             return OOK
+           ILoad fp    -> do s <- readSafe fp
+                             m <- parseModule' s >>= parseE
+                             tyck m
+                             return OOK
+           IPretty s₂  -> do t <- parse s₂ >>= whnf
+                             return (OPretty t)
+           IQuit       -> return OQuit
+           ISkip       -> return OSkip
+  where
+    parseE (Left pe) = throwError (TermParse pe)
+    parseE (Right x) = return x
+    parse s = parseTerm' s >>= parseE
+    tyct = mapTyCheckM . tyCheckT
+    tyck = mapTyCheckM . tyCheck
+    readSafe fp =
+        do se <- liftIO (catch (Right <$> readFile fp) (return . Left))
+           case se of
+               Left err -> throwError (IOError err)
+               Right s  -> return s
 
 repl :: Env -> String -> REPL (Maybe Env)
 repl env input =
-    do res <- liftIO (runErrorT (replOutput env input))
+    do (res, env') <- liftIO (runStateT (runErrorT (replOutput input)) env)
        case res of
-           Left err          -> do liftIO (putPretty err); return (Just env)
-           Right (out, env') -> do liftIO (putPretty out); quit out env'
+           Left err  -> do liftIO (putPretty err); return (Just env)
+           Right out -> do liftIO (putPretty out); quit out env'
   where quit OQuit _ = return Nothing
         quit _     e = return (Just e)
 

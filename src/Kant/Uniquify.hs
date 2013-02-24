@@ -26,6 +26,7 @@ uniquify t =
                                       \v₃ -> if v₃ == v₁ then Var v₂ else f v₃))
           t
 
+-- TODO start from an Env when using this in Pretty/TyCheck/etc.
 revert :: (Functor f, Subst f) => f Tag -> f Id
 revert t = evalState (revert' (toId <$> t)) Map.empty
 
