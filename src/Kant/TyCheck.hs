@@ -9,10 +9,10 @@ module Kant.TyCheck
     -- )
     where
 
-import           Control.Applicative ((<$), (<$>))
+import           Control.Applicative ((<$), (<$>), Applicative)
 import           Control.Monad (unless, forM_)
 
-import           Control.Monad.Error (Error(..), MonadError(..))
+import           Control.Monad.Error (Error(..), MonadError(..), ErrorT)
 import           Control.Monad.State (MonadState(..))
 import qualified Data.Set as Set
 
@@ -38,56 +38,34 @@ data TyCheckError
 instance Error TyCheckError where
     noMsg = TyCheckError
 
-type TyCheckM = EnvM (Either TyCheckError)
+type TyCheckM m = EnvM (ErrorT TyCheckError m)
 
--- class TyCheck a where
---     tyCheck :: Env -> a -> TyCheckM Env
+class (Monad m, Functor m, Applicative m) => MFA m
 
--- instance (v ~ Tag) => TyCheck (ModuleT v) where
---     tyCheck env' (Module decls') = go decls' env'
---       where
---         go []             env = Right env
---         go (decl : decls) env = tyCheck env decl >>= go decls
+class TyCheck a where
+    tyCheck :: MFA m => a -> TyCheckM m ()
 
--- instance (v ~ Tag) => TyCheck (DeclT v) where
---     tyCheck env (DataD dat)      = tyCheck env dat
---     tyCheck env (Val n t)        = do ty <- tyCheckT env t; addVal env n ty t
---     tyCheck env (Postulate n ty) = do tyCheckT env ty; addAbst env n ty
+checkDup n m = do b <- m
+                  unless b (throwError (DuplicateName (toTag n)))
 
--- instance (v ~ Tag) => TyCheck (DataT v) where
---     tyCheck env dd@(Data tyc _ _ cons) =
---         do env₁ <- addData env dd
---            -- We assert that the type constructor is present
---            let Just ty = Env.envTy env₁ (Free tyc)
---            tyCheckT env ty
---            env' <- addAbst env tyc ty
---            forM_ cons $ \(c, _) -> do let Just ty' = Env.envTy env₁ (Free c)
---                                       tyCheckT env' ty'
---            return env₁
+instance (v ~ Tag) => TyCheck (ModuleT v) where
+    tyCheck (Module decls') = mapM_ tyCheck decls'
 
--- dupMaybe :: Id -> Maybe b -> TyCheckM b
--- dupMaybe _ (Just x) = return x
--- dupMaybe n Nothing  = throwError (DuplicateName n)
-
--- addAbst :: Env -> Id -> Term -> TyCheckM Env
--- addAbst env n t = dupMaybe n (Env.addAbst env n t)
-
--- addVal :: Env -> Id -> Term -> Term -> TyCheckM Env
--- addVal env n ty t = dupMaybe n (Env.addVal env n ty t)
-
--- addData :: Env -> Data -> TyCheckM Env
--- addData env dd = either (throwError . DuplicateName) return (Env.addData env dd)
-
--- envTy :: Env -> TName -> TyCheckM Term
--- envTy env v = maybe (throwError (OutOfBounds v)) return (Env.envTy env v)
+instance (v ~ Tag) => TyCheck (DeclT v) where
+    -- TODO we are tychecking before verifying that there are no duplicates
+    tyCheck (Val n t) = do ty <- tyCheckT t; checkDup n (addVal (toTag n) ty t)
+    tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (toTag n) ty)
+    tyCheck (Data c dd@(Tele pars (DataT l cons))) =
+        -- TODO finish
+        addData c dd undefined
 
 forget :: MonadState s m => m b -> m b
 forget m = do s <- get; x <- m; put s; return x
 
-envTy :: Tag -> TyCheckM Term
+envTy :: MFA m => Tag -> TyCheckM m Term
 envTy v = maybe (throwError (OutOfBounds v)) return =<< Env.envTy v
 
-tyCheckT :: Term -> TyCheckM Term
+tyCheckT :: MFA m => Term -> TyCheckM m Term
 tyCheckT (Var v) = envTy v
 tyCheckT (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
@@ -122,6 +100,7 @@ tyCheckT (Lam ty (Scope b t)) =
 tyCheckT (Constr c pars args) =
     tyCheckT (app (Var (toTag c) : pars ++ args))
 tyCheckT (Fix (Tele pars (FixT ty (Scope b t)))) =
+    -- TODO finish
      do let ty' = arrs pars ty
         tyCheckT ty'
         return ty'
@@ -143,7 +122,7 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
-    checkBr :: [(TBinder, Term)] -> [Constr] -> (ConId, Branch) -> TyCheckM ()
+    checkBr :: MFA m => [(TBinder, Term)] -> [Constr] -> (ConId, Branch) -> TyCheckM m ()
     checkBr parsty cons (c, Branch bs t') =
         case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
             [] -> throwError (NotConstructor c ct)
@@ -169,14 +148,14 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
 
 -- TODO I don't think it's safe to generate names here considering that then we
 -- throw away the Env.
-fillNames :: [TBinder] -> TyCheckM [TBinder]
+fillNames :: MFA m => [TBinder] -> TyCheckM m [TBinder]
 fillNames [] = return []
 fillNames (b@(Bind _ _) : bs) = (b :) <$> fillNames bs
 fillNames (Wild : bs) =
     do v <- freshTag; (Bind "_" v :) <$> fillNames bs
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: Term -> Term -> TyCheckM ()
+tyCheckEq :: MFA m => Term -> Term -> TyCheckM m ()
 tyCheckEq ty t =
     do ty' <- tyCheckT t
        eqb <- eqCum ty' ty
@@ -185,7 +164,7 @@ tyCheckEq ty t =
 -- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
 --   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
 --   ('Type' 4) ('Type' 1)@ will fail.
-eqCum :: Term -> Term -> TyCheckM Bool
+eqCum :: MFA m => Term -> Term -> TyCheckM m Bool
 eqCum t₁ t₂ = do t₁' <- nf t₁; t₂' <- nf t₂
                  return $ case (t₁', t₂') of
                               (Type l₁, Type l₂) -> l₁ <= l₂
