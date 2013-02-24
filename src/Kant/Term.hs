@@ -35,6 +35,7 @@ module Kant.Term
     , TermV
     , BranchFT(..)
     , BranchT
+    , Branch
       -- * Smart constructors
     , lams
     , arrs
@@ -55,10 +56,8 @@ module Kant.Term
     , Subst(..)
     , substV
     , substManyV
-    -- , subst
-    -- , substPars
-    -- , substBrs
-    -- , subst'
+    , substB
+    , substManyB
     ) where
 
 import           Control.Arrow (first, second)
@@ -173,6 +172,7 @@ type ScopeT = ScopeFT TermT
 data BranchFT f n = Branch [TBinderT n] (f n)
     deriving (Show, Functor)
 type BranchT = BranchFT TermT
+type Branch = BranchFT TermT Tag
 
 data TeleFT f n = Tele [ParamT n] (f n)
     deriving (Show, Functor)
@@ -332,6 +332,16 @@ substManyV pars =
           (\b f -> return (b, \v' -> case b of
                                          Bind _ v | v == v' -> Var v
                                          _ -> f v'))
+
+substB :: (Eq v, Subst f) => Binder t v -> TermT v -> f v -> f v
+substB Wild _ t = t
+substB (Bind _ v) t t' = substV v t t'
+
+substManyB :: Subst f => [(TBinder, Term)] -> f Tag -> f Tag
+substManyB [] t = t
+substManyB ((Wild, _) : pars) t = substManyB pars t
+substManyB ((Bind _ v, t) : pars) t' = substManyB pars t''
+  where Branch _ t'' = substV v t (Branch (map fst pars) t')
 
 instance (Eq v, Eq (f v), Subst f) => Eq (ScopeFT f v) where
     Scope Wild        t₁ == Scope _           t₂ = t₁ == t₂

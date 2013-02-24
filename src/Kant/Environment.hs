@@ -13,6 +13,7 @@ module Kant.Environment
     , runEnvM
       -- * Utilities
     , bumpCount
+    , freshTag
     , envTy
     , envDef
     , envData'
@@ -53,8 +54,13 @@ type EnvM m = StateT Env m
 runEnvM :: Monad m => Env -> EnvM m a -> m (a, Env)
 runEnvM env (StateT f) = f env
 
-bumpCount :: Env -> (Count, Env)
-bumpCount env@Env{envCount = c} = (c, env{envCount = c+1})
+bumpCount :: Monad m => EnvM m Count
+bumpCount = do env@Env{envCount = c} <- get
+               put env{envCount = c+1}
+               return c
+
+freshTag :: Monad m => EnvM m Tag
+freshTag = (toTag . show) `liftM` bumpCount
 
 -- | Looks up the type of a variable.
 envTy :: Monad m => Tag -> EnvM m (Maybe Term)
@@ -123,7 +129,7 @@ addData tyc dd@(Tele pars (DataT l cons)) err =
        sequence_ [ do checkDup dc =<< get
                       let allPars = pars ++ pars'
                           parsn ps = zipWith merge ps `liftM`
-                                     mapM (\_ -> fresh) [1..length ps]
+                                     mapM (\_ -> freshTag) [1..length ps]
                       vars₁ <- parsn allPars
                       vars₂ <- parsn pars; vars₃ <- parsn pars'
                       let resTy = app (Var (toTag tyc) : getv vars₁)
@@ -139,8 +145,5 @@ addData tyc dd@(Tele pars (DataT l cons)) err =
     getv = map (\((Bind _ v), _) -> Var v)
     conFun dc vars₁ vars₂ =
         lams (vars₁ ++ vars₂) (Constr dc (getv vars₁) (getv vars₂))
-    fresh = do env@Env{envCount = c} <- get
-               put env{envCount = c+1}
-               return (toTag (show c))
     merge (Wild, ty)         v = (Bind "_" v, ty)
     merge (b@(Bind _ _), ty) _ = (b, ty)

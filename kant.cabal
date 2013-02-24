@@ -43,8 +43,8 @@ Library
                       Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty,
-                      Kant.Reduce
-                      -- Kant.TyCheck
+                      Kant.Reduce,
+                      Kant.TyCheck
                       -- Kant.REPL
 
     Other-Modules:    Kant.Binder,

@@ -66,16 +66,6 @@ instance Reduce TermT where
     reduce r (Constr c tys ts) = Constr c <$> mapM r tys <*> mapM r ts
     reduce r (Fix pars) = Fix <$> r pars
 
-substB :: (Eq v, Subst f) => Binder t v -> TermT v -> f v -> f v
-substB Wild _ t = t
-substB (Bind _ v) t t' = substV v t t'
-
-substManyB :: Subst f => [(TBinder, Term)] -> f Tag -> f Tag
-substManyB [] t = t
-substManyB ((Wild, _) : pars) t = substManyB pars t
-substManyB ((Bind _ v, t) : pars) t' = substManyB pars t''
-  where Branch _ t'' = substV v t (Branch (map fst pars) t')
-
 constr :: TermT v -> Bool
 constr (Constr _ _ _) = True
 constr _              = False
