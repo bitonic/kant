@@ -39,7 +39,7 @@ Library
 
     Exposed-Modules:  Kant.Term,
                       Kant.Environment,
-                      Kant.Uniquify,
+--                      Kant.Uniquify,
                       Kant.Sugar,
                       Kant.Parser,
                       Kant.Pretty,
@@ -47,7 +47,7 @@ Library
                       Kant.TyCheck,
                       Kant.REPL
 
-    Other-Modules:    Kant.Binder,
+    Other-Modules:    Kant.Name,
                       Kant.Lexer,
                       Kant.REPL.Types
 

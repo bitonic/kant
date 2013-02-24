@@ -18,9 +18,10 @@ import           Text.PrettyPrint.Leijen
                   (<$>), vsep, group, (<$$>), hcat)
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
+import           Kant.Name
 import           Kant.Term
 import           Kant.Sugar
-import           Kant.Uniquify
+-- import           Kant.Uniquify
 import           Kant.TyCheck
 import           Kant.REPL.Types
 
@@ -46,8 +47,16 @@ prettyBinder :: Pretty a => Maybe a -> Doc
 prettyBinder (Just n) = pretty n
 prettyBinder Nothing  = "_"
 
-instance (v ~ Tag) => Pretty (TermT v) where
-    pretty = pretty . distill . revert
+fromName :: TName -> Id
+fromName (Plain n) = n
+fromName (Gen ta n) = n ++ show ta
+
+instance Pretty a => Pretty (Name a) where
+    pretty (Plain n) = pretty n
+    pretty (Gen ta n) = pretty n <> pretty ta
+
+instance (v ~ TName) => Pretty (TermT v) where
+    pretty = pretty . distill . fmap fromName
 
 instance Pretty STerm where
     pretty (SVar v) = pretty v

@@ -25,10 +25,10 @@ module Kant.Sugar
 import           Control.Applicative ((<$))
 import           Control.Arrow (first, second, (+++))
 import           Data.List (groupBy, elemIndex)
+import           Data.Maybe (isJust)
 
 import qualified Data.Set as Set
 
-import           Kant.Binder
 import           Kant.Term
 
 newtype SModule = SModule {unSModule :: [SDecl]}
@@ -151,26 +151,27 @@ rnfBrs :: Id -> Int -> [SBranch] -> [SBranch]
 rnfBrs n i brs = [ (c, ns, if Just n `elem` ns then t else removeNotFix n i t)
                  | (c, ns, t) <- brs ]
 
-desugarPars :: [SParam] -> [(Maybe Id, TermV)]
-desugarPars pars = concat [ zip (maybe [Nothing] (map Just) mns) (repeat (desugar t))
-                          | (mns, t) <- pars ]
+desugarPars :: [SParam] -> [(BinderV, TermV)]
+desugarPars pars =
+    concat [ zip (maybe [Nothing] (map Just) mns) (repeat (desugar t))
+           | (mns, t) <- pars ]
 
-instance a ~ TermV => Desugar STerm a where
+instance (a ~ TermV) => Desugar STerm a where
     desugar (SVar n)            = Var n
     desugar (SType l)           = Type l
-    desugar (SLam pars t)       = lamsv (desugarPars pars) (desugar t)
+    desugar (SLam pars t)       = lams (desugarPars pars) (desugar t)
     desugar (SApp t₁ t₂)        = App (desugar t₁) (desugar t₂)
     desugar (SArr pars ty)      = desugarArr pars ty
     desugar (SCase t n ty brs)  =
-        casev (desugar t) n (desugar ty) [(c, ns, desugar t') | (c, ns, t') <- brs]
+        case_ (desugar t) n (desugar ty) [(c, ns, desugar t') | (c, ns, t') <- brs]
     desugar (SFix b pars ty t) =
-        fixv (desugarPars pars) (desugar ty) b (desugar t)
+        fix (desugarPars pars) (desugar ty) b (desugar t)
 
 desugarArr :: [SParam] -> STerm -> TermV
 desugarArr []                          ty  = desugar ty
 desugarArr ((Nothing,     ty₁) : pars) ty₂ = arr (desugar ty₁) (desugarArr pars ty₂)
 desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
-    arrv (desugar ty₁) (Just n) (desugarArr ((Just ns, ty₁) : pars) ty₂)
+    pi_ (desugar ty₁) (Just n) (desugarArr ((Just ns, ty₁) : pars) ty₂)
 desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
 
 class Distill a b where
@@ -188,16 +189,16 @@ instance (a ~ STerm, v ~ Id) => Distill (TermT v) a where
          go (Lam ty (Scope b t)) = first ((b, ty):) (go t)
          go t                    = ([], t)
     distill (Case t (Scope b ty) brs) =
-        SCase (distill t) (fromBinder b) (distill ty)
-              [(c, map fromBinder bs, distill t') | (c, Branch bs t') <- brs]
+        SCase (distill t) b (distill ty)
+              [(c, bs, distill t') | (c, Branch bs t') <- brs]
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix (Tele pars (FixT ty (Scope b t)))) =
-        SFix (fromBinder b) (distillPars pars) (distill ty) (distill t)
+        SFix b (distillPars pars) (distill ty) (distill t)
 
-distillPars :: [(TBinderT Id, TermV)] -> [(Maybe [Id], STerm)]
+distillPars :: [ParamV] -> [(Maybe [Id], STerm)]
 distillPars pars =
-    [(sequence (map (fromBinder . fst) pars'), distill ty) | pars'@((_, ty):_) <- go]
+    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
   where
-    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isBind mn₁ && isBind mn₂ && ty₁ == ty₂)
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
          pars

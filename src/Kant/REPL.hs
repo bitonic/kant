@@ -71,11 +71,11 @@ replOutput s₁ =
                              tyct t
                              t' <- nf t
                              return (OPretty t')
-           IDecl s₂    -> do d <- parseDecl' s₂ >>= parseE
+           IDecl s₂    -> do d <- parseE (parseDecl s₂)
                              tyck d
                              return OOK
            ILoad fp    -> do s <- readSafe fp
-                             m <- parseModule' s >>= parseE
+                             m <- parseE (parseModule s)
                              tyck m
                              return OOK
            IPretty s₂  -> do t <- parse s₂ >>= whnf
@@ -85,7 +85,7 @@ replOutput s₁ =
   where
     parseE (Left pe) = throwError (TermParse pe)
     parseE (Right x) = return x
-    parse s = parseTerm' s >>= parseE
+    parse s = parseE (parseTerm s)
     tyct = mapTyCheckM . tyCheckT
     tyck = mapTyCheckM . tyCheck
     readSafe fp =

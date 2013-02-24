@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , MonadTyCheck
@@ -18,6 +19,7 @@ import           Control.Monad.Error (Error(..), MonadError(..), ErrorT)
 import           Control.Monad.State (MonadState(..), StateT)
 import qualified Data.Set as Set
 
+import           Kant.Name
 import           Kant.Environment hiding (envTy)
 import qualified Kant.Environment as Env
 import           Kant.Reduce
@@ -25,8 +27,8 @@ import           Kant.Term
 
 data TyCheckError
     = TyCheckError
-    | OutOfBounds Tag
-    | DuplicateName Tag
+    | OutOfBounds TName
+    | DuplicateName TName
     | Mismatch Term Term Term
     | ExpectingFunction Term Term
     | ExpectingType Term Term
@@ -52,25 +54,29 @@ class TyCheck a where
 
 checkDup :: MonadTyCheck m => Id -> m Bool -> m ()
 checkDup n m = do b <- m
-                  unless b (throwError (DuplicateName (toTag n)))
+                  unless b (throwError (DuplicateName (free n)))
 
-instance (v ~ Tag) => TyCheck (ModuleT v) where
+instance (v ~ TName) => TyCheck (ModuleT v) where
     tyCheck (Module decls') = mapM_ tyCheck decls'
 
-instance (v ~ Tag) => TyCheck (DeclT v) where
+instance (v ~ TName) => TyCheck (DeclT v) where
     -- TODO we are tychecking before verifying that there are no duplicates
     tyCheck (Val n t) = do t' <- nf t
                            ty <- tyCheckT t'
-                           checkDup n (addVal (toTag n) ty t')
-    tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (toTag n) ty)
+                           checkDup n (addVal (free n) ty t')
+    tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (free n) ty)
     tyCheck (Data c dd@(Tele pars (DataT l cons))) =
         -- TODO finish
-        addData c dd (DuplicateName . toTag)
+        addData c dd (DuplicateName . free)
 
-forget :: MonadState s m => m b -> m b
-forget m = do s <- get; x <- m; put s; return x
+-- forget :: MonadState s m => m b -> m b
+-- forget m = do s <- get; x <- m; put s; return x
+forget b ty₁ m = do upAbst' b ty₁
+                    x <- m
+                    delCtx' b
+                    return x
 
-envTy :: MonadTyCheck m => Tag -> m Term
+envTy :: MonadTyCheck m => TName -> m Term
 envTy v = maybe (throwError (OutOfBounds v)) return =<< Env.envTy v
 
 tyCheckT :: MonadTyCheck m => Term -> m Term
@@ -83,9 +89,8 @@ tyCheckT (Arr ty₁ (Scope b ty₂)) =
     do tyty₁ <- tyCheckT ty₁
        tyty₁' <- nf tyty₁
        case tyty₁' of
-           Type l₁ -> forget $
-                      do upAbst' b ty₁
-                         tyty₂ <- tyCheckT ty₂
+           Type l₁ -> forget b ty₁ $
+                      do tyty₂ <- tyCheckT ty₂
                          tyty₂' <- nf tyty₂
                          case tyty₂' of
                              Type l₂ -> return (Type (max l₁ l₂))
@@ -95,71 +100,72 @@ tyCheckT (App t₁ t₂) =
     do ty₁ <- tyCheckT t₁
        ty₁' <- nf ty₁
        case ty₁' of
-           Arr ty₂ (Scope b ty₃) -> substB b t₂ ty₃ <$ tyCheckEq ty₂ t₂
+           Arr ty₂ (Scope b ty₃) -> do tyCheckEq ty₂ t₂; substB b t₂ ty₃
            _                     -> throwError (ExpectingFunction t₁ ty₁)
 tyCheckT (Lam ty (Scope b t)) =
     do tyty <- tyCheckT ty
        tyty' <- nf tyty
        case tyty' of
-           Type _ -> forget $ do upAbst' b ty
-                                 tyt <- tyCheckT t
-                                 return (Arr ty (Scope b tyt))
+           Type _ -> forget b ty $
+                     do tyt <- tyCheckT t
+                        return (Arr ty (Scope b tyt))
            _ -> throwError (ExpectingType ty tyty)
 tyCheckT (Constr c pars args) =
-    tyCheckT (app (Var (toTag c) : pars ++ args))
+    tyCheckT (app (Var (free c) : pars ++ args))
 tyCheckT (Fix (Tele pars (FixT ty (Scope b t)))) =
     -- TODO finish
-     do let ty' = arrs pars ty
+     do let ty' = pis pars ty
         tyCheckT ty'
         return ty'
 tyCheckT ct@(Case t (Scope b ty) brs) =
     do tyt <- tyCheckT t
-       forget $ do upAbst' b tyt; tyCheckT ty
+       forget b tyt (tyCheckT ty)
        tyt' <- nf tyt
        case unrollApp tyt' of
-           (Var tyc, args) ->
-               do dd <- envData' (toId tyc)
+           (Var (Plain tyc), args) ->
+               do dd <- envData' tyc
                   case dd of
                       Just (Tele pars (DataT _ cons)) | length pars == length args ->
                           if length brs /= Set.size (Set.fromList (map fst brs))
                           then throwError (WrongBranchNumber ct)
-                          else substB b t ty <$
-                               forM_ brs (forget .
-                                          checkBr (zip (map fst pars) args) cons)
+                          else do forM_ brs (checkBr (zip (map fst pars) args) cons)
+                                  substB b t ty
                       _ -> canon tyt
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
-    checkBr parsty cons (c, Branch bs t') =
-        case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
-            [] -> throwError (NotConstructor c ct)
-            (parsd:_) | length parsd == length bs ->
-                do -- First, we substitute the type parameters with the actual
-                   -- ones in the data parameters
-                   let parsd₁ = [substManyB parsty ty' | (_, ty') <- parsd]
-                   -- Then, we substitute the parameters names with the names
-                   -- given by the branch.  First we make sure that each
-                   -- parameter has a name
-                   bs' <- fillNames bs
-                   let vs = zip (map fst parsd) [Var ta | Bind _ ta <- bs']
-                   -- Then we replace the references to data parameters
-                       parsd₂ = [ (b', substManyB vs ty')
-                                | (b', ty') <- zip bs' parsd₁ ]
-                   -- We put all the matched variables in the context
-                   sequence [upAbst' b' ty' | (b', ty') <- parsd₂]
-                   -- Finally, we replace the abstracted variable with the
-                   -- refined variable
-                   let ref = Constr c (map snd parsty) (map snd parsd₂)
-                   tyCheckEq (substB b ref ty)  t'
-            _ -> throwError (WrongArity c ct)
+    checkBr parsty cons (c, Branch bs t') = return ()
+        -- case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
+        --     [] -> throwError (NotConstructor c ct)
+        --     (parsd:_) | length parsd == length bs ->
+        --         do -- First, we substitute the type parameters with the actual
+        --            -- ones in the data parameters
+        --            parsd₁ <- sequence [substManyB parsty ty' | (_, ty') <- parsd]
+        --            -- Then, we substitute the parameters names with the names
+        --            -- given by the branch.  First we make sure that each
+        --            -- parameter has a name
+        --            bs' <- fillNames bs
+        --            let vs = zip (map fst parsd) [Var ta | Just ta <- bs']
+        --            -- Then we replace the references to data parameters
+        --            parsd₂ <- sequence [ (b',) <$> substManyB vs ty'
+        --                               | (b', ty') <- zip bs' parsd₁ ]
+        --            -- We put all the matched variables in the context
+        --            sequence [upAbst' b' ty' | (b', ty') <- parsd₂]
+        --            -- Finally, we replace the abstracted variable with the
+        --            -- refined variable
+        --            let ref = Constr c (map snd parsty) (map snd parsd₂)
+        --            (`tyCheckEq`  t') =<< substB b ref ty
+        --            -- and we remove the vars from the ctx
+        --            sequence [delCtx' b' | (b', _) <- parsd₂]
+        --     _ -> throwError (WrongArity c ct)
 
 -- TODO I don't think it's safe to generate names here considering that then we
 -- throw away the Env.
-fillNames :: MonadTyCheck m => [TBinder] -> m [TBinder]
+fillNames :: MonadTyCheck m => [Binder] -> m [Binder]
 fillNames [] = return []
-fillNames (b@(Bind _ _) : bs) = (b :) <$> fillNames bs
-fillNames (Wild : bs) =
-    do v <- freshTag; (Bind "_" v :) <$> fillNames bs
+fillNames (b@(Just _) : bs) = (b :) <$> fillNames bs
+fillNames (Nothing : bs) =
+    do v <- fresh (free "_"); (Just v :) <$> fillNames bs
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: MonadTyCheck m => Term -> Term -> m ()

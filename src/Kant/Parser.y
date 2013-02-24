@@ -5,13 +5,9 @@ module Kant.Parser
     ( ParseError
     , ParseResult
     , parseModule
-    , parseModule'
     , parseFile
-    , parseFile'
     , parseDecl
-    , parseDecl'
     , parseTerm
-    , parseTerm'
     ) where
 
 import           Control.Applicative ((<$>))
@@ -21,11 +17,12 @@ import           Data.List (foldl1)
 
 import           Control.Monad.Identity (runIdentity)
 
+import           Kant.Name
 import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
-import           Kant.Environment
-import           Kant.Uniquify
+-- import           Kant.Environment
+-- import           Kant.Uniquify
 
 }
 
@@ -166,31 +163,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult ModuleV
-parseModule s = desugar <$> runAlex s parseModule_
+parseModule :: String -> ParseResult Module
+parseModule s = fmap free . desugar <$> runAlex s parseModule_
 
-parseEnvM p = either (return . Left) (\m -> Right `liftM` uniquify m) . p
+parseDecl :: String -> ParseResult Decl
+parseDecl s = fmap free . desugar <$> runAlex s parseDecl_
 
-parseModule' :: MonadEnv m => String -> m (ParseResult Module)
-parseModule' = parseEnvM parseModule
-
-parseDecl :: String -> ParseResult DeclV
-parseDecl s = desugar <$> runAlex s parseDecl_
-
-parseDecl' :: MonadEnv m => String -> m (ParseResult Decl)
-parseDecl' = parseEnvM parseDecl
-
-parseTerm :: String -> ParseResult TermV
-parseTerm s = desugar <$> runAlex s parseTerm_
-
-parseTerm' :: MonadEnv m => String -> m (ParseResult Term)
-parseTerm' = parseEnvM parseTerm
+parseTerm :: String -> ParseResult Term
+parseTerm s = fmap free . desugar <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO ModuleV
+parseFile :: FilePath -> IO Module
 parseFile fp = readFile fp >>= either fail return . parseModule
-
-parseFile' :: Env -> FilePath -> IO (Module, Env)
-parseFile' env fp = runIdentity . runEnv env . uniquify <$> parseFile fp
 
 }
