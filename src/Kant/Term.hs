@@ -252,12 +252,12 @@ dataD c pars l cons =
 
 ------
 
-type UpFun v₁ v₂ = v₁ -> TermT v₂
+type UpFun m v₁ v₂ = v₁ -> m (TermT v₂)
 
 class Bound f where
     travb :: (Eq a, Eq b, Monad m)
-          => UpFun a b
-          -> (BinderT a -> UpFun a b -> m (BinderT b, UpFun a b))
+          => UpFun m a b
+          -> (BinderT a -> UpFun m a b -> m (BinderT b, UpFun m a b))
           -> f a -> m (f b)
 
 instance Bound f => Bound (ScopeFT f) where
@@ -282,7 +282,7 @@ instance Bound FixT where
     travb f g (FixT ty s) = FixT `liftM` travb f g ty `ap` travb f g s
 
 instance Bound TermT where
-    travb f _ (Var v) = return (f v)
+    travb f _ (Var v) = f v
     travb _ _ (Type l) = return (Type l)
     travb f g (App t₁ t₂) = App `liftM` travb f g t₁ `ap` travb f g t₂
     travb f g (Arr ty s) = Arr `liftM` travb f g ty `ap` travb f g s
@@ -323,12 +323,12 @@ instance MonadSubst Identity where
 
 subst :: (Eq a, Bound f, MonadSubst m)
       => Name a -> TermT (Name a) -> f (Name a) -> m (f (Name a))
-subst v₁ t = travb (\v₂ -> if v₁ == v₂ then t else Var v₂) refresh
+subst v₁ t = travb (\v₂ -> if v₁ == v₂ then return t else return (Var v₂)) refresh
   where
     refresh Nothing f = return (Nothing, f)
     refresh (Just v₂) f =
         do v₃ <- fresh v₂
-           return (Just v₃, \v₄ -> if v₂ == v₄ then Var v₃ else f v₄)
+           return (Just v₃, \v₄ -> if v₂ == v₄ then return (Var v₃) else f v₄)
 
 substC :: (Eq a, Bound f) => Name a -> TermT (Name a) -> f (Name a) -> f (Name a)
 substC v t = runIdentity . subst v t
