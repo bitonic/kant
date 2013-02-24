@@ -143,7 +143,8 @@ addData tyc dd@(Tele pars (DataT l cons)) err =
                                      mapM (\_ -> freshTag) [1..length ps]
                       vars₁ <- parsn allPars
                       vars₂ <- parsn pars; vars₃ <- parsn pars'
-                      let resTy = app (Var (toTag tyc) : getv vars₁)
+                      let resTy = app (Var (toTag tyc) :
+                                       getv (take (length pars) vars₁))
                           f     = conFun dc vars₂ vars₃
                       True <- addVal (toTag dc) (arrs vars₁ resTy) f
                       return ()
