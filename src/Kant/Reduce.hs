@@ -50,7 +50,7 @@ instance Reduce TermT where
                           if i > length args' || not (all constr fargs)
                           then App t₁' t₂'
                           else app (substManyB (zip (map fst pars) args) t' : rest)
-               _ -> return t₁'
+               _ -> App t₁' <$> reduce r t₂
     reduce r (Case t s brs) =
         do t₁ <- reduce r t
            stuck <- Case t₁ <$> r s <*> sequence [(c,) <$> r br | (c, br) <- brs]
