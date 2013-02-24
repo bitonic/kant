@@ -46,10 +46,9 @@ instance Reduce TermT where
                           i             = length pars
                           (fargs, rest) = splitAt i args'
                           t'            = substB b ft t
-                      return $
-                          if i > length args' || not (all constr fargs)
-                          then App t₁' t₂'
-                          else app (substManyB (zip (map fst pars) args) t' : rest)
+                      if i > length args' || not (all constr fargs)
+                        then return (App t₁' t₂')
+                        else reduce r (app (substManyB (zip (map fst pars) fargs) t' : rest))
                _ -> App t₁' <$> reduce r t₂
     reduce r (Case t s brs) =
         do t₁ <- reduce r t
