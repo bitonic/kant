@@ -31,7 +31,8 @@ module Kant.Environment
 
 import           Control.Applicative ((<$>), Applicative)
 import           Control.Monad (join, liftM)
-import           Prelude hiding (foldr)
+import           Data.List (inits)
+import           Data.Maybe (fromJust)
 
 import           Control.Monad.Error (Error(..), ErrorT)
 import           Control.Monad.Error (MonadError(..))
@@ -42,6 +43,8 @@ import qualified Data.Map as Map
 
 import           Kant.Name
 import           Kant.Term
+
+import Debug.Trace
 
 type Item = (Maybe Term, Maybe Term)
 
@@ -150,14 +153,17 @@ addData tyc dd@(Tele pars (DataT l cons)) err =
        checkDup tyc env₁
        put env₁{envData = Map.insert tyc dd dds}
        True <- addAbst (free tyc) (pis pars (Type l))
+       typars₁ <- mapM freshB pars
+       let tybs = zip (map fst pars) (getv typars₁)
+       typars₂ <- sequence [ (b,) <$> substManyB bs ty
+                           | ((b, ty), bs) <- zip typars₁ (inits tybs) ]
        sequence_ [ do checkDup dc =<< get
-                      rpars <- mapM freshB pars
-                      let sub = zip (map fst pars) (getv rpars)
-                      rpars' <- mapM freshB pars' >>=
-                                mapM (\(b, ty) -> (b,) <$> substManyB sub ty)
-                      let resTy = app (Var (free tyc) : getv rpars)
-                          f     = conFun dc rpars rpars'
-                      True <- addVal (free dc) (pis (rpars ++ rpars') resTy) f
+                      dpars₁ <- mapM freshB pars'
+                      dpars₂ <- sequence [ (b,) <$> substManyB tybs ty
+                                         | (b, ty) <- dpars₁]
+                      let resTy = app (Var (free tyc) : getv typars₂)
+                          f     = conFun dc typars₂ dpars₂
+                      True <- addVal (free dc) (pis (typars₂ ++ dpars₂) resTy) f
                       return ()
                  | ConstrT dc (Tele pars' Proxy) <- cons ]
   where
@@ -166,7 +172,7 @@ addData tyc dd@(Tele pars (DataT l cons)) err =
         then throwError (err c)
         else return ()
     getv = map (\((Just v), _) -> Var v)
-    conFun dc vars₁ vars₂ =
-        lams (vars₁ ++ vars₂) (Constr dc (getv vars₁) (getv vars₂))
-    freshB (Nothing, t)    = (,t) <$> freshBinder (Just (free "_"))
-    freshB (b@(Just _), t) = (,t) <$> freshBinder b
+    conFun dc typars dpars =
+        lams (typars ++ dpars) (Constr dc (getv typars) (getv dpars))
+    freshB (Nothing, ty)    = (,ty) <$> freshBinder (Just (free "_"))
+    freshB (b@(Just _), ty) = (,ty) <$> freshBinder b
