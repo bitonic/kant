@@ -35,7 +35,7 @@ Library
 
     Build-Tools:      alex, happy
 
-    GHC-Options:      -Wall -fno-warn-unused-do-bind
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant.Term,
                       Kant.Environment,
@@ -53,6 +53,6 @@ Library
 executable kant
     Main-Is:          kant.hs
 
-    GHC-Options:      -Wall -fno-warn-unused-do-bind
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Build-Depends:    base, kant

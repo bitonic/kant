@@ -96,9 +96,10 @@ dds   Map TName Data
 dd    Data
 -}
 
--- | Identifiers for things
+-- | The main "name" type.
 type Id = String
 type ConId = Id
+-- | The type of variables.
 type TName = Name Id
 
 -- | Type levels

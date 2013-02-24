@@ -48,11 +48,11 @@ prettyBinder (Just n) = pretty n
 prettyBinder Nothing  = "_"
 
 fromName :: TName -> Id
-fromName (Plain n) = n
+fromName (Plain n)  = n
 fromName (Gen ta n) = n ++ show ta
 
 instance Pretty a => Pretty (Name a) where
-    pretty (Plain n) = pretty n
+    pretty (Plain n)  = pretty n
     pretty (Gen ta n) = pretty n <> pretty ta
 
 instance (v ~ TName) => Pretty (TermT v) where
