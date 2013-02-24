@@ -54,39 +54,44 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
+-- mapTyCheckM :: 
+
 replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
-replOutput env s₁ =
-    do c <- ret (parseInput s₁)
-       case c of
-           ITyCheck s₂ -> do (env', t) <- parse env s₂
-                             ty <- tyct t
-                             return (OTyCheck ty, env')
-           IEval s₂    -> do (env', t) <- parse env s₂
-                             tyct t
-                             return (OPretty (nf env t), env')
-           IDecl s₂    -> do (env', d) <- parseE (parseDecl' env s₂)
-                             env'' <- tyE (tyCheck env' d)
-                             return (OOK, env'')
-           ILoad fp    -> do s <- readSafe fp
-                             (env', m) <- parseE (parseModule' env s)
-                             env'' <- tyE (tyCheck env' m)
-                             return (OOK, env'')
-           IPretty s₂  -> do (env', t) <- parse env s₂
-                             return (OPretty (whnf env t), env')
-           IQuit       -> return (OQuit, env)
-           ISkip       -> return (OSkip, env)
-  where
-    ret     = ErrorT . return
-    -- parseE  = ret . left TermParse
-    parseE = undefined
-    -- tyE     = ret . left TyCheck
-    tyE = undefined
-    parse e = case (runState parseTerm' e) of
-                  (Right t, e') -> return (t, e')
-                  (Left err, _) -> throwError (TermParse err)
-    -- tyct    = tyE . tyCheckT env
-    tyct = undefined
-    readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
+replOutput = undefined
+-- replOutput :: Env -> String -> ErrorT REPLError IO (Output, Env)
+-- replOutput env s₁ =
+--     do c <- ret (parseInput s₁)
+--        case c of
+--            ITyCheck s₂ -> do (env', t) <- parse env s₂
+--                              ty <- tyct t
+--                              return (OTyCheck ty, env')
+--            IEval s₂    -> do (env', t) <- parse env s₂
+--                              tyct t
+--                              return (OPretty (nf env t), env')
+--            IDecl s₂    -> do (env', d) <- parseE (parseDecl' env s₂)
+--                              env'' <- tyE (tyCheck env' d)
+--                              return (OOK, env'')
+--            ILoad fp    -> do s <- readSafe fp
+--                              (env', m) <- parseE (parseModule' env s)
+--                              env'' <- tyE (tyCheck env' m)
+--                              return (OOK, env'')
+--            IPretty s₂  -> do (env', t) <- parse env s₂
+--                              return (OPretty (whnf env t), env')
+--            IQuit       -> return (OQuit, env)
+--            ISkip       -> return (OSkip, env)
+--   where
+--     nf' e t = evalState (nf t) e
+--     ret     = ErrorT . return
+--     -- parseE  = ret . left TermParse
+--     parseE = undefined
+--     -- tyE     = ret . left TyCheck
+--     tyE = undefined
+--     parse e = case (runState parseTerm' e) of
+--                   (Right t, e') -> return (t, e')
+--                   (Left err, _) -> throwError (TermParse err)
+--     -- tyct    = tyE . tyCheckT env
+--     tyct = undefined
+--     readSafe fp = ErrorT (catch (Right <$> readFile fp) (return . Left . IOError))
 
 repl :: Env -> String -> REPL (Maybe Env)
 repl env input =

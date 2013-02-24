@@ -20,8 +20,9 @@ import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
 import           Kant.Sugar
--- import           Kant.TyCheck
--- import           Kant.REPL.Types
+import           Kant.Uniquify
+import           Kant.TyCheck
+import           Kant.REPL.Types
 
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
@@ -45,8 +46,8 @@ prettyBinder :: Pretty a => Maybe a -> Doc
 prettyBinder (Just n) = pretty n
 prettyBinder Nothing  = "_"
 
-instance (v ~ Id) => Pretty (TermT v) where
-    pretty = pretty . distill
+instance (v ~ Tag) => Pretty (TermT v) where
+    pretty = pretty . distill . revert
 
 instance Pretty STerm where
     pretty (SVar v) = pretty v
@@ -133,43 +134,43 @@ prettyValPars n (SValParams pars rest) ty =
 instance Pretty SModule where
     pretty = prettyList . unSModule
 
--- instance Pretty TyCheckError where
---     pretty TyCheckError = "fixme"
---     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
---     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
---     pretty (Mismatch ty₁ t ty₂) =
---         group (nest ("Expecting type" <$> pretty ty₁) <$>
---                nest ("for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty₂))
---     pretty (ExpectingFunction t ty) =
---         group (nest ("Expecting function type for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (ExpectingType t ty) =
---         group (nest ("Expecting a Type for term" <$> pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (ExpectingCanonical t ty) =
---         group (nest ("Expecting canonical (non-arrow) type for term" <$>
---                      pretty t) <$>
---                nest ("instead of" <$> pretty ty))
---     pretty (WrongBranchNumber t) =
---         group (nest ("Too few or too many branches in term" <$> pretty t))
---     pretty (NotConstructor c t) =
---         group (nest ("Pattern matching on non-constructor '" <> pretty c <>
---                      "' in term" <$>
---                      pretty t))
---     pretty (WrongArity c t) =
---         group (nest ("Branch gives wrong number of arguments to constructor `" <>
---                      pretty c <> "' in term" <$> pretty t))
+instance Pretty TyCheckError where
+    pretty TyCheckError = "fixme"
+    pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
+    pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
+    pretty (Mismatch ty₁ t ty₂) =
+        group (nest ("Expecting type" <$> pretty ty₁) <$>
+               nest ("for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty₂))
+    pretty (ExpectingFunction t ty) =
+        group (nest ("Expecting function type for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty))
+    pretty (ExpectingType t ty) =
+        group (nest ("Expecting a Type for term" <$> pretty t) <$>
+               nest ("instead of" <$> pretty ty))
+    pretty (ExpectingCanonical t ty) =
+        group (nest ("Expecting canonical (non-arrow) type for term" <$>
+                     pretty t) <$>
+               nest ("instead of" <$> pretty ty))
+    pretty (WrongBranchNumber t) =
+        group (nest ("Too few or too many branches in term" <$> pretty t))
+    pretty (NotConstructor c t) =
+        group (nest ("Pattern matching on non-constructor '" <> pretty c <>
+                     "' in term" <$>
+                     pretty t))
+    pretty (WrongArity c t) =
+        group (nest ("Branch gives wrong number of arguments to constructor `" <>
+                     pretty c <> "' in term" <$> pretty t))
 
--- instance Pretty Output where
---     pretty (OTyCheck ty) = pretty ty
---     pretty (OPretty t)   = pretty t
---     pretty OOK           = "OK"
---     pretty OQuit         = "Bye!"
---     pretty OSkip         = ""
+instance Pretty Output where
+    pretty (OTyCheck ty) = pretty ty
+    pretty (OPretty t)   = pretty t
+    pretty OOK           = "OK"
+    pretty OQuit         = "Bye!"
+    pretty OSkip         = ""
 
--- instance Pretty REPLError where
---     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
---     pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
---     pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
---     pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
+instance Pretty REPLError where
+    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
+    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
+    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
+    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
