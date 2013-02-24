@@ -26,7 +26,7 @@ app [A : Type] | [xs ys : List A] : List A => (
     { nil        => ys
     | cons x xs' => cons A x (app A xs' ys)
     }
-)
+ )
 
 map [A B : Type] [f : A -> B] | [xs : List A] : List B => (
   case xs return List B
@@ -39,16 +39,15 @@ upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 
 upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
 
--- data Sigma [A : Type] [B : A -> Type] : Type
---   { si [x : A] (B x) }
+data Sigma [A : Type] [B : A -> Type] : Type { si [x : A] (B x) }
 
--- fst [A : Type] [B : A -> Type] [x : Sigma A B] : A => (
---   case x return A { si y _ => y }
--- )
+fst [A : Type] [B : A -> Type] [x : Sigma A B] : A => (
+  case x return A { si y _ => y }
+)
 
--- snd [A : Type] [B : A -> Type] [x : Sigma A B] : B (fst A B x) => (
---   case x return B (fst A B x) { si _ y => y }
--- )
+snd [A : Type] [B : A -> Type] [x : Sigma A B] : B (fst A B x) => (
+  case x return B (fst A B x) { si _ y => y }
+)
 
 id [A : Type] [x : A] : A => x
 const [A B : Type] [x : A] B : A => x
