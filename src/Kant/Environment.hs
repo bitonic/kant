@@ -42,7 +42,7 @@ import           Kant.Term
 
 type Item = (Maybe Term, Maybe Term)
 
-type Count = Integer
+type Count = Tag
 
 -- | Bringing it all together
 data Env = Env
