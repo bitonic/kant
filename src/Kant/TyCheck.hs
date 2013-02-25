@@ -128,36 +128,37 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
                       Just (Tele pars (DataT _ cons)) | length pars == length args ->
                           if length brs /= Set.size (Set.fromList (map fst brs))
                           then throwError (WrongBranchNumber ct)
-                          else do forM_ brs (checkBr (zip (map fst pars) args) cons)
+                          else do forM_ brs (checkBr (map fst pars) args cons)
                                   substB b t ty
                       _ -> canon tyt
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
-    checkBr parsty cons (c, Tele (branchBs -> bs) t') = return ()
-        -- case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
-        --     [] -> throwError (NotConstructor c ct)
-        --     (parsd:_) | length parsd == length bs ->
-        --         do -- First, we substitute the type parameters with the actual
-        --            -- ones in the data parameters
-        --            parsd₁ <- sequence [substManyB parsty ty' | (_, ty') <- parsd]
-        --            -- Then, we substitute the parameters names with the names
-        --            -- given by the branch.  First we make sure that each
-        --            -- parameter has a name
-        --            bs' <- fillNames bs
-        --            let vs = zip (map fst parsd) [Var ta | Just ta <- bs']
-        --            -- Then we replace the references to data parameters
-        --            parsd₂ <- sequence [ (b',) <$> substManyB vs ty'
-        --                               | (b', ty') <- zip bs' parsd₁ ]
-        --            -- We put all the matched variables in the context
-        --            sequence [upAbst' b' ty' | (b', ty') <- parsd₂]
-        --            -- Finally, we replace the abstracted variable with the
-        --            -- refined variable
-        --            let ref = Constr c (map snd parsty) (map snd parsd₂)
-        --            (`tyCheckEq`  t') =<< substB b ref ty
-        --            -- and we remove the vars from the ctx
-        --            sequence [delCtx' b' | (b', _) <- parsd₂]
-        --     _ -> throwError (WrongArity c ct)
+    checkBr typars args cons (c, Tele (branchBs -> bs) t') =
+        case [dpars | ConstrT c' dpars <- cons, c == c'] of
+            [] -> throwError (NotConstructor c ct)
+            (dpars@(Tele (length -> i) Proxy) :_) | i == length bs ->
+                do -- First, we substitute the type parameters with the actual
+                   -- ones in the data parameters
+                   parsd₁ <- substBranch (branch typars dpars) args
+                   -- Then, we substitute the parameters names with the names
+                   -- given by the branch.  First we make sure that each
+                   -- parameter has a name
+                   undefined
+                   -- bs' <- fillNames bs
+                   -- let vs = zip (map fst parsd) [Var ta | Just ta <- bs']
+                   -- -- Then we replace the references to data parameters
+                   -- parsd₂ <- sequence [ (b',) <$> substManyB vs ty'
+                   --                    | (b', ty') <- zip bs' parsd₁ ]
+                   -- -- We put all the matched variables in the context
+                   -- sequence [upAbst' b' ty' | (b', ty') <- parsd₂]
+                   -- -- Finally, we replace the abstracted variable with the
+                   -- -- refined variable
+                   -- let ref = Constr c (map snd parsty) (map snd parsd₂)
+                   -- (`tyCheckEq`  t') =<< substB b ref ty
+                   -- -- and we remove the vars from the ctx
+                   -- sequence [delCtx' b' | (b', _) <- parsd₂]
+            _ -> throwError (WrongArity c ct)
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: MonadTyCheck m => Term -> Term -> m ()
