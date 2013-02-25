@@ -20,18 +20,17 @@ type Reducer f = forall m. MonadEnv m => f TName -> m (f TName)
 class Bound f => Reduce f where
     reduce :: (forall g. Reduce g => Reducer g) -> Reducer f
 
-instance (Reduce f, Bound f) => Reduce (ScopeFT f) where
+instance (Reduce f) => Reduce (ScopeFT f) where
     reduce r (Scope b t) = Scope b <$> r t
 
-instance (Reduce f, Bound f) => Reduce (BranchFT f) where
-    reduce r (Branch brs t) = Branch brs <$> r t
-
-instance (Reduce f, Bound f) => Reduce (TeleFT f) where
+instance (Reduce f, Reduce g) => Reduce (TelePFT g f) where
     reduce r (Tele pars t) = Tele <$> sequence [(b,) <$> r ty | (b, ty) <- pars]
                                   <*> r t
-
 instance Reduce FixT where
     reduce r (FixT t s) = FixT <$> r t <*> r s
+
+instance Reduce Proxy where
+    reduce _ Proxy = return Proxy
 
 instance Reduce TermT where
     reduce _ t@(Var v) = -- TODO should I reduce here?
@@ -57,7 +56,7 @@ instance Reduce TermT where
            stuck <- Case t₁ <$> r s <*> sequence [(c,) <$> r br | (c, br) <- brs]
            case t₁ of
                Constr c _ ts ->
-                   case [ br | (c', br@(Branch bs _)) <- brs, c == c',
+                   case [ br | (c', br@(Tele (branchBs -> bs) _)) <- brs, c == c',
                           length ts == length bs ]
                     of  []         -> return stuck
                         (br : _) -> reduce r =<< substBranch br ts

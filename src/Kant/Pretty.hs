@@ -53,7 +53,7 @@ fromName (Gen ta n) = n ++ show ta
 
 instance Pretty a => Pretty (Name a) where
     pretty (Plain n)  = pretty n
-    pretty (Gen ta n) = pretty n <> pretty ta
+    pretty (Gen ta n) = pretty n <> pretty (show ta)
 
 instance (v ~ TName) => Pretty (TermT v) where
     pretty = pretty . distill . fmap fromName

@@ -4,6 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 module Kant.Term
     ( -- * Modules, data declarations, terms.
       Id
@@ -13,7 +14,8 @@ module Kant.Term
     , ModuleT(..)
     , Module
     , ModuleV
-    , TeleFT(..)
+    , TelePFT(..)
+    , TeleFT
     , ScopeT
     , ScopeFT(..)
     , FixT(..)
@@ -29,10 +31,12 @@ module Kant.Term
     , TermT(..)
     , Term
     , TermV
-    , BranchFT(..)
+    , BranchFT
     , BranchT
     , Branch
     , BranchV
+    , branch
+    , branchBs
       -- * Smart constructors
     , lams
     , pis
@@ -161,14 +165,20 @@ data ScopeFT f n = Scope n (f n)
     deriving (Show, Functor)
 type ScopeT = ScopeFT TermT
 
-data BranchFT f n = Branch [n] (f n)
-    deriving (Show, Functor)
+type BranchFT = TelePFT Proxy
 type BranchT = BranchFT TermT
 type Branch = BranchFT TermT TName
 type BranchV = BranchFT TermT Id
 
-data TeleFT f n = Tele [ParamT n] (f n)
+branch :: [v] -> f v -> BranchFT f v
+branch bs = Tele (map (, Proxy) bs)
+
+branchBs :: [(v, Proxy v)] -> [v]
+branchBs = map fst
+
+data TelePFT f g n = Tele [(n, f n)] (g n)
     deriving (Show, Functor)
+type TeleFT = TelePFT TermT
 
 data FixT n = FixT (TermT n) (ScopeT n)
     deriving (Show, Functor)
@@ -232,7 +242,7 @@ fix :: [(v, TermT v)] -> TermT v -> v -> TermT v -> TermT v
 fix pars ty n t = Fix (Tele pars (FixT ty (Scope n t)))
 
 case_ :: TermT v -> v -> TermT v -> [(ConId, [v], TermT v)] -> TermT v
-case_ t b ty brs = Case t (Scope b ty) [(c, Branch bs t') | (c, bs, t') <- brs]
+case_ t b ty brs = Case t (Scope b ty) [(c, branch bs t') | (c, bs, t') <- brs]
 
 dataD :: ConId -> [(v, TermT v)] -> Level
       -> [(ConId, [(v, TermT v)])]
@@ -243,25 +253,16 @@ dataD c pars l cons =
 
 ------
 
-type UpFun m v₁ v₂ = v₁ -> m (TermT v₂)
-
 class Bound f where
-    travb :: (Eq a, Eq b, Monad m)
-          => UpFun m a b
-          -> (a -> UpFun m a b -> m (b, UpFun m a b))
+    travb :: Monad m
+          => (a -> m (TermT b))
+          -> (a -> (a -> m (TermT b)) -> m (b, (a -> m (TermT b))))
           -> f a -> m (f b)
 
 instance Bound f => Bound (ScopeFT f) where
     travb f g (Scope b x) = do (b', f') <- g b f; Scope b' `liftM` travb f' g x
 
-instance Bound f => Bound (BranchFT f) where
-    travb f g (Branch bs t) =
-        do (bs', f') <- foldrM (\b (bs₁, f₁) ->
-                                 do (b', f₁') <- g b f₁; return (b' : bs₁, f₁'))
-                        ([], f) bs
-           Branch bs' `liftM` travb f' g t
-
-instance (Bound f) => Bound (TeleFT f) where
+instance (Bound f, Bound g) => Bound (TelePFT g f) where
     travb fo g (Tele pars' t) = go pars' [] fo
       where
         go [] out f = Tele out `liftM` travb f g t
@@ -323,8 +324,8 @@ subst v₁ t = travb (\v₂ -> if v₁ == v₂ then return t else return (Var v�
 substC :: (Eq a, Bound f) => Name a -> TermT (Name a) -> f (Name a) -> f (Name a)
 substC v t = runIdentity . subst v t
 
-substTele :: (Eq a, MonadSubst m, Bound t)
-          => TeleFT t (Name a) -> [TermT (Name a)] -> m (t (Name a))
+substTele :: (Eq a, MonadSubst m, Bound t, Bound f)
+          => TelePFT f t (Name a) -> [TermT (Name a)] -> m (t (Name a))
 substTele (Tele [] t) [] = return t
 substTele (Tele ((v, _) : pars) t) (t' : ts) =
     (`substTele` ts) =<< subst v t' (Tele pars t)
@@ -332,10 +333,7 @@ substTele _ _ = error "substTele: list does not match args num"
 
 substBranch :: (Eq a, MonadSubst m, Bound t)
             => BranchFT t (Name a) -> [TermT (Name a)] -> m (t (Name a))
-substBranch (Branch [] t) [] = return t
-substBranch (Branch (v : bs) t) (t' : ts) =
-    (`substBranch` ts) =<< subst v t' (Branch bs t)
-substBranch _ _ = error "substBranch: list does not match args num"
+substBranch = substTele
 
 substManyB :: (Eq v, MonadSubst m, Bound f)
            => [(Name v, TermT (Name v))] -> f (Name v)
@@ -349,13 +347,8 @@ substB v t t' = subst v t t'
 instance (Eq v, Eq (f (Name v)), Bound f) => Eq (ScopeFT f (Name v)) where
     Scope v₁ t₁ == Scope v₂ t₂ = t₁ == substC v₂ (Var v₁) t₂
 
-instance (Eq v, Eq (f (Name v)), Bound f) => Eq (BranchFT f (Name v)) where
-    Branch [] t₁ == Branch [] t₂ = t₁ == t₂
-    Branch (v₁ : bs₁) t₁ == Branch (v₂ : bs₂) t₂ =
-        Branch bs₁ t₁ == substC v₂ (Var v₁) (Branch bs₂ t₂)
-    _ == _ = False
-
-instance (Eq v, Eq (f (Name v)), Bound f) => Eq (TeleFT f (Name v)) where
+instance (Eq v, Eq (g (Name v)), Bound g, Eq (f (Name v)), Bound f) =>
+         Eq (TelePFT g f (Name v)) where
     Tele [] t₁ == Tele [] t₂ =
         t₁ == t₂
     Tele ((v₁, ty₁) : pars₁) t₁ == Tele ((v₂, ty₂) : pars₂) t₂ =
@@ -372,8 +365,9 @@ deriving instance Eq v => Eq (FixT (Name v))
 deriving instance Eq DeclV
 deriving instance Eq (DataT Id)
 deriving instance Eq ConstrV
-deriving instance Eq (f Id) => Eq (TeleFT f Id)
+deriving instance (Eq (f Id), Eq (g Id)) => Eq (TelePFT f g Id)
 deriving instance Eq TermV
 deriving instance Eq (FixT Id)
 deriving instance Eq (ScopeT Id)
-deriving instance Eq (f Id) => Eq (BranchFT f Id)
+
+------

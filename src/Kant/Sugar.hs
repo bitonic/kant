@@ -190,7 +190,7 @@ instance (a ~ STerm, v ~ Id) => Distill (TermT v) a where
          go t                    = ([], t)
     distill (Case t (Scope b ty) brs) =
         SCase (distill t) (Just b) (distill ty)
-              [(c, map Just bs, distill t') | (c, Branch bs t') <- brs]
+              [(c, map Just bs, distill t') | (c, Tele (branchBs -> bs) t') <- brs]
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix (Tele pars (FixT ty (Scope b t)))) =

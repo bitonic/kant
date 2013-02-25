@@ -134,7 +134,7 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
-    checkBr parsty cons (c, Branch bs t') = return ()
+    checkBr parsty cons (c, Tele (branchBs -> bs) t') = return ()
         -- case [parsd | ConstrT c' (Tele parsd Proxy) <- cons, c == c'] of
         --     [] -> throwError (NotConstructor c ct)
         --     (parsd:_) | length parsd == length bs ->
