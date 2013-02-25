@@ -21,7 +21,7 @@ Library
     Hs-Source-Dirs:   src
 
     Build-Depends:    base >= 3 && < 5,
-                      array,    -- Needed for the parser
+                      array,
                       containers,
                       haskeline,
                       mtl,

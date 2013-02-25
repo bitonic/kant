@@ -48,7 +48,7 @@ parseInput =
   where
     go       =     Parsec.string ":" *> msum [char ch *> p | (ch, p) <- commands]
                <|> ISkip <$ Parsec.eof
-               <|> IDecl <$> Parsec.many anyChar
+               <|> IDecl <$> rest
     rest     = Parsec.many anyChar
     commands = [ ('e', IEval <$> rest)
                , ('t', ITyCheck <$> rest)
