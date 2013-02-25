@@ -136,11 +136,11 @@ addData tyc dd@(Tele typars₁ (DataT l cons)) err =
        True <- addAbst (free tyc) (pis typars₁ (Type l))
        typars₂ <- mapM freshV typars₁
        let tybs = zip (map fst typars₁) (getV typars₂)
-       typars₃ <- sequence [ (b,) <$> substManyB bs ty
+       typars₃ <- sequence [ (b,) <$> substMany bs ty
                            | ((b, ty), bs) <- zip typars₂ (inits tybs) ]
        sequence_ [ do checkDup dc =<< get
                       dpars₂ <- mapM freshV dpars₁
-                      dpars₃ <- sequence [ (b,) <$> substManyB tybs ty
+                      dpars₃ <- sequence [ (b,) <$> substMany tybs ty
                                          | (b, ty) <- dpars₂ ]
                       let resTy = app (Var (free tyc) : getV typars₃)
                           f     = conFun dc typars₃ dpars₂

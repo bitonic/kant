@@ -59,10 +59,9 @@ module Kant.Term
     , MonadSubst(..)
     , freshBinder
     , subst
-    , substB
     , substTele
     , substBranch
-    , substManyB
+    , substMany
     ) where
 
 import           Control.Arrow (first, second)
@@ -334,14 +333,10 @@ substBranch :: (Eq a, MonadSubst m, Bound t)
             => BranchFT t (Name a) -> [TermT (Name a)] -> m (t (Name a))
 substBranch = substTele
 
-substManyB :: (Eq v, MonadSubst m, Bound f)
-           => [(Name v, TermT (Name v))] -> f (Name v)
-           -> m (f (Name v))
-substManyB pars t = foldrM (uncurry substB) t pars
-
-substB :: (Eq a, MonadSubst m, Bound f)
-       => Name a -> TermT (Name a) -> f (Name a) -> m (f (Name a))
-substB v t t' = subst v t t'
+substMany :: (Eq v, MonadSubst m, Bound f)
+          => [(Name v, TermT (Name v))] -> f (Name v)
+          -> m (f (Name v))
+substMany pars t = foldrM (uncurry subst) t pars
 
 instance (Eq v, Eq (f (Name v)), Bound f) => Eq (ScopeFT f (Name v)) where
     Scope v₁ t₁ == Scope v₂ t₂ = t₁ == substC v₂ (Var v₁) t₂

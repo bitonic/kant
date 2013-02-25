@@ -39,7 +39,7 @@ instance Reduce TermT where
     reduce r (App t₁ t₂) =
         do t₁' <- reduce r t₁
            case t₁' of
-               Lam _ (Scope b t) -> reduce r =<< substB b t₂ t
+               Lam _ (Scope b t) -> reduce r =<< subst b t₂ t
                (unrollApp -> (ft@(Fix te@(Tele pars _)), args)) ->
                    do t₂' <- reduce r t₂
                       let args'         = args ++ [t₂']
@@ -48,7 +48,7 @@ instance Reduce TermT where
                       if i > length args' || not (all constr fargs)
                         then return (App t₁' t₂')
                         else do FixT _ (Scope b t') <- substTele te fargs
-                                t'' <- substB b ft t'
+                                t'' <- subst b ft t'
                                 reduce r (app (t'' : rest))
                _ -> App t₁' <$> reduce r t₂
     reduce r (Case t s brs) =

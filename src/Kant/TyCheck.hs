@@ -100,7 +100,7 @@ tyCheckT (App t₁ t₂) =
     do ty₁ <- tyCheckT t₁
        ty₁' <- nf ty₁
        case ty₁' of
-           Arr ty₂ (Scope b ty₃) -> do tyCheckEq ty₂ t₂; substB b t₂ ty₃
+           Arr ty₂ (Scope b ty₃) -> do tyCheckEq ty₂ t₂; subst b t₂ ty₃
            _                     -> throwError (ExpectingFunction t₁ ty₁)
 tyCheckT (Lam ty (Scope b t)) =
     do tyty <- tyCheckT ty
@@ -129,7 +129,7 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
                           if length brs /= Set.size (Set.fromList (map fst brs))
                           then throwError (WrongBranchNumber ct)
                           else do forM_ brs (checkBr (map fst pars) args cons)
-                                  substB b t ty
+                                  subst b t ty
                       _ -> canon tyt
            _ -> canon tyt'
   where
