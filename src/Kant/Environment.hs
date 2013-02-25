@@ -136,7 +136,7 @@ addData tyc dd@(Tele typars₁ (DataT l cons)) err =
        put env₁{envData = Map.insert tyc dd dds}
        True <- addAbst (free tyc) (pis typars₁ (Type l))
        typars₂ <- mapM freshV typars₁
-       let tybs = zip (map fst typars₁) (getV typars₁)
+       let tybs = zip (map fst typars₁) (getV typars₂)
        typars₃ <- sequence [ (b,) <$> substManyB bs ty
                            | ((b, ty), bs) <- zip typars₂ (inits tybs) ]
        sequence_ [ do checkDup dc =<< get
@@ -144,8 +144,8 @@ addData tyc dd@(Tele typars₁ (DataT l cons)) err =
                       dpars₃ <- sequence [ (b,) <$> substManyB tybs ty
                                          | (b, ty) <- dpars₂ ]
                       let resTy = app (Var (free tyc) : getV typars₃)
-                          f     = conFun dc typars₂ dpars₂
-                      True <- addVal (free dc) (pis (typars₂ ++ dpars₃) resTy) f
+                          f     = conFun dc typars₃ dpars₂
+                      True <- addVal (free dc) (pis (typars₃ ++ dpars₃) resTy) f
                       return ()
                  | ConstrT dc (Tele dpars₁ Proxy) <- cons ]
   where
