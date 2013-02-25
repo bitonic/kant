@@ -21,18 +21,14 @@ module Kant.Environment
     , addAbst
     , addVal
     , upAbst
-    , upAbst'
     , upVal
-    , upVal'
     , delCtx
-    , delCtx'
     , addData
     ) where
 
 import           Control.Applicative ((<$>), Applicative)
-import           Control.Monad (join, liftM)
+import           Control.Monad (join)
 import           Data.List (inits)
-import           Data.Maybe (fromJust)
 
 import           Control.Monad.Error (Error(..), ErrorT)
 import           Control.Monad.Error (MonadError(..))
@@ -43,8 +39,6 @@ import qualified Data.Map as Map
 
 import           Kant.Name
 import           Kant.Term
-
-import Debug.Trace
 
 type Item = (Maybe Term, Maybe Term)
 
@@ -123,56 +117,43 @@ upCtx v tym tm = do env@Env{envCtx = ctx} <- get
 upAbst :: MonadEnv m => TName -> Term -> m ()
 upAbst v t = upCtx v (Just t) Nothing
 
-upAbst' :: MonadEnv m => Binder -> Term -> m ()
-upAbst' Nothing   _ = return ()
-upAbst' (Just ta) t = upAbst ta t
-
 upVal :: MonadEnv m => TName -> Term -> Term -> m ()
 upVal v ty t = upCtx v (Just ty) (Just t)
-
-upVal' :: MonadEnv m => Binder -> Term -> Term -> m ()
-upVal' (Just ta) ty t = upVal ta ty t
-upVal' Nothing   _  _ = return ()
 
 delCtx :: MonadEnv m => TName -> m ()
 delCtx v = do env@Env{envCtx = ctx} <- get
               put env{envCtx = Map.delete v ctx}
 
-delCtx' :: MonadEnv m => Binder -> m ()
-delCtx' Nothing  = return ()
-delCtx' (Just v) = delCtx v
-
 -- | Adds the type constructors and the data declarations as abstracted variable
 --   to an environment, @'Left' n@ if name @n@ is already present.
 addData :: (MonadError e m, MonadEnv m)
         => ConId -> DataBody -> (ConId -> e) -> m ()
-addData tyc dd@(Tele pars (DataT l cons)) err =
+addData tyc dd@(Tele typars₁ (DataT l cons)) err =
     -- TODO here we manipulate things and build up terms, but do we avoid name
     -- capturing?  I think it's better to refresh all variables.
     do env₁@Env{envData = dds} <- get
        checkDup tyc env₁
        put env₁{envData = Map.insert tyc dd dds}
-       True <- addAbst (free tyc) (pis pars (Type l))
-       typars₁ <- mapM freshB pars
-       let tybs = zip (map fst pars) (getv typars₁)
-       typars₂ <- sequence [ (b,) <$> substManyB bs ty
-                           | ((b, ty), bs) <- zip typars₁ (inits tybs) ]
+       True <- addAbst (free tyc) (pis typars₁ (Type l))
+       typars₂ <- mapM freshV typars₁
+       let tybs = zip (map fst typars₁) (getV typars₁)
+       typars₃ <- sequence [ (b,) <$> substManyB bs ty
+                           | ((b, ty), bs) <- zip typars₂ (inits tybs) ]
        sequence_ [ do checkDup dc =<< get
-                      dpars₁ <- mapM freshB pars'
-                      dpars₂ <- sequence [ (b,) <$> substManyB tybs ty
-                                         | (b, ty) <- dpars₁]
-                      let resTy = app (Var (free tyc) : getv typars₂)
+                      dpars₂ <- mapM freshV dpars₁
+                      dpars₃ <- sequence [ (b,) <$> substManyB tybs ty
+                                         | (b, ty) <- dpars₂ ]
+                      let resTy = app (Var (free tyc) : getV typars₃)
                           f     = conFun dc typars₂ dpars₂
-                      True <- addVal (free dc) (pis (typars₂ ++ dpars₂) resTy) f
+                      True <- addVal (free dc) (pis (typars₂ ++ dpars₃) resTy) f
                       return ()
-                 | ConstrT dc (Tele pars' Proxy) <- cons ]
+                 | ConstrT dc (Tele dpars₁ Proxy) <- cons ]
   where
     checkDup c Env{envCtx = ctx, envData = dds} =
         if Map.member c dds || Map.member (free c) ctx
         then throwError (err c)
         else return ()
-    getv = map (\((Just v), _) -> Var v)
+    getV = map (Var . fst)
     conFun dc typars dpars =
-        lams (typars ++ dpars) (Constr dc (getv typars) (getv dpars))
-    freshB (Nothing, ty)    = (,ty) <$> freshBinder (Just (free "_"))
-    freshB (b@(Just _), ty) = (,ty) <$> freshBinder b
+        lams (typars ++ dpars) (Constr dc (getV typars) (getV dpars))
+    freshV (v, ty) = (,ty) <$> fresh v

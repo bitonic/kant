@@ -71,9 +71,9 @@ instance (v ~ TName) => TyCheck (DeclT v) where
 
 -- forget :: MonadState s m => m b -> m b
 -- forget m = do s <- get; x <- m; put s; return x
-forget b ty₁ m = do upAbst' b ty₁
+forget b ty₁ m = do upAbst b ty₁
                     x <- m
-                    delCtx' b
+                    delCtx b
                     return x
 
 envTy :: MonadTyCheck m => TName -> m Term
@@ -158,14 +158,6 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
         --            -- and we remove the vars from the ctx
         --            sequence [delCtx' b' | (b', _) <- parsd₂]
         --     _ -> throwError (WrongArity c ct)
-
--- TODO I don't think it's safe to generate names here considering that then we
--- throw away the Env.
-fillNames :: MonadTyCheck m => [Binder] -> m [Binder]
-fillNames [] = return []
-fillNames (b@(Just _) : bs) = (b :) <$> fillNames bs
-fillNames (Nothing : bs) =
-    do v <- fresh (free "_"); (Just v :) <$> fillNames bs
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: MonadTyCheck m => Term -> Term -> m ()
