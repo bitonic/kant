@@ -137,10 +137,10 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
     checkBr typars args cons (c, Tele (branchBs -> bs) t') =
         case [dpars | ConstrT c' dpars <- cons, c == c'] of
             [] -> throwError (NotConstructor c ct)
-            (dpars@(Tele (length -> i) Proxy) :_) | i == length bs ->
+            (dpars₁@(Tele (length -> i) Proxy) : _) | i == length bs ->
                 do -- First, we substitute the type parameters with the actual
                    -- ones in the data parameters
-                   parsd₁ <- substBranch (branch typars dpars) args
+                   Tele dpars₂ Proxy <- substBranch (branch typars dpars₁) args
                    -- Then, we substitute the parameters names with the names
                    -- given by the branch.  First we make sure that each
                    -- parameter has a name
