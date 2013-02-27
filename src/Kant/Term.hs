@@ -53,8 +53,6 @@ module Kant.Term
     , Param
     , ParamV
     , unrollApp
-    , unrollArr
-    , unrollArr'
     , moduleNames
     -- * Substitutions
     , Bound(..)
@@ -65,14 +63,15 @@ module Kant.Term
     , substBranch
     , substMany
     , EqSubst(..)
+    , occurs
     ) where
 
-import           Control.Arrow (first, second)
+import           Control.Arrow (second)
 import           Control.Monad (liftM, ap)
 import           Data.Foldable (foldrM, Foldable)
 import           Data.Traversable (Traversable)
 
-import           Control.Monad.Identity (Identity(..))
+import           Control.Monad.State (execState, MonadState(..))
 
 import           Data.Proxy
 import           Numeric.Natural
@@ -221,16 +220,6 @@ type ParamT n = (n, TermT n)
 type Param = ParamT TName
 type ParamV = ParamT Id
 
--- | Dual of 'Arr' (but with more general types).
-unrollArr :: Maybe Natural -> TermT t -> ([ParamT t], TermT t)
-unrollArr n        (Arr (Abs ty₁ (Scope b ty₂))) | n == Nothing || n > Just 0 =
-    first ((b, ty₁) :) (unrollArr (fmap (\n' -> n' - 1) n)  ty₂)
-unrollArr (Just 0) ty                            = ([], ty)
-unrollArr _        ty                            = ([], ty)
-
-unrollArr' :: TermT t -> ([ParamT t], TermT t)
-unrollArr' = unrollArr Nothing
-
 moduleNames :: ModuleT t -> [Id]
 moduleNames = concatMap go . unModule
   where
@@ -312,9 +301,6 @@ freshBinder :: MonadSubst m => Maybe (Name a) -> m (Maybe (Name a))
 freshBinder Nothing = return Nothing
 freshBinder (Just v) = Just `liftM` fresh v
 
-instance MonadSubst Identity where
-    fresh = Identity
-
 subst :: (Eq a, Bound f, MonadSubst m)
       => Name a -> TermT (Name a) -> f (Name a) -> m (f (Name a))
 subst v₁ t = travb (\v₂ -> if v₁ == v₂ then return t else return (Var v₂)) refresh
@@ -382,3 +368,10 @@ instance EqSubst TermT where
            return (c₁ == c₂ && b₁ && b₂ && b₃ && b₄)
     eqSubst (Fix ab₁) (Fix ab₂) = eqSubst ab₁ ab₂
     eqSubst _ _ = return False
+
+occurs :: (Eq v, Bound f) => v -> f v -> Bool
+occurs v t =
+    execState
+    (travb (\v₁ -> do put (v == v₁); return (Var v₁))
+           (\v₁ f -> return (v₁, if v == v₁ then return . Var else f)) t)
+    False

@@ -174,31 +174,39 @@ desugarArr ((Just (n:ns), ty₁) : pars) ty₂ =
     pi_ (desugar ty₁) n (desugarArr ((Just ns, ty₁) : pars) ty₂)
 desugarArr ((Just [],     _)   : pars) ty  = desugarArr pars ty
 
+ifOccurs :: Id -> TermV -> Maybe Id
+ifOccurs v t = if occurs v t then Just v else Nothing
+
 class Distill a b where
     distill :: a -> b
 
 instance (a ~ STerm, v ~ Id) => Distill (TermT v) a where
     distill (Var n) = SVar n
     distill (Type l) = SType l
-    distill to@(Arr _) = SArr (distillPars pars) (distill ty)
-      where (pars, ty) = unrollArr' to
+    distill to@(Arr _) =
+        let (pars, ty) = go to in SArr (distillPars pars) (distill ty)
+      where
+        go (Arr (Abs ty (Scope b t))) = first ((ifOccurs b t, ty):) (go t)
+        go t                          = ([], t)
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
     distill to@(Lam _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
       where
-         go (Lam (Abs ty (Scope b t))) = first ((b, ty):) (go t)
+         go (Lam (Abs ty (Scope b t))) = first ((ifOccurs b t, ty):) (go t)
          go t                          = ([], t)
     distill (Case t (Scope b ty) brs) =
-        SCase (distill t) (Just b) (distill ty)
+        SCase (distill t) (ifOccurs b ty) (distill ty)
               [(c, map Just bs, distill t') | (c, Tele (branchBs -> bs) t') <- brs]
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
     distill (Fix (Tele pars (Abs ty (Scope b t)))) =
-        SFix (Just b) (distillPars pars) (distill ty) (distill t)
+        -- TODO discard unused things in the pars
+        SFix (ifOccurs b t)
+             (distillPars (map (first Just) pars)) (distill ty) (distill t)
 
-distillPars :: [ParamV] -> [(Maybe [Id], STerm)]
+distillPars :: [(Maybe Id, TermV)] -> [(Maybe [Id], STerm)]
 distillPars pars =
-    [(sequence (map (Just . fst) pars'), distill ty) | pars'@((_, ty):_) <- go]
+    [(sequence (map fst pars'), distill ty) | pars'@((_, ty):_) <- go]
   where
     go = groupBy (\(_, ty₁) (_, ty₂) -> ty₁ == ty₂) pars
 
