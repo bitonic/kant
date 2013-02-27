@@ -1,9 +1,9 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , MonadTyCheck
@@ -106,10 +106,12 @@ tyCheckT env₁ (Lam (Abs ty (Scope b t))) =
            _ -> throwError (ExpectingType ty tyty)
 tyCheckT env (Constr c pars args) =
     tyCheckT env (app (Var (free c) : pars ++ args))
-tyCheckT env (Fix (Tele pars (Abs ty (Scope b t)))) =
-    -- TODO finish
+tyCheckT env₁ (Fix (Tele pars (Abs ty (Scope b t)))) =
      do let ty' = pis pars ty
-        tyCheckT env ty'
+        tyCheckT env₁ ty'
+        let env₂ = foldr (\(v, tyv) e -> upAbst e v tyv) env₁ pars
+            env₃ = upAbst env₂ b ty'
+        tyCheckEq env₃ ty t
         return ty'
 tyCheckT env ct@(Case t (Scope b ty) brs) =
     do tyt <- tyCheckT env t
