@@ -66,12 +66,15 @@ module Kant.Term
     , occurs
     ) where
 
+import           Control.Applicative (Applicative)
 import           Control.Arrow (second)
 import           Control.Monad (liftM, ap)
 import           Data.Foldable (foldrM, Foldable)
 import           Data.Traversable (Traversable)
 
-import           Control.Monad.State (execState, MonadState(..))
+import           Control.Monad.Error (ErrorT(..), MonadError(..), Error)
+import           Control.Monad.State (StateT(..), execState, MonadState(..))
+import           Control.Monad.Trans (lift)
 
 import           Data.Proxy
 import           Numeric.Natural
@@ -114,7 +117,7 @@ type Module = ModuleT TName
 type ModuleV = ModuleT Id
 
 discard :: Id
-discard = "_"
+discard = "$"
 
 -- | Value or datatype declaration.
 data DeclT n
@@ -294,8 +297,20 @@ instance Bound Proxy where
 instance Bound ModuleT where
     travb f g (Module decls) = Module `liftM` mapM (travb f g) decls
 
-class Monad m => MonadSubst m where
+class (Functor m, Applicative m, Monad m) => MonadSubst m where
     fresh :: Name a -> m (Name a)
+
+instance (Functor m, Applicative m, Monad m) => MonadSubst (StateT Tag m) where
+    fresh v =
+        do c <- get
+           put (c+1)
+           return $ case v of
+                        Plain n -> Gen c n
+                        Gen _ n -> Gen c n
+
+instance (Functor m, Applicative m, Monad m, MonadSubst m, Error e) =>
+         MonadSubst (ErrorT e m) where
+    fresh v = lift (fresh v)
 
 freshBinder :: MonadSubst m => Maybe (Name a) -> m (Maybe (Name a))
 freshBinder Nothing = return Nothing

@@ -12,16 +12,16 @@ module Kant.TyCheck
     )
     where
 
-import           Control.Applicative ((<$), (<$>), Applicative)
+import           Control.Applicative (Applicative)
 import           Control.Monad (unless, forM_)
+import           Data.Foldable (foldlM)
 
 import           Control.Monad.Error (Error(..), MonadError(..), ErrorT)
-import           Control.Monad.State (MonadState(..), StateT)
+import           Control.Monad.State (StateT)
 import qualified Data.Set as Set
 
 import           Kant.Name
-import           Kant.Environment hiding (envTy)
-import qualified Kant.Environment as Env
+import           Kant.Environment
 import           Kant.Reduce
 import           Kant.Term
 
@@ -42,95 +42,88 @@ data TyCheckError
 instance Error TyCheckError where
     noMsg = TyCheckError
 
-class (MonadEnv m, MonadError TyCheckError m, Functor m, Applicative m) =>
+class (MonadSubst m, MonadError TyCheckError m, Functor m, Applicative m) =>
       MonadTyCheck m
 instance (Monad m, Functor m, Applicative m) =>
-         MonadTyCheck (ErrorT TyCheckError (StateT Env m))
+         MonadTyCheck (StateT Tag (ErrorT TyCheckError m))
 instance (Monad m, Functor m, Applicative m) =>
-         MonadTyCheck (StateT Env (ErrorT TyCheckError m))
+         MonadTyCheck (ErrorT TyCheckError (StateT Tag m))
 
 class TyCheck a where
-    tyCheck :: MonadTyCheck m => a -> m ()
+    tyCheck :: MonadTyCheck m => Env -> a -> m Env
 
-checkDup :: MonadTyCheck m => Id -> m Bool -> m ()
-checkDup n m = do b <- m
-                  unless b (throwError (DuplicateName (free n)))
+checkDup :: MonadTyCheck m => Id -> Maybe Env -> m Env
+checkDup n Nothing    = throwError (DuplicateName (free n))
+checkDup _ (Just env) = return env
 
 instance (v ~ TName) => TyCheck (ModuleT v) where
-    tyCheck (Module decls') = mapM_ tyCheck decls'
+    tyCheck env (Module decls') = foldlM tyCheck env decls'
 
 instance (v ~ TName) => TyCheck (DeclT v) where
     -- TODO we are tychecking before verifying that there are no duplicates
-    tyCheck (Val n t) = do t' <- nf t
-                           ty <- tyCheckT t'
-                           checkDup n (addVal (free n) ty t')
-    tyCheck (Postulate n ty) = do tyCheckT ty; checkDup n (addAbst (free n) ty)
-    tyCheck (Data c dd@(Tele pars (DataT l cons))) =
+    tyCheck env (Val n t) = do t' <- nf env t
+                               ty <- tyCheckT env t'
+                               checkDup n (addVal env (free n) ty t')
+    tyCheck env (Postulate n ty) =
+        do tyCheckT env ty
+           checkDup n (addAbst env (free n) ty)
+    tyCheck env (Data c dd@(Tele pars (DataT l cons))) =
         -- TODO finish
-        addData c dd (DuplicateName . free)
+        addData env c dd (DuplicateName . free)
 
--- forget :: MonadState s m => m b -> m b
--- forget m = do s <- get; x <- m; put s; return x
-forget b ty₁ m = do upAbst b ty₁
-                    x <- m
-                    delCtx b
-                    return x
-
-envTy :: MonadTyCheck m => TName -> m Term
-envTy v = maybe (throwError (OutOfBounds v)) return =<< Env.envTy v
-
-tyCheckT :: MonadTyCheck m => Term -> m Term
-tyCheckT (Var v) = envTy v
-tyCheckT (Type l) = return (Type (l + 1))
+tyCheckT :: MonadTyCheck m => Env -> Term -> m Term
+tyCheckT env (Var v) = maybe (throwError (OutOfBounds v)) return (envTy env v)
+tyCheckT _   (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
 -- some kind of level polymorphism so that the arrow operator can be postulated
 -- like any other.
-tyCheckT (Arr (Abs ty₁ (Scope b ty₂))) =
-    do tyty₁ <- tyCheckT ty₁
-       tyty₁' <- nf tyty₁
+tyCheckT env₁ (Arr (Abs ty₁ (Scope b ty₂))) =
+    do tyty₁ <- tyCheckT env₁ ty₁
+       tyty₁' <- nf env₁ tyty₁
        case tyty₁' of
-           Type l₁ -> forget b ty₁ $
-                      do tyty₂ <- tyCheckT ty₂
-                         tyty₂' <- nf tyty₂
+           Type l₁ -> -- forget b ty₁ $
+                      do let env₂ = upAbst env₁ b ty₁
+                         tyty₂ <- tyCheckT env₂ ty₂
+                         tyty₂' <- nf env₂ tyty₂
                          case tyty₂' of
                              Type l₂ -> return (Type (max l₁ l₂))
                              _       -> throwError (ExpectingType ty₂ tyty₂)
            _ -> throwError (ExpectingType ty₁ tyty₁)
-tyCheckT (App t₁ t₂) =
-    do ty₁ <- tyCheckT t₁
-       ty₁' <- nf ty₁
+tyCheckT env (App t₁ t₂) =
+    do ty₁ <- tyCheckT env t₁
+       ty₁' <- nf env ty₁
        case ty₁' of
-           Arr (Abs ty₂ (Scope b ty₃)) -> do tyCheckEq ty₂ t₂; subst b t₂ ty₃
+           Arr (Abs ty₂ (Scope b ty₃)) -> do tyCheckEq env ty₂ t₂; subst b t₂ ty₃
            _                           -> throwError (ExpectingFunction t₁ ty₁)
-tyCheckT (Lam (Abs ty (Scope b t))) =
-    do tyty <- tyCheckT ty
-       tyty' <- nf tyty
+tyCheckT env₁ (Lam (Abs ty (Scope b t))) =
+    do tyty <- tyCheckT env₁ ty
+       tyty' <- nf env₁ tyty
        case tyty' of
-           Type _ -> forget b ty $
-                     do tyt <- tyCheckT t
+           Type _ -> -- forget b ty $
+                     do let env₂ = upAbst env₁ b ty
+                        tyt <- tyCheckT env₂ t
                         return (Arr (Abs ty (Scope b tyt)))
            _ -> throwError (ExpectingType ty tyty)
-tyCheckT (Constr c pars args) =
-    tyCheckT (app (Var (free c) : pars ++ args))
-tyCheckT (Fix (Tele pars (Abs ty (Scope b t)))) =
+tyCheckT env (Constr c pars args) =
+    tyCheckT env (app (Var (free c) : pars ++ args))
+tyCheckT env (Fix (Tele pars (Abs ty (Scope b t)))) =
     -- TODO finish
      do let ty' = pis pars ty
-        tyCheckT ty'
+        tyCheckT env ty'
         return ty'
-tyCheckT ct@(Case t (Scope b ty) brs) =
-    do tyt <- tyCheckT t
-       forget b tyt (tyCheckT ty)
-       tyt' <- nf tyt
+tyCheckT env ct@(Case t (Scope b ty) brs) =
+    do tyt <- tyCheckT env t
+       tyCheckT (upAbst env b tyt) ty
+       tyt' <- nf env tyt
        case unrollApp tyt' of
            (Var (Plain tyc), args) ->
-               do dd <- envData' tyc
-                  case dd of
-                      Just (Tele pars (DataT _ cons)) | length pars == length args ->
-                          if length brs /= Set.size (Set.fromList (map fst brs))
-                          then throwError (WrongBranchNumber ct)
-                          else do forM_ brs (checkBr (map fst pars) args cons)
-                                  subst b t ty
-                      _ -> canon tyt
+               case envData' env tyc of
+                   Just (Tele pars (DataT _ cons)) | length pars == length args ->
+                       if length brs /= Set.size (Set.fromList (map fst brs))
+                       then throwError (WrongBranchNumber ct)
+                       else do forM_ brs (checkBr (map fst pars) args cons)
+                               subst b t ty
+                   _ -> canon tyt
            _ -> canon tyt'
   where
     canon = throwError . ExpectingCanonical t
@@ -144,7 +137,7 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
                    -- Then, we substitute the parameters names with the names
                    -- given by the branch.  First we make sure that each
                    -- parameter has a name
-                   undefined
+                   return ()
                    -- bs' <- fillNames bs
                    -- let vs = zip (map fst parsd) [Var ta | Just ta <- bs']
                    -- -- Then we replace the references to data parameters
@@ -161,17 +154,17 @@ tyCheckT ct@(Case t (Scope b ty) brs) =
             _ -> throwError (WrongArity c ct)
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: MonadTyCheck m => Term -> Term -> m ()
-tyCheckEq ty t =
-    do ty' <- tyCheckT t
-       eqb <- eqCum ty' ty
+tyCheckEq :: MonadTyCheck m => Env -> Term -> Term -> m ()
+tyCheckEq env ty t =
+    do ty' <- tyCheckT env t
+       eqb <- eqCum env ty' ty
        unless eqb (throwError (Mismatch ty t ty'))
 
 -- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
 --   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
 --   ('Type' 4) ('Type' 1)@ will fail.
-eqCum :: MonadEnv m => Term -> Term -> m Bool
-eqCum t₁ t₂ = do t₁' <- nf t₁; t₂' <- nf t₂
-                 case (t₁', t₂') of
-                     (Type l₁, Type l₂) -> return (l₁ <= l₂)
-                     _                  -> eqSubst t₁' t₂'
+eqCum :: MonadTyCheck m => Env -> Term -> Term -> m Bool
+eqCum env t₁ t₂ = do t₁' <- nf env t₁; t₂' <- nf env t₂
+                     case (t₁', t₂') of
+                         (Type l₁, Type l₂) -> return (l₁ <= l₂)
+                         _                  -> eqSubst t₁' t₂'
