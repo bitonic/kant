@@ -26,8 +26,8 @@ instance (Reduce f) => Reduce (ScopeFT f) where
 instance (Reduce f, Reduce g) => Reduce (TelePFT g f) where
     reduce r (Tele pars t) = Tele <$> sequence [(b,) <$> r ty | (b, ty) <- pars]
                                   <*> r t
-instance Reduce FixT where
-    reduce r (FixT t s) = FixT <$> r t <*> r s
+instance Reduce AbsT where
+    reduce r (Abs t s) = Abs <$> r t <*> r s
 
 instance Reduce Proxy where
     reduce _ Proxy = return Proxy
@@ -39,7 +39,7 @@ instance Reduce TermT where
     reduce r (App t₁ t₂) =
         do t₁' <- reduce r t₁
            case t₁' of
-               Lam _ (Scope b t) -> reduce r =<< subst b t₂ t
+               Lam (Abs _ (Scope b t)) -> reduce r =<< subst b t₂ t
                (unrollApp -> (ft@(Fix te@(Tele pars _)), args)) ->
                    do t₂' <- reduce r t₂
                       let args'         = args ++ [t₂']
@@ -47,7 +47,7 @@ instance Reduce TermT where
                           (fargs, rest) = splitAt i args'
                       if i > length args' || not (all constr fargs)
                         then return (App t₁' t₂')
-                        else do FixT _ (Scope b t') <- substTele te fargs
+                        else do Abs _ (Scope b t') <- substTele te fargs
                                 t'' <- subst b ft t'
                                 reduce r (app (t'' : rest))
                _ -> App t₁' <$> reduce r t₂
@@ -61,8 +61,8 @@ instance Reduce TermT where
                     of  []         -> return stuck
                         (br : _) -> reduce r =<< substBranch br ts
                _ -> return stuck
-    reduce r (Lam ty s) = Lam <$> r ty <*> r s
-    reduce r (Arr ty s) = Arr <$> r ty <*> r s
+    reduce r (Lam ab) = Lam <$> r ab
+    reduce r (Arr ab) = Arr <$> r ab
     reduce r (Constr c tys ts) = Constr c <$> mapM r tys <*> mapM r ts
     reduce r (Fix pars) = Fix <$> r pars
 

@@ -85,7 +85,7 @@ tyCheckT (Type l) = return (Type (l + 1))
 -- TODO we manually have a "large" arrow here, but ideally we'd like to have
 -- some kind of level polymorphism so that the arrow operator can be postulated
 -- like any other.
-tyCheckT (Arr ty₁ (Scope b ty₂)) =
+tyCheckT (Arr (Abs ty₁ (Scope b ty₂))) =
     do tyty₁ <- tyCheckT ty₁
        tyty₁' <- nf tyty₁
        case tyty₁' of
@@ -100,19 +100,19 @@ tyCheckT (App t₁ t₂) =
     do ty₁ <- tyCheckT t₁
        ty₁' <- nf ty₁
        case ty₁' of
-           Arr ty₂ (Scope b ty₃) -> do tyCheckEq ty₂ t₂; subst b t₂ ty₃
-           _                     -> throwError (ExpectingFunction t₁ ty₁)
-tyCheckT (Lam ty (Scope b t)) =
+           Arr (Abs ty₂ (Scope b ty₃)) -> do tyCheckEq ty₂ t₂; subst b t₂ ty₃
+           _                           -> throwError (ExpectingFunction t₁ ty₁)
+tyCheckT (Lam (Abs ty (Scope b t))) =
     do tyty <- tyCheckT ty
        tyty' <- nf tyty
        case tyty' of
            Type _ -> forget b ty $
                      do tyt <- tyCheckT t
-                        return (Arr ty (Scope b tyt))
+                        return (Arr (Abs ty (Scope b tyt)))
            _ -> throwError (ExpectingType ty tyty)
 tyCheckT (Constr c pars args) =
     tyCheckT (app (Var (free c) : pars ++ args))
-tyCheckT (Fix (Tele pars (FixT ty (Scope b t)))) =
+tyCheckT (Fix (Tele pars (Abs ty (Scope b t)))) =
     -- TODO finish
      do let ty' = pis pars ty
         tyCheckT ty'
@@ -172,6 +172,6 @@ tyCheckEq ty t =
 --   ('Type' 4) ('Type' 1)@ will fail.
 eqCum :: MonadEnv m => Term -> Term -> m Bool
 eqCum t₁ t₂ = do t₁' <- nf t₁; t₂' <- nf t₂
-                 return $ case (t₁', t₂') of
-                              (Type l₁, Type l₂) -> l₁ <= l₂
-                              _                  -> t₁' == t₂'
+                 case (t₁', t₂') of
+                     (Type l₁, Type l₂) -> return (l₁ <= l₂)
+                     _                  -> eqSubst t₁' t₂'

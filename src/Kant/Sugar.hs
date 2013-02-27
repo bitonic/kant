@@ -180,20 +180,20 @@ class Distill a b where
 instance (a ~ STerm, v ~ Id) => Distill (TermT v) a where
     distill (Var n) = SVar n
     distill (Type l) = SType l
-    distill to@(Arr _ _) = SArr (distillPars pars) (distill ty)
+    distill to@(Arr _) = SArr (distillPars pars) (distill ty)
       where (pars, ty) = unrollArr' to
     distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
-    distill to@(Lam _ _)  =
+    distill to@(Lam _)  =
         let (pars, t) = go to in SLam (distillPars pars) (distill t)
       where
-         go (Lam ty (Scope b t)) = first ((b, ty):) (go t)
-         go t                    = ([], t)
+         go (Lam (Abs ty (Scope b t))) = first ((b, ty):) (go t)
+         go t                          = ([], t)
     distill (Case t (Scope b ty) brs) =
         SCase (distill t) (Just b) (distill ty)
               [(c, map Just bs, distill t') | (c, Tele (branchBs -> bs) t') <- brs]
     distill (Constr c tys ts) =
         foldl1 SApp (SVar c : map distill tys ++ map distill ts)
-    distill (Fix (Tele pars (FixT ty (Scope b t)))) =
+    distill (Fix (Tele pars (Abs ty (Scope b t)))) =
         SFix (Just b) (distillPars pars) (distill ty) (distill t)
 
 distillPars :: [ParamV] -> [(Maybe [Id], STerm)]
