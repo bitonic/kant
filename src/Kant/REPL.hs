@@ -84,7 +84,7 @@ replOutput env₁ s₁ =
   where
     parseE (Left pe) = throwError (TermParse pe)
     parseE (Right x) = return x
-    parse s = parseE (parseTerm s)
+    parse = parseE . parseTerm
     tyct env = mapTyCheckM . tyCheck env
     readSafe fp =
         do se <- liftIO (catch (Right <$> readFile fp) (return . Left))

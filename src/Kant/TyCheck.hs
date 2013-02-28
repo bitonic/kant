@@ -69,7 +69,7 @@ tyCheck env (App t₁ t₂) =
     do tyt₁ <- tyCheck env t₁
        case whnf env tyt₁ of
            Arr (Abs ty₁ s) ->
-               do tyCheckEq env ty₁ t₁
+               do tyCheckEq env ty₁ t₂
                   return (instantiate1 t₂ s)
            _ -> expectingFunction env t₁ tyt₁
 
