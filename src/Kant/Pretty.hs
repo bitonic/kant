@@ -21,7 +21,7 @@ import           Kant.Term
 import           Kant.Sugar
 import           Kant.Distill
 import           Kant.TyCheck
--- import           Kant.REPL.Types
+import           Kant.REPL.Types
 
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
@@ -122,15 +122,15 @@ instance Pretty TyCheckError where
         group (nest ("Expecting a Type for term" <$> pretty t) <$>
                nest ("instead of" <$> pretty ty))
 
--- instance Pretty Output where
---     pretty (OTyCheck ty) = pretty ty
---     pretty (OPretty t)   = pretty t
---     pretty OOK           = "OK"
---     pretty OQuit         = "Bye!"
---     pretty OSkip         = ""
+instance Pretty Output where
+    pretty (OTyCheck ty) = pretty ty
+    pretty (OPretty t)   = pretty t
+    pretty OOK           = "OK"
+    pretty OQuit         = "Bye!"
+    pretty OSkip         = ""
 
--- instance Pretty REPLError where
---     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
---     pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
---     pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
---     pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
+instance Pretty REPLError where
+    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
+    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
+    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
+    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))

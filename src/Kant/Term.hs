@@ -48,7 +48,7 @@ instance Monad Term where
     V v       >>= f = f v
     Ty l      >>= _ = Ty l
     Lam ab    >>= f = Lam (subAb ab f)
-    Arr ab    >>= f = Lam (subAb ab f)
+    Arr ab    >>= f = Arr (subAb ab f)
     App t₁ t₂ >>= f = App (t₁ >>= f) (t₂ >>= f)
 
 data Abs v = Abs (Term v) (Scope (NameId ()) Term v)

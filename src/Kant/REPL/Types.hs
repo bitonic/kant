@@ -11,8 +11,8 @@ import           Kant.Parser
 import           Kant.TyCheck
 
 data Output
-    = OTyCheck Term             -- Type of term
-    | OPretty Term              -- PPrinted term
+    = OTyCheck TermId           -- Type of term
+    | OPretty TermId            -- PPrinted term
     | OOK
     | OQuit
     | OSkip

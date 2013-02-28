@@ -10,6 +10,7 @@ module Kant.Parser
     , parseTerm
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Arrow (first)
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
@@ -17,6 +18,7 @@ import           Data.List (foldl1)
 import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
+import           Kant.Desugar
 
 }
 
@@ -133,8 +135,8 @@ parseModule s = runAlex s parseModule_
 parseDecl :: String -> ParseResult SDecl
 parseDecl s = runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult STerm
-parseTerm s = runAlex s parseTerm_
+parseTerm :: String -> ParseResult TermId
+parseTerm s = desugarT <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO SModule

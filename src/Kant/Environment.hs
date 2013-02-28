@@ -2,6 +2,8 @@
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Environment
     ( Env(..)
+    , EnvId
+    , newEnv
     , nestEnv
     , nestEnvTy
     , envFree
@@ -25,6 +27,8 @@ data Env v = Env
     , envRename :: v -> (Id -> Id) -> v
     }
 
+type EnvId = Env Id
+
 nestf :: Maybe (Term v) -> Ctx v -> Ctx (Var (NameId ()) v)
 nestf t _ (B _) = fmap F <$> t
 nestf _ f (F v) = fmap F <$> f v
@@ -43,6 +47,14 @@ nestEnv Env{ envValue = value
        , envRename = \v f -> case v of B (Name n ()) -> B (Name (f n) ())
                                        F v'          -> F (rename v' f)
        }
+
+newEnv :: EnvId
+newEnv = Env{ envValue  = const Nothing
+            , envType   = const Nothing
+            , envPull   = id
+            , envNest   = id
+            , envRename = \v f -> f v
+            }
 
 nestEnvTy :: Env v -> Term v -> Env (Var (NameId ()) v)
 nestEnvTy env ty = nestEnv env Nothing (Just ty)

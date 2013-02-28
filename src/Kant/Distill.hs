@@ -38,5 +38,5 @@ unrollArr t = ([], t)
 
 scopeVar :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
 scopeVar s = case bindings s of
-                 [] -> (Nothing, instantiate1 undefined s)
+                 [] -> (Nothing, instantiate1 undefined s) -- Safe
                  (Name n _ : _) -> (Just n, instantiate1 (V n) s)

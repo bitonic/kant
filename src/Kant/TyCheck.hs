@@ -8,7 +8,7 @@ module Kant.TyCheck
 import           Control.Applicative (Applicative, (<$>))
 import           Control.Monad (unless)
 
-import           Control.Monad.Error (MonadError(..))
+import           Control.Monad.Error (MonadError(..), Error)
 
 import           Bound
 
@@ -16,6 +16,8 @@ import           Kant.Environment
 import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify
+
+import Debug.Trace
 
 data TyCheckError
     = TyCheckError
@@ -25,6 +27,8 @@ data TyCheckError
     | ExpectingFunction TermId TermId
     | ExpectingType TermId TermId
     deriving (Eq, Show)
+
+instance Error TyCheckError
 
 class (Functor m, Applicative m, MonadError TyCheckError m) => MonadTyCheck m
 
@@ -45,7 +49,7 @@ lookupTy env v = case envType env v of
                      Nothing -> throwError (OutOfBounds (envPull env v))
                      Just ty -> return ty
 
-tyCheck :: (Ord v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
+tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
 tyCheck _ (Ty l) = return (Ty (l+1))
 tyCheck env (V v) = lookupTy env v
 tyCheck env (Lam (Abs ty s)) =
@@ -72,7 +76,7 @@ tyCheck env (App t₁ t₂) =
            _ -> expectingFunction env t₁ tyt₁
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
+tyCheckEq :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheckEq env ty t =
     do ty' <- tyCheck env t
        eqb <- eqCum env ty' ty
