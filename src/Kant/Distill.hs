@@ -1,6 +1,8 @@
 module Kant.Distill (distillT) where
 
 import           Control.Arrow (first, second)
+import           Data.List (groupBy)
+import           Data.Maybe (isJust)
 
 import           Bound
 import           Bound.Scope
@@ -13,28 +15,32 @@ distillT :: TermId -> STerm
 distillT (V v) = SV v
 distillT (Ty l) = STy l
 distillT t₁@(Lam _) = SLam (distillPars pars) (distillT t₂)
-  where (pars, t₂) = first groupPars (unrollLam t₁)
+  where (pars, t₂) = unrollLam t₁
 distillT t₁@(Arr _) = SArr (distillPars pars) (distillT t₂)
-  where (pars, t₂) = first groupPars (unrollArr t₁)
+  where (pars, t₂) = unrollArr t₁
 distillT (App t₁ t₂) = SApp (distillT t₁) (distillT t₂)
 
 distillPars :: [(Maybe [Id], TermId)] -> [SParam]
 distillPars = map (second distillT)
 
 groupPars :: [(Maybe Id, TermId)] -> [(Maybe [Id], TermId)]
-groupPars = map (first (fmap (:[])))
+groupPars pars = [(sequence (map fst tys), ty) | tys@((_, ty):_) <- go pars]
+  where
+    go = groupBy (\(mn₁, ty₁) (mn₂, ty₂) -> isJust mn₁ && isJust mn₂ && ty₁ == ty₂)
 
-unrollLam :: TermId -> ([(Maybe Id, TermId)], TermId)
-unrollLam (Lam (Abs ty s)) =
-    ((n, ty) : pars, t₂)
-  where (n, t₁) = scopeVar s; (pars, t₂) = unrollLam t₁
-unrollLam t = ([], t)
+unrollLam, unrollArr :: TermId -> ([(Maybe [Id], TermId)], TermId)
+unrollLam = first groupPars . unrollLam'
+unrollArr = first groupPars . unrollArr'
 
-unrollArr :: TermId -> ([(Maybe Id, TermId)], TermId)
-unrollArr (Arr (Abs ty s)) =
+unrollLam', unrollArr' :: TermId -> ([(Maybe Id, TermId)], TermId)
+unrollLam' (Lam (Abs ty s)) =
     ((n, ty) : pars, t₂)
-  where (n, t₁) = scopeVar s; (pars, t₂) = unrollArr t₁
-unrollArr t = ([], t)
+  where (n, t₁) = scopeVar s; (pars, t₂) = unrollLam' t₁
+unrollLam' t = ([], t)
+unrollArr' (Arr (Abs ty s)) =
+    ((n, ty) : pars, t₂)
+  where (n, t₁) = scopeVar s; (pars, t₂) = unrollArr' t₁
+unrollArr' t = ([], t)
 
 scopeVar :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
 scopeVar s = case bindings s of

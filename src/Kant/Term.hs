@@ -37,10 +37,10 @@ data Term v
 
 type TermId = Term Id
 
-instance Eq1 Term      where (==#)      = (==)
-instance Ord1 Term     where compare1   = compare
-instance Show1 Term    where showsPrec1 = showsPrec
-instance Read1 Term    where readsPrec1 = readsPrec
+instance Eq1 Term   where (==#)      = (==)
+instance Ord1 Term  where compare1   = compare
+instance Show1 Term where showsPrec1 = showsPrec
+instance Read1 Term where readsPrec1 = readsPrec
 
 instance Monad Term where
     return = V
