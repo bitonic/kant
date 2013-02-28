@@ -12,7 +12,7 @@ import           Control.Monad.Error (MonadError(..), Error)
 
 import           Bound
 
-import           Kant.Environment
+import           Kant.Env
 import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify

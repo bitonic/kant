@@ -20,7 +20,7 @@ import           System.Console.Haskeline
 import           System.Console.Haskeline.MonadException ()
 
 import           Kant.Parser
-import           Kant.Environment
+import           Kant.Env
 import           Kant.Reduce
 import           Kant.TyCheck
 import           Kant.Pretty

@@ -1,6 +1,6 @@
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
-module Kant.Environment
+module Kant.Env
     ( Env(..)
     , EnvId
     , newEnv

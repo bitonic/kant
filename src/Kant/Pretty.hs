@@ -9,9 +9,6 @@ module Kant.Pretty (Pretty(..), putPretty) where
 import           Data.List (intersperse)
 import           Data.String (IsString(..))
 
-import           Data.Text (Text)
-import qualified Data.Text as Text
-
 import           Text.PrettyPrint.Leijen
                  (Pretty(..), (<+>), (<>), Doc, align, hsep, vcat,
                   (<$>), vsep, group, (<$$>), hcat)
@@ -37,9 +34,6 @@ spaceIfCons _  = " "
 
 instance IsString Doc where
     fromString = pretty
-
-instance Pretty Text where
-    pretty t = pretty (Text.unpack t)
 
 instance (v ~ Id) => Pretty (Term v) where
     pretty = pretty . distillT

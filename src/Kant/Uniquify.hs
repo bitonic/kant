@@ -12,7 +12,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 import           Kant.Term
-import           Kant.Environment
+import           Kant.Env
 
 uniquify :: (Ord v, Eq v) => Env v -> [Term v] -> [Term v]
 uniquify env ts = evalState (mapM (mapM go) ts) (Map.fromList fs)

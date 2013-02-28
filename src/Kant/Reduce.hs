@@ -9,7 +9,7 @@ module Kant.Reduce
 import           Bound
 
 import           Kant.Term
-import           Kant.Environment
+import           Kant.Env
 
 type Reducer = forall v. Env v -> Term v -> Term v
 

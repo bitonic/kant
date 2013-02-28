@@ -29,8 +29,6 @@ Library
                       nats,
                       parsec,
                       prelude-extras,
-                      tagged,
-                      text,
                       transformers,
                       wl-pprint
 
@@ -39,7 +37,7 @@ Library
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant.Term,
-                      Kant.Environment,
+                      Kant.Env,
                       Kant.Sugar,
                       Kant.Desugar,
                       Kant.Distill,
