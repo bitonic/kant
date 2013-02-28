@@ -35,6 +35,13 @@ map [A B : Type] [f : A -> B] | [xs : List A] : List B => (
     }
 )
 
+length [A : Type] | [xs : List A] : Nat => (
+  case xs return Nat
+    { nil        => zero
+    | cons _ xs' => suc (length A xs')
+    }
+)
+
 upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 
 upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
@@ -81,4 +88,32 @@ ackerman | [m n : Nat] : Nat => (
     }
 )
 
-postulate empty : Empty
+isZero [n : Nat] : Bool => (
+  case n return Bool
+    { zero  => true
+    | suc _ => false
+    }
+)
+
+isSuc [n : Nat] : Bool => (
+  case n return Bool
+    { zero  => false
+    | suc _ => true
+    }
+)
+
+not [b : Bool] : Bool => (
+  case b return Bool { true => false | false => true }
+)
+
+pred [n : Nat] [p : T (isSuc n)] : Nat => (
+  case n return Nat
+    { zero   => absurd p Nat
+    | suc n' => n'
+    }
+)
+
+data Fin [n : Nat] : Type
+  { fzero (isSuc n)
+  | fsuc [p : T (isSuc n)] (Fin (pred n p))
+  }

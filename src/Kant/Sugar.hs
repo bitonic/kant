@@ -34,13 +34,11 @@ import           Kant.Term
 newtype SModule = SModule {unSModule :: [SDecl]}
 
 data SDecl
-    = SVal Id SValParams STerm STerm
+    = SVal Id [SParam] STerm STerm
     | SPostulate Id STerm
     | SData ConId [SParam] Level [SConstr]
     deriving (Show)
 
-data SValParams = SValParams [SParam] (Maybe [SParam])
-    deriving (Show)
 type SParam = (Maybe [Id], STerm)
 type SConstr = (ConId, [SParam])
 
@@ -53,30 +51,7 @@ data STerm
     | SLam [SParam] STerm
     | SApp STerm STerm
     | SArr [SParam] STerm
-      -- TODO add a way to match on non-variables
-      -- | Pattern matching.  Note that here we demand a variable as scrutined
-      --   so that the return type can refer to that directly.
-    | SCase STerm (Maybe Id) STerm [SBranch]
-    | SFix (Maybe Id) [SParam] STerm STerm
     deriving (Show)
-
--- | Checks that all variables matched in branches are distinct.  Returns
---   @'Left' v@ if `v' is duplicate somewhere.
-scase :: STerm -> Maybe Id -> STerm -> [SBranch] -> Either Id STerm
-scase t n₁ ty brs =
-    SCase t n₁ ty brs
-    <$ mapM (foldr (\b se -> se >>= \s ->
-                     case b of
-                         Nothing -> Right s
-                         Just n₂ | Set.member n₂ s -> Left n₂
-                         Just n₂ -> Right (Set.insert n₂ s))
-                   (Right Set.empty))
-            [ns | (_, ns, _) <- brs]
-
-type SBranch = ( ConId         -- Constructor
-               , [Maybe Id]    -- Matched variables
-               , STerm
-               )
 
 -- TODO add errors to desugar:
 -- * the 'error' below

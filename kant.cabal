@@ -22,11 +22,13 @@ Library
 
     Build-Depends:    base >= 3 && < 5,
                       array,
+                      bound,
                       containers,
                       haskeline,
                       mtl,
                       nats,
                       parsec,
+                      prelude-extras,
                       tagged,
                       text,
                       transformers,
