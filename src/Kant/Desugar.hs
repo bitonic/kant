@@ -5,7 +5,7 @@ import           Kant.Term
 
 desugarT :: STerm -> TermId
 desugarT (SV n) = V n
-desugarT (STy l) = Ty l
+desugarT STy = Ty
 desugarT (SLam pars t) = desugarAb lam pars t
 desugarT (SArr pars t) = desugarAb arr pars t
 desugarT (SApp t₁ t₂) = App (desugarT t₁) (desugarT t₂)

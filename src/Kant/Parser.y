@@ -46,8 +46,8 @@ import           Kant.Desugar
     '_'                 { UNDERSCORE }
     'data'              { DATA }
     'postulate'         { POSTULATE }
+    'Type'              { TYPE }
     name                { NAME $$ }
-    type                { TYPE $$ }
 
 %%
 
@@ -73,8 +73,8 @@ Decl : Val                                   { $1 }
      | Data                                  { $1 }
 
 Data :: { SDecl }
-Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
-       { SData $2 $3 $5 $7 }
+Data : 'data' name Params '{' Bar(DataCon) '}'
+       { SData $2 $3 $5 }
 
 Val :: { SDecl }
 Val : name Params '=>' SingleTerm { SVal $1 $2 $4 }
@@ -98,7 +98,7 @@ Term
 SingleTerm :: { STerm }
 SingleTerm
     : name                                   { SV $1 }
-    | type                                   { STy $1 }
+    | 'Type'                                 { STy }
     | '(' Term ')'                           { $2 }
 
 Arr :: { ([SParam], STerm) }

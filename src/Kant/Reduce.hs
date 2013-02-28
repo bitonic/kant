@@ -16,7 +16,7 @@ type Reducer = forall v. Env v -> Term v -> Term v
 reduce :: Reducer -> Reducer
 reduce r env@Env{envValue = value} t@(V v) =
     maybe t (reduce r env) (value v)
-reduce _ _ (Ty l) = Ty l
+reduce _ _ Ty = Ty
 reduce r env (Lam ab) = Lam (reduceAb r env ab)
 reduce r env (Arr ab) = Arr (reduceAb r env ab)
 reduce r env (App t₁ t₂) =

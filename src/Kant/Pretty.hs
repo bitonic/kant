@@ -40,8 +40,7 @@ instance (v ~ Id) => Pretty (Term v) where
 
 instance Pretty STerm where
     pretty (SV v) = pretty v
-    pretty (STy 0) = "Type"
-    pretty (STy l) = "Type" <> pretty (show l)
+    pretty STy = "Type"
     pretty (SArr pars ty) = prettyPars pars " -> " <+> "->" <+> pretty ty
     pretty to@(SApp _ _) = go to
       where
@@ -55,7 +54,7 @@ nest = PrettyPrint.nest 2
 
 singleTerm :: STerm -> Bool
 singleTerm (SV _)  = True
-singleTerm (STy _) = True
+singleTerm STy = True
 singleTerm _       = False
 
 singleParens :: STerm -> Doc
@@ -90,9 +89,9 @@ instance Pretty SDecl where
         single = singleTerm t
         pt     = pretty t
         end    = if single then (<> "") else (<$$> ")")
-    pretty (SData c pars l cons) =
-        group (nest ("data" <+> pretty c <+> prettyPars' pars <> ":" <+>
-                     pretty (STy l :: STerm) <$> group (prettyBarred pcon cons)))
+    pretty (SData c pars cons) =
+        group (nest ("data" <+> pretty c <+> prettyPars' pars <+>
+                     group (prettyBarred pcon cons)))
       where
         pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
     pretty (SPostulate n ty) = "postulate" <+> typed n ty

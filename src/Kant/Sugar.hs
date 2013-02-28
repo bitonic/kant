@@ -2,7 +2,6 @@ module Kant.Sugar
      ( -- * Abstract syntax tree
        Id
      , ConId
-     , Level
      , SModule(..)
      , SDecl(..)
      , SParam
@@ -17,7 +16,7 @@ newtype SModule = SModule {unSModule :: [SDecl]}
 data SDecl
     = SVal Id [SParam] STerm
     | SPostulate Id STerm
-    | SData ConId [SParam] Level [SConstr]
+    | SData ConId [SParam] [SConstr]
     deriving (Show)
 
 type SParam = (Maybe [Id], STerm)
@@ -28,7 +27,7 @@ type SConstr = (ConId, [SParam])
 --   into a 'Term'.
 data STerm
     = SV Id
-    | STy Level
+    | STy
     | SLam [SParam] STerm
     | SApp STerm STerm
     | SArr [SParam] STerm

@@ -26,7 +26,6 @@ Library
                       containers,
                       haskeline,
                       mtl,
-                      nats,
                       parsec,
                       prelude-extras,
                       transformers,

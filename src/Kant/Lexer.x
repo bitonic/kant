@@ -37,7 +37,7 @@ tokens :-
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
-    "Type" $digit*                        { typeTok }
+    "Type" $digit*                        { simpleTok TYPE }
     $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
 
 {
@@ -57,7 +57,7 @@ data Token
     | DARROW
     | POSTULATE
     | NAME Id
-    | TYPE Level
+    | TYPE
     | EOF
     | UNDERSCORE
     deriving (Show, Eq, Ord)
@@ -72,10 +72,6 @@ getS (_, _, input) len = take len input
 
 stringTok :: (String -> Token) -> Action Token
 stringTok f inp len = return (f (getS inp len))
-
-typeTok :: Action Token
-typeTok inp len = return (TYPE (if null ns then 0 else read ns))
-  where ns = drop (length "Type") (getS inp len)
 
 alexEOF :: Alex Token
 alexEOF = return EOF

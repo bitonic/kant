@@ -48,22 +48,22 @@ lookupTy env v = case envType env v of
                      Just ty -> return ty
 
 tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
-tyCheck _ (Ty l) = return (Ty (l+1))
+tyCheck _ Ty = return Ty
 tyCheck env (V v) = lookupTy env v
 tyCheck env (Lam (Abs ty s)) =
     do tyty <- tyCheck env ty
        case nf env tyty of
-           Ty _ -> Arr . Abs ty . toScope <$>
-                   tyCheck (nestEnvTy env ty) (fromScope s)
+           Ty -> Arr . Abs ty . toScope <$>
+                 tyCheck (nestEnvTy env ty) (fromScope s)
            _ -> expectingType env ty tyty
 tyCheck env₁ (Arr (Abs ty₁ s)) =
     do tyty₁ <- tyCheck env₁ ty₁
        case whnf env₁ tyty₁ of
-           Ty l₁ -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
-                       tyty₂ <- tyCheck env₂ ty₂
-                       case nf env₂ tyty₂ of
-                           Ty l₂ -> return (Ty (max l₁ l₂))
-                           _ -> expectingType env₂ ty₂ tyty₂
+           Ty -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
+                    tyty₂ <- tyCheck env₂ ty₂
+                    case nf env₂ tyty₂ of
+                        Ty -> return Ty
+                        _ -> expectingType env₂ ty₂ tyty₂
            _ -> expectingType env₁ ty₁ tyty₁
 tyCheck env (App t₁ t₂) =
     do tyt₁ <- tyCheck env t₁
@@ -77,14 +77,4 @@ tyCheck env (App t₁ t₂) =
 tyCheckEq :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheckEq env ty t =
     do ty' <- tyCheck env t
-       eqb <- eqCum env ty' ty
-       unless eqb (mismatch env ty t ty')
-
--- | @'eqCum' ty₁ ty₂@ checks if ty₁ is equal to ty₂, including cumulativity.
---   For example @'eqCum' ('Type' 1) ('Type' 4)@ will succeed, but @'eqCum'
---   ('Type' 4) ('Type' 1)@ will fail.
-eqCum :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m Bool
-eqCum env t₁ t₂ = return $ case (t₁', t₂') of
-                               (Ty l₁, Ty l₂) -> l₁ <= l₂
-                               _              -> t₁' == t₂'
-  where t₁' = nf env t₁; t₂' = nf env t₂
+       unless (ty' == ty) (mismatch env ty t ty')

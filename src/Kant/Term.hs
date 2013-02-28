@@ -5,7 +5,6 @@
 module Kant.Term
     ( Id
     , ConId
-    , Level
     , NameId
     , Term(..)
     , TermId
@@ -19,17 +18,15 @@ import           Data.Traversable (Traversable)
 
 import           Bound
 import           Bound.Name
-import           Numeric.Natural
 import           Prelude.Extras
 
 type Id = String
 type ConId = Id
-type Level = Natural
 type NameId = Name Id
 
 data Term v
     = V v
-    | Ty Natural
+    | Ty
     | Lam (Abs v)
     | Arr (Abs v)
     | App (Term v) (Term v)
@@ -46,7 +43,7 @@ instance Monad Term where
     return = V
 
     V v       >>= f = f v
-    Ty l      >>= _ = Ty l
+    Ty        >>= _ = Ty
     Lam ab    >>= f = Lam (subAb ab f)
     Arr ab    >>= f = Arr (subAb ab f)
     App t₁ t₂ >>= f = App (t₁ >>= f) (t₂ >>= f)

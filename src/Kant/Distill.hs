@@ -13,7 +13,7 @@ import           Kant.Term
 
 distillT :: TermId -> STerm
 distillT (V v) = SV v
-distillT (Ty l) = STy l
+distillT Ty = STy
 distillT t₁@(Lam _) = SLam (distillPars pars) (distillT t₂)
   where (pars, t₂) = unrollLam t₁
 distillT t₁@(Arr _) = SArr (distillPars pars) (distillT t₂)
