@@ -106,10 +106,10 @@ not [b : Bool] : Bool => (
   case b return Bool { true => false | false => true }
 )
 
-pred [n : Nat] [p : T (isSuc n)] : Nat => (
-  case n return Nat
-    { zero   => absurd p Nat
-    | suc n' => n'
+pred [n : Nat] : T (isSuc n) -> Nat => (
+  case n return (T (isSuc n) -> Nat)
+    { zero   => \[p : T (isSuc zero)] => absurd p Nat
+    | suc n' => \(T (isSuc (suc n')) => n'
     }
 )
 
@@ -117,3 +117,9 @@ data Fin [n : Nat] : Type
   { fzero (isSuc n)
   | fsuc [p : T (isSuc n)] (Fin (pred n p))
   }
+
+-- ix : [A : Type] [xs : List A] [n : Fin n] : A => (
+--   case xs return A
+--     { nil => case 
+--     }
+-- )
