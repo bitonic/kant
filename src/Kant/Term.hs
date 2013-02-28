@@ -28,7 +28,7 @@ type Level = Natural
 type NameId = Name Id
 
 data Term v
-    = V (NameId v)
+    = V v
     | Ty Natural
     | Lam (Abs v)
     | Arr (Abs v)
@@ -43,13 +43,13 @@ instance Show1 Term    where showsPrec1 = showsPrec
 instance Read1 Term    where readsPrec1 = readsPrec
 
 instance Monad Term where
-    return = V . Name "_"
+    return = V
 
-    V (Name _ v) >>= f = f v
-    Ty l         >>= _ = Ty l
-    Lam ab       >>= f = Lam (subAb ab f)
-    Arr ab       >>= f = Lam (subAb ab f)
-    App t₁ t₂    >>= f = App (t₁ >>= f) (t₂ >>= f)
+    V v       >>= f = f v
+    Ty l      >>= _ = Ty l
+    Lam ab    >>= f = Lam (subAb ab f)
+    Arr ab    >>= f = Lam (subAb ab f)
+    App t₁ t₂ >>= f = App (t₁ >>= f) (t₂ >>= f)
 
 data Abs v = Abs (Term v) (Scope (NameId ()) Term v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)

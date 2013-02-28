@@ -7,7 +7,6 @@ module Kant.Reduce
     where
 
 import           Bound
-import           Bound.Name
 
 import           Kant.Term
 import           Kant.Environment
@@ -15,7 +14,7 @@ import           Kant.Environment
 type Reducer = forall v. Env v -> Term v -> Term v
 
 reduce :: Reducer -> Reducer
-reduce r env@Env{envValue = value} t@(V (Name _ v)) =
+reduce r env@Env{envValue = value} t@(V v) =
     maybe t (reduce r env) (value v)
 reduce _ _ (Ty l) = Ty l
 reduce r env (Lam ab) = Lam (reduceAb r env ab)

@@ -2,7 +2,7 @@
 module Kant.TyCheck
     ( TyCheckError(..)
     , MonadTyCheck
-    , tyCheckT
+    , tyCheck
     ) where
 
 import           Control.Applicative (Applicative, (<$>))
@@ -11,7 +11,6 @@ import           Control.Monad (unless)
 import           Control.Monad.Error (MonadError(..))
 
 import           Bound
-import           Bound.Name
 
 import           Kant.Environment
 import           Kant.Reduce
@@ -46,26 +45,26 @@ lookupTy env v = case envType env v of
                      Nothing -> throwError (OutOfBounds (envPull env v))
                      Just ty -> return ty
 
-tyCheckT :: (Ord v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
-tyCheckT _ (Ty l) = return (Ty (l+1))
-tyCheckT env (V (Name _ v)) = lookupTy env v
-tyCheckT env (Lam (Abs ty s)) =
-    do tyty <- tyCheckT env ty
+tyCheck :: (Ord v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
+tyCheck _ (Ty l) = return (Ty (l+1))
+tyCheck env (V v) = lookupTy env v
+tyCheck env (Lam (Abs ty s)) =
+    do tyty <- tyCheck env ty
        case nf env tyty of
            Ty _ -> Arr . Abs ty . toScope <$>
-                   tyCheckT (nestEnvTy env ty) (fromScope s)
+                   tyCheck (nestEnvTy env ty) (fromScope s)
            _ -> expectingType env ty tyty
-tyCheckT env₁ (Arr (Abs ty₁ s)) =
-    do tyty₁ <- tyCheckT env₁ ty₁
+tyCheck env₁ (Arr (Abs ty₁ s)) =
+    do tyty₁ <- tyCheck env₁ ty₁
        case whnf env₁ tyty₁ of
            Ty l₁ -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
-                       tyty₂ <- tyCheckT env₂ ty₂
+                       tyty₂ <- tyCheck env₂ ty₂
                        case nf env₂ tyty₂ of
                            Ty l₂ -> return (Ty (max l₁ l₂))
                            _ -> expectingType env₂ ty₂ tyty₂
            _ -> expectingType env₁ ty₁ tyty₁
-tyCheckT env (App t₁ t₂) =
-    do tyt₁ <- tyCheckT env t₁
+tyCheck env (App t₁ t₂) =
+    do tyt₁ <- tyCheck env t₁
        case whnf env tyt₁ of
            Arr (Abs ty₁ s) ->
                do tyCheckEq env ty₁ t₁
@@ -75,7 +74,7 @@ tyCheckT env (App t₁ t₂) =
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheckEq env ty t =
-    do ty' <- tyCheckT env t
+    do ty' <- tyCheck env t
        eqb <- eqCum env ty' ty
        unless eqb (mismatch env ty t ty')
 

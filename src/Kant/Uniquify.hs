@@ -1,6 +1,6 @@
-module Kant.Uniquify
-    ( slam ) where
+module Kant.Uniquify (slam, slam') where
 
+import           Control.Applicative ((<$>))
 import           Control.Monad (when, void)
 import           Data.Maybe (fromMaybe)
 import           Data.Traversable (mapM)
@@ -29,4 +29,7 @@ freeVars env t = void (mapM go t)
   where go v = when (envFree env v) (do s <- get; put (Set.insert v s))
 
 slam :: Ord v => Env v -> [Term v] -> [TermId]
-slam = undefined
+slam env ts = map (envPull env <$>) (uniquify env ts)
+
+slam' :: Ord v => Env v -> Term v -> TermId
+slam' env t = head (slam env [t])

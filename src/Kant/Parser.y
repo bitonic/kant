@@ -10,19 +10,13 @@ module Kant.Parser
     , parseTerm
     ) where
 
-import           Control.Applicative ((<$>))
 import           Control.Arrow (first)
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
-import           Control.Monad.Identity (runIdentity)
-
-import           Kant.Name
 import           Kant.Term
 import           Kant.Lexer
 import           Kant.Sugar
--- import           Kant.Environment
--- import           Kant.Uniquify
 
 }
 
@@ -49,10 +43,7 @@ import           Kant.Sugar
     '\\'                { LAMBDA }
     '_'                 { UNDERSCORE }
     'data'              { DATA }
-    'case'              { CASE }
     'postulate'         { POSTULATE }
-    'return'            { RETURN }
-    'as'                { AS }
     name                { NAME $$ }
     type                { TYPE $$ }
 
@@ -84,16 +75,7 @@ Data : 'data' name Params ':' type '{' Bar(DataCon) '}'
        { SData $2 $3 $5 $7 }
 
 Val :: { SDecl }
-Val : name ValParams ':' Term '=>' SingleTerm { SVal $1 $2 $4 $6 }
-
-ValParams :: { SValParams }
-ValParams
-    : Params ValParams1                      { SValParams $1 $2 }
-
-ValParams1 :: { Maybe [SParam] }
-ValParams1
-    : '|' Params                             { Just $2 }
-    |  {- empty -}                           { Nothing }
+Val : name Params '=>' SingleTerm { SVal $1 $2 $4 }
 
 Params :: { [SParam] }
 Params : Seq0(Param)                         { $1 }
@@ -109,19 +91,12 @@ DataCon : name Params                        { ($1, $2) }
 Term :: { STerm }
 Term
     : '\\' Seq(Param) '=>' Term              { SLam $2 $4 }
-    | 'case' name 'return' Term '{' Bar(Branch) '}'
-      {% checkCase (SVar $2) (Just $2) $4 $6 }
-    | 'case' Term 'as' name 'return' Term '{' Bar(Branch) '}'
-      {% checkCase $2 (Just $4) $6 $8 }
     | Arr                                    { uncurry SArr $1 }
-
-Branch :: { SBranch }
-Branch : name Seq0(Binder) '=>' Term         { ($1, $2, $4) }
 
 SingleTerm :: { STerm }
 SingleTerm
-    : name                                   { SVar $1 }
-    | type                                   { SType $1 }
+    : name                                   { SV $1 }
+    | type                                   { STy $1 }
     | '(' Term ')'                           { $2 }
 
 Arr :: { ([SParam], STerm) }
@@ -132,21 +107,10 @@ Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 
-Binder :: { Maybe Id }
-Binder
-    : name                                   { Just $1 }
-    | '_'                                    { Nothing }
-
 {
 
 lexer :: (Token -> Alex a) -> Alex a
 lexer f = alexMonadScan' >>= f
-
-checkCase :: STerm -> Maybe Id -> STerm -> [SBranch] -> Alex STerm
-checkCase t n ty brs =
-    case scase t n ty brs of
-        Left n  -> parseErr (":\nrepeated variable `" ++ n ++ "' in pattern")
-        Right t -> return t
 
 parseErr :: String -> Alex a
 parseErr err =
@@ -163,17 +127,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult Module
-parseModule s = fmap free . desugar <$> runAlex s parseModule_
+parseModule :: String -> ParseResult SModule
+parseModule s = runAlex s parseModule_
 
-parseDecl :: String -> ParseResult Decl
-parseDecl s = fmap free . desugar <$> runAlex s parseDecl_
+parseDecl :: String -> ParseResult SDecl
+parseDecl s = runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult Term
-parseTerm s = fmap free . desugar <$> runAlex s parseTerm_
+parseTerm :: String -> ParseResult STerm
+parseTerm s = runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO Module
+parseFile :: FilePath -> IO SModule
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 }

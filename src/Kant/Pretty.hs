@@ -17,12 +17,11 @@ import           Text.PrettyPrint.Leijen
                   (<$>), vsep, group, (<$$>), hcat)
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
-import           Kant.Name
 import           Kant.Term
 import           Kant.Sugar
--- import           Kant.Uniquify
+import           Kant.Distill
 import           Kant.TyCheck
-import           Kant.REPL.Types
+-- import           Kant.REPL.Types
 
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
@@ -42,25 +41,13 @@ instance IsString Doc where
 instance Pretty Text where
     pretty t = pretty (Text.unpack t)
 
-prettyBinder :: Pretty a => Maybe a -> Doc
-prettyBinder (Just n) = pretty n
-prettyBinder Nothing  = "_"
-
-fromName :: TName -> Id
-fromName (Plain n)  = n
-fromName (Gen ta n) = n ++ show ta
-
-instance Pretty a => Pretty (Name a) where
-    pretty (Plain n)  = pretty n
-    pretty (Gen ta n) = pretty n <> pretty (show ta)
-
-instance (v ~ TName) => Pretty (TermT v) where
-    pretty = pretty . distill . fmap fromName
+instance (v ~ Id) => Pretty (Term v) where
+    pretty = pretty . distillT
 
 instance Pretty STerm where
-    pretty (SVar v) = pretty v
-    pretty (SType 0) = "Type"
-    pretty (SType l) = "Type" <> pretty (show l)
+    pretty (SV v) = pretty v
+    pretty (STy 0) = "Type"
+    pretty (STy l) = "Type" <> pretty (show l)
     pretty (SArr pars ty) = prettyPars pars " -> " <+> "->" <+> pretty ty
     pretty to@(SApp _ _) = go to
       where
@@ -68,20 +55,14 @@ instance Pretty STerm where
         go t           = singleParens t
     pretty (SLam pars t) =
         "\\" <> group (nest (prettyPars' pars <> "=>" <$> align (pretty t)))
-    pretty (SCase t n ty brs) =
-        group (nest ("case" <+> pretty t <+> "as" <+> pretty n <+> "return" <+>
-                     pretty ty <$> (align (prettyBarred prettyBranch brs))))
-    pretty (SFix nm pars ty t) =
-        "fix" <+> group (nest (prettyFixPars nm pars ty <+> "=>" <$>
-                               align (pretty t)))
 
 nest :: Doc -> Doc
 nest = PrettyPrint.nest 2
 
 singleTerm :: STerm -> Bool
-singleTerm (SVar _)  = True
-singleTerm (SType _) = True
-singleTerm _         = False
+singleTerm (SV _)  = True
+singleTerm (STy _) = True
+singleTerm _       = False
 
 singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
@@ -104,16 +85,12 @@ prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
 prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
 
-prettyBranch :: SBranch -> Doc
-prettyBranch (c, ns, t) =
-    group (align (pretty c <> spaceIfCons ns <> hsep' ns <+> "=>" <$> pretty t))
-
 typed :: Id -> STerm -> Doc
 typed n ty = pretty n <+> ":" <+> pretty ty
 
 instance Pretty SDecl where
-    pretty (SVal n pars ty t) =
-        group (end (nest (prettyValPars n pars ty <+> "=>" <+>
+    pretty (SVal n pars t) =
+        group (end (nest (pretty n <+> prettyPars' pars <> "=>" <+>
                           if single then pt else "(" <$$> pt)))
       where
         single = singleTerm t
@@ -121,24 +98,12 @@ instance Pretty SDecl where
         end    = if single then (<> "") else (<$$> ")")
     pretty (SData c pars l cons) =
         group (nest ("data" <+> pretty c <+> prettyPars' pars <> ":" <+>
-                     pretty (SType l :: STerm) <$> group (prettyBarred pcon cons)))
+                     pretty (STy l :: STerm) <$> group (prettyBarred pcon cons)))
       where
         pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
     pretty (SPostulate n ty) = "postulate" <+> typed n ty
 
     prettyList = vcat . intersperse "" . map pretty
-
-prettyFixPars :: Maybe Id -> [SParam] -> STerm -> Doc
-prettyFixPars b pars ty = prettyBinder b <+> prettyPars' pars <> ":" <+> pretty ty
-
-prettyValPars :: Id -> SValParams -> STerm -> Doc
-prettyValPars n (SValParams pars rest) ty =
-    pretty n <+> prettyPars' pars <>
-    case rest of
-        Nothing    -> ""
-        Just pars' -> "|" <+> prettyPars' pars'
-    <> ":" <+> pretty ty
-
 instance Pretty SModule where
     pretty = prettyList . unSModule
 
@@ -156,29 +121,16 @@ instance Pretty TyCheckError where
     pretty (ExpectingType t ty) =
         group (nest ("Expecting a Type for term" <$> pretty t) <$>
                nest ("instead of" <$> pretty ty))
-    pretty (ExpectingCanonical t ty) =
-        group (nest ("Expecting canonical (non-arrow) type for term" <$>
-                     pretty t) <$>
-               nest ("instead of" <$> pretty ty))
-    pretty (WrongBranchNumber t) =
-        group (nest ("Too few or too many branches in term" <$> pretty t))
-    pretty (NotConstructor c t) =
-        group (nest ("Pattern matching on non-constructor '" <> pretty c <>
-                     "' in term" <$>
-                     pretty t))
-    pretty (WrongArity c t) =
-        group (nest ("Branch gives wrong number of arguments to constructor `" <>
-                     pretty c <> "' in term" <$> pretty t))
 
-instance Pretty Output where
-    pretty (OTyCheck ty) = pretty ty
-    pretty (OPretty t)   = pretty t
-    pretty OOK           = "OK"
-    pretty OQuit         = "Bye!"
-    pretty OSkip         = ""
+-- instance Pretty Output where
+--     pretty (OTyCheck ty) = pretty ty
+--     pretty (OPretty t)   = pretty t
+--     pretty OOK           = "OK"
+--     pretty OQuit         = "Bye!"
+--     pretty OSkip         = ""
 
-instance Pretty REPLError where
-    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
-    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
-    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
-    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
+-- instance Pretty REPLError where
+--     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
+--     pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
+--     pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
+--     pretty (IOError err)  = group ("IO error:" <$> pretty (show err))

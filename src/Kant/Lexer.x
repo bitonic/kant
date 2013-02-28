@@ -36,10 +36,7 @@ tokens :-
     "_"                                   { simpleTok UNDERSCORE }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
-    "case"                                { simpleTok CASE }
     "postulate"                           { simpleTok POSTULATE }
-    "return"                              { simpleTok RETURN }
-    "as"                                  { simpleTok AS }
     "Type" $digit*                        { typeTok }
     $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
 
@@ -58,14 +55,11 @@ data Token
     | LAMBDA
     | ARROW
     | DARROW
-    | CASE
     | POSTULATE
     | NAME Id
     | TYPE Level
     | EOF
-    | RETURN
     | UNDERSCORE
-    | AS
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r
