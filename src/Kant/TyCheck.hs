@@ -17,8 +17,6 @@ import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify
 
-import Debug.Trace
-
 data TyCheckError
     = TyCheckError
     | OutOfBounds Id
