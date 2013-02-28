@@ -69,9 +69,7 @@ replOutput env₁ s₁ =
     do c <- parseInput s₁
        case c of
            ITyCheck s₂ -> do t <- parse s₂
---                             trace (show t) $ do
                              ty <- tyct env₁ t
---                             trace (show ty) $ do
                              return (OTyCheck ty, env₁)
            IEval s₂    -> do t <- parse s₂
                              tyct env₁ t
