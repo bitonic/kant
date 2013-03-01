@@ -22,6 +22,7 @@ module Kant.Term
     , bindingN
     , scopeV
     , scopeN
+    , arrLen
     ) where
 
 import           Control.Applicative ((<$>))
@@ -78,7 +79,7 @@ lam, arr :: Id -> TermId -> TermId -> TermId
 lam v t = Lam . abs_ v t
 arr v t = Arr . abs_ v t
 
-app :: [TermId] -> TermId
+app :: [Term v] -> Term v
 app = foldl1 App
 
 data AppV v = AppV (Term v) [Term v]
@@ -110,3 +111,7 @@ scopeV s f =
 
 scopeN :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
 scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
+
+arrLen :: Term v -> Int
+arrLen (Arr (Abs _ s)) = 1 + arrLen (fromScope s)
+arrLen _               = 0

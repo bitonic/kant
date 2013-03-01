@@ -18,7 +18,7 @@ import           Kant.Sugar
 
 $digit = [0-9]
 $alpha = [a-zA-Z]
-$syms  = ['_]
+$syms  = ['_\-]
 
 tokens :-
     $white+                               ;
@@ -33,12 +33,11 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
-    "_"                                   { simpleTok UNDERSCORE }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
     "Type" $digit*                        { simpleTok TYPE }
-    $alpha* ($alpha | $digit | $syms)     { stringTok NAME }
+    $alpha ($alpha | $digit | $syms)*     { stringTok NAME }
 
 {
 
@@ -59,7 +58,6 @@ data Token
     | NAME Id
     | TYPE
     | EOF
-    | UNDERSCORE
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r

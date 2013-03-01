@@ -26,7 +26,7 @@ import           Bound.Name
 import           Kant.Term
 
 type Ctx v = v -> Maybe (Term v)
-type Elim = forall v. Env v -> [Term v] -> Term v
+type Elim = forall v. [Term v] -> Maybe (Term v)
 
 -- | Bringing it all together
 data Env v = Env

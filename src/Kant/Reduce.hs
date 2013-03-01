@@ -23,7 +23,9 @@ reduce r env (App t₁ t₂) =
         Lam (Abs _ s) -> reduce r env (instantiate1 t₂ s)
         t₁'           -> App t₁' (reduce r env t₂)
 reduce r env (Canon c ts) = Canon c (map (reduce r env) ts)
-reduce r env (Elim c ts) = reduce r env (envElim env c env (map (reduce r env) ts))
+reduce r env (Elim c ts) =
+    case envElim env c ts' of Nothing -> Elim c ts'; Just t  -> reduce r env t
+  where ts' = map (reduce r env) ts
 
 reduceAb :: Reducer -> Env v -> Abs v -> Abs v
 reduceAb r env (Abs t₁ t₂) =
