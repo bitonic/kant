@@ -90,6 +90,8 @@ tyCheck env (App t₁ t₂) =
                do tyCheckEq env ty₁ t₂
                   return (instantiate1 t₂ s)
            _ -> expectingFunction env t₁ tyt₁
+tyCheck env (Canon dc ts) = tyCheck env (app (V (envNest env dc) : ts))
+tyCheck env (Elim en ts) = tyCheck env (app (V (envNest env en) : ts))
 
 -- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
 tyCheckEq :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
