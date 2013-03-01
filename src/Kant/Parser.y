@@ -44,7 +44,6 @@ import           Kant.Desugar
     '->'                { ARROW }
     '=>'                { DARROW }
     '\\'                { LAMBDA }
-    '_'                 { UNDERSCORE }
     'data'              { DATA }
     'postulate'         { POSTULATE }
     'Type'              { TYPE }

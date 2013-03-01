@@ -12,7 +12,6 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 import           Bound
-import           Bound.Scope
 import           Bound.Name
 
 import           Kant.Term
@@ -22,13 +21,15 @@ uniquify :: (Ord v, Show v) => Env v -> [Term v] -> [Term v]
 uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
   where
     fs = zip (Set.toList (execState (mapM (freeVars env) ts) Set.empty))
-             (repeat (0 :: Integer))
+             (repeat (0::Integer))
 
     go (V v) = return (V v)
     go Ty = return Ty
     go (Arr ab) = Arr <$> goAb ab
     go (Lam ab) = Lam <$> goAb ab
     go (App t₁ t₂) = App <$> go t₁ <*> go t₂
+    go (Canon c ts') = Canon c <$> mapM go ts'
+    go (Elim ce ts') = Elim ce <$> mapM go ts'
 
     goAb (Abs ty s) =
         do ty' <- go ty
