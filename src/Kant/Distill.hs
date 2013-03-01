@@ -4,10 +4,6 @@ import           Control.Arrow (first, second)
 import           Data.List (groupBy)
 import           Data.Maybe (isJust)
 
-import           Bound
-import           Bound.Scope
-import           Bound.Name
-
 import           Kant.Sugar
 import           Kant.Term
 
@@ -35,14 +31,9 @@ unrollArr = first groupPars . unrollArr'
 unrollLam', unrollArr' :: TermId -> ([(Maybe Id, TermId)], TermId)
 unrollLam' (Lam (Abs ty s)) =
     ((n, ty) : pars, t₂)
-  where (n, t₁) = scopeVar s; (pars, t₂) = unrollLam' t₁
+  where (n, t₁) = scopeN s; (pars, t₂) = unrollLam' t₁
 unrollLam' t = ([], t)
 unrollArr' (Arr (Abs ty s)) =
     ((n, ty) : pars, t₂)
-  where (n, t₁) = scopeVar s; (pars, t₂) = unrollArr' t₁
+  where (n, t₁) = scopeN s; (pars, t₂) = unrollArr' t₁
 unrollArr' t = ([], t)
-
-scopeVar :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
-scopeVar s = case bindings s of
-                 [] -> (Nothing, instantiate1 undefined s) -- Safe
-                 (Name n _ : _) -> (Just n, instantiate1 (V n) s)

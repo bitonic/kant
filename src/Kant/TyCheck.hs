@@ -37,15 +37,17 @@ instance Error TyCheckError
 class (Functor m, Applicative m, MonadError TyCheckError m) => MonadTyCheck m
 instance MonadTyCheck (ErrorT TyCheckError IO)
 
-mismatch :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> Term v -> m a
+mismatch :: (Ord v, Show v, MonadTyCheck m)
+         => Env v -> Term v -> Term v -> Term v -> m a
 mismatch env t₁ t₂ t₃ =
     let [t₁', t₂', t₃'] = slam env [t₁, t₂, t₃] in throwError (Mismatch t₁' t₂' t₃')
 
-expectingType :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
+expectingType :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
 expectingType env t ty =
     let [t', ty'] = slam env [t, ty] in throwError (ExpectingType t' ty')
 
-expectingFunction :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
+expectingFunction :: (Ord v, Show v, MonadTyCheck m)
+                  => Env v -> Term v -> Term v -> m a
 expectingFunction env t ty =
     let [t', ty'] = slam env [t, ty] in throwError (ExpectingFunction t' ty')
 
@@ -54,7 +56,8 @@ expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
 expectingTypeData env dc tyc ty  =
     throwError (ExpectingTypeData dc tyc (slam' env ty))
 
-wrongRecTypePos :: (Ord v, MonadTyCheck m) => Env v -> ConId -> ConId -> Term v -> m a
+wrongRecTypePos :: (Ord v, Show v, MonadTyCheck m)
+                => Env v -> ConId -> ConId -> Term v -> m a
 wrongRecTypePos env dc tyc ty = throwError (WrongRecTypePos dc tyc (slam' env ty))
 
 lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (Term v)

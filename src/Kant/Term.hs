@@ -17,13 +17,17 @@ module Kant.Term
     , AppV(..)
     , appV
     , appHead
+    , scopeV
+    , scopeN
     ) where
 
+import           Control.Applicative ((<$>))
 import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
 
 import           Bound
 import           Bound.Name
+import           Bound.Scope
 import           Prelude.Extras
 
 type Id = String
@@ -77,3 +81,12 @@ appV t = AppV t []
 appHead :: Term v -> Term v
 appHead (appV -> AppV t _) = t
 
+scopeV :: Scope (NameId ()) Term v -> (NameId () -> Term v)
+       -> (Maybe (NameId ()), Term v)
+scopeV s f =
+    case bindings s of
+        []      -> (Nothing, instantiate1 (error "scopeV: the impossible happened") s)
+        (n : _) -> (Just n, instantiate1 (f n) s)
+
+scopeN :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
+scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
