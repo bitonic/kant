@@ -16,6 +16,7 @@ import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
 import           Kant.Term
+import           Kant.Decl
 import           Kant.Lexer
 import           Kant.Sugar
 import           Kant.Desugar
@@ -132,8 +133,8 @@ type ParseResult = Either ParseError
 parseModule :: String -> ParseResult SModule
 parseModule s = runAlex s parseModule_
 
-parseDecl :: String -> ParseResult SDecl
-parseDecl s = runAlex s parseDecl_
+parseDecl :: String -> ParseResult Decl
+parseDecl s = desugar <$> runAlex s parseDecl_
 
 parseTerm :: String -> ParseResult TermId
 parseTerm s = desugar <$> runAlex s parseTerm_

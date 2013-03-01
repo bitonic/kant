@@ -45,6 +45,7 @@ Library
                       Kant.Pretty,
                       Kant.Reduce,
                       Kant.TyCheck,
+                      Kant.Elaborate,
                       Kant.REPL,
                       Kant.Uniquify
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , MonadTyCheck
@@ -8,7 +9,7 @@ module Kant.TyCheck
 import           Control.Applicative (Applicative, (<$>))
 import           Control.Monad (unless)
 
-import           Control.Monad.Error (MonadError(..), Error)
+import           Control.Monad.Error (MonadError(..), Error, ErrorT)
 
 import           Bound
 
@@ -24,11 +25,13 @@ data TyCheckError
     | Mismatch TermId TermId TermId
     | ExpectingFunction TermId TermId
     | ExpectingType TermId TermId
+    | ExpectingTypeCon ConId TermId
     deriving (Eq, Show)
 
 instance Error TyCheckError
 
 class (Functor m, Applicative m, MonadError TyCheckError m) => MonadTyCheck m
+instance MonadTyCheck (ErrorT TyCheckError IO)
 
 mismatch :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> Term v -> m a
 mismatch env t₁ t₂ t₃ =

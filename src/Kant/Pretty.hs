@@ -112,6 +112,10 @@ instance Pretty TyCheckError where
     pretty (ExpectingType t ty) =
         group (nest ("Expecting a Type for term" <$> pretty t) <$>
                nest ("instead of" <$> pretty ty))
+    pretty (ExpectingTypeCon tyc ty) =
+        group (nest ("Expecting Type as return type for type constructor" <+>
+                     pretty tyc) <$>
+               nest ("instead of" <$> pretty ty))
 
 instance Pretty Output where
     pretty (OTyCheck ty) = pretty ty

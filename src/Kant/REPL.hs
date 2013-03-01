@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 -- TODO write usage
 module Kant.REPL (main) where
 
@@ -23,10 +21,9 @@ import           Kant.Parser
 import           Kant.Env
 import           Kant.Reduce
 import           Kant.TyCheck
+import           Kant.Elaborate
 import           Kant.Pretty
 import           Kant.REPL.Types
-
-import Debug.Trace
 
 type REPL = InputT IO
 
@@ -43,8 +40,6 @@ trim :: String -> String
 trim = reverse . f . reverse . f where f = dropWhile isSpace
 
 type REPLM = ErrorT REPLError IO
-
-instance MonadTyCheck (ErrorT TyCheckError IO)
 
 parseInput :: String -> REPLM Input
 parseInput =
@@ -75,7 +70,9 @@ replOutput env₁ s₁ =
                              tyct env₁ t
                              let t' = nf env₁ t
                              return (OPretty t', env₁)
-           IDecl s₂    -> undefined
+           IDecl s₂    -> do d <- parseE (parseDecl s₂)
+                             env₂ <- elab env₁ d
+                             return (OOK, env₂)
            ILoad fp    -> undefined
            IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
                              return (OPretty t, env₁)
@@ -86,6 +83,7 @@ replOutput env₁ s₁ =
     parseE (Right x) = return x
     parse = parseE . parseTerm
     tyct env = mapTyCheckM . tyCheck env
+    elab env = mapTyCheckM . elaborate env
     readSafe fp =
         do se <- liftIO (catch (Right <$> readFile fp) (return . Left))
            case se of

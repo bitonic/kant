@@ -7,6 +7,7 @@ module Kant.Env
     , nestEnv
     , nestEnvTy
     , envFree
+    , addFree
     ) where
 
 import           Control.Applicative ((<$>))
@@ -61,3 +62,9 @@ nestEnvTy env ty = nestEnv env Nothing (Just ty)
 
 envFree :: Eq v => Env v -> v -> Bool
 envFree Env{envPull = pull, envNest = nest} v = v == nest (pull v)
+
+addFree :: Eq v => Env v -> v -> Maybe (Term v) -> Maybe (Term v) -> Env v
+addFree env@Env{envValue = value, envType = type_} v mv mty =
+    env{ envValue = \v' -> if v == v' then mv  else value v'
+       , envType  = \v' -> if v == v' then mty else type_ v'
+       }
