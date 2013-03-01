@@ -44,34 +44,34 @@ elaborateCon env₁ tyc tycty dc ty =
     do checkDup env₁ dc
        tyCheck env₁ ty
        goodTy env₁ ty
-       let env₂ = addFree env₁ dc (Just (buildCanon 0 ty)) (Just ty)
+       let env₂ = addFree env₁ dc (Just (buildCanon [] ty)) (Just ty)
            ety  = elimTy tycty ty
            et   = buildElim ty
            env₃ = addFree env₂ elimName (Just et) (Just ety)
        return (addElim env₃ elimName elimElim)
   where
-    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m TermId
+    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
     goodTy env (Arr (Abs ty' s)) =
         do let fvs  = envFreeVs env ty'
            unless (not (Set.member tyc fvs) || appHead ty' == V (envNest env tyc))
                   (wrongRecTypePos env₁ dc tyc ty)
            goodTy (nestEnv env Nothing Nothing) (fromScope s)
     goodTy env (appV -> AppV t _) =
-        if t == V (envNest env tyc)
-        then undefined
-        else expectingTypeData env₁ dc tyc ty
+        unless (t == V (envNest env tyc)) (expectingTypeData env₁ dc tyc ty)
 
-    buildCanon :: Integer -> Term v -> Term v
-    buildCanon = undefined
+    buildCanon :: [v] -> Term v -> Term v
+    buildCanon vs (Arr (Abs ty' s)) =
+        Lam (Abs ty' (toScope (buildCanon (B (bindingN s) : map F vs) (fromScope s))))
+    buildCanon vs _ = Canon dc (reverse (map V vs))
 
     buildElim :: Term v -> Term v
-    buildElim = undefined
+    buildElim _ = Ty
 
     elimElim :: Elim
-    elimElim = undefined
+    elimElim _ _ = Ty
 
     elimTy :: Term v -> Term v -> Term v
-    elimTy = undefined
+    elimTy _ _ = Ty
 
     elimName = tyc ++ "-Elim"
 

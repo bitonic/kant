@@ -33,9 +33,9 @@ uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
     goAb (Abs ty s) =
         do ty' <- go ty
            m <- get
-           s' <- case bindings s of
-                     [] -> return s
-                     (Name n () : _) ->
+           s' <- case binding s of
+                     Nothing -> return s
+                     Just (Name n ()) ->
                          do let ix = fromMaybe 0 (Map.lookup n m)
                                 v' = B (Name (n ++ show ix) ())
                             put (Map.insert n (ix+1) m)

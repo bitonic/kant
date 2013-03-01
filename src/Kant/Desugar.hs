@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Kant.Desugar (desugar) where
+module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (second)
 

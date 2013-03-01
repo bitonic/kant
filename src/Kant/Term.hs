@@ -18,6 +18,8 @@ module Kant.Term
     , AppV(..)
     , appV
     , appHead
+    , binding
+    , bindingN
     , scopeV
     , scopeN
     ) where
@@ -88,6 +90,16 @@ appV t = AppV t []
 
 appHead :: Term v -> Term v
 appHead (appV -> AppV t _) = t
+
+binding :: Scope (NameId ()) Term v -> Maybe (NameId ())
+binding s = case bindings s of
+                []      -> Nothing
+                (n : _) -> Just n
+
+bindingN :: Scope (NameId ()) Term v -> NameId ()
+bindingN s = case bindings s of
+                 []      -> Name "$" ()
+                 (n : _) -> n
 
 scopeV :: Scope (NameId ()) Term v -> (NameId () -> Term v)
        -> (Maybe (NameId ()), Term v)
