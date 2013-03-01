@@ -7,15 +7,16 @@ import           Data.Traversable (mapM)
 import           Prelude hiding (mapM)
 
 import           Control.Monad.State (MonadState(..), evalState, execState, State)
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 
 import           Bound
 import           Bound.Name
 
-import           Kant.Term
 import           Kant.Env
+import           Kant.Term
 
 uniquify :: (Ord v, Show v) => Env v -> [Term v] -> [Term v]
 uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
@@ -31,16 +32,17 @@ uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
     go (Canon c ts') = Canon c <$> mapM go ts'
     go (Elim ce ts') = Elim ce <$> mapM go ts'
 
+    goAb :: (Ord v, Show v) => Abs v -> State (Map Id Integer) (Abs v)
     goAb (Abs ty s) =
         do ty' <- go ty
            m <- get
            s' <- case binding s of
-                     Nothing -> return s
+                     Nothing -> toScope <$> go (fromScope s)
                      Just (Name n ()) ->
                          do let ix = fromMaybe 0 (Map.lookup n m)
-                                v' = B (Name (n ++ show ix) ())
+                                v' = B (Name (if ix == 0 then n else n ++ show ix) ())
                             put (Map.insert n (ix+1) m)
-                            return (toScope (substitute v' (V v') (fromScope s)))
+                            toScope <$> go (substitute v' (V v') (fromScope s))
            return (Abs ty' s')
 
 freeVars :: (Ord v) => Env v -> Term v -> State (Set Id) ()
