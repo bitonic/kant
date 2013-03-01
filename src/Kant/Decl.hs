@@ -1,4 +1,4 @@
-module Kant.Decl (Decl(..)) where
+module Kant.Decl (Decl(..), Module(..)) where
 
 import           Kant.Term
 
@@ -7,3 +7,5 @@ data Decl
     | Postulate Id TermId
     | Data ConId TermId [(ConId, TermId)]
     deriving (Eq, Show)
+
+newtype Module = Module {unModule :: [Decl]}

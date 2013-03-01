@@ -32,3 +32,6 @@ instance (a ~ Decl) => Desugar SDecl a where
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
         Data c (desugar (SArr pars STy)) (map (second desugar) cons)
+
+instance (a ~ Module) => Desugar SModule a where
+    desugar (SModule decls) = Module (map desugar decls)

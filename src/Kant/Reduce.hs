@@ -10,7 +10,7 @@ import           Bound
 import           Kant.Term
 import           Kant.Env
 
-type Reducer = forall v. Env v -> Term v -> Term v
+type Reducer = forall v. Show v => Env v -> Term v -> Term v
 
 reduce :: Reducer -> Reducer
 reduce r env@Env{envValue = value} t@(V v) =
@@ -27,7 +27,7 @@ reduce r env (Elim c ts) =
     case envElim env c ts' of Nothing -> Elim c ts'; Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
 
-reduceAb :: Reducer -> Env v -> Abs v -> Abs v
+reduceAb :: forall v. Show v => Reducer -> Env v -> Abs v -> Abs v
 reduceAb r env (Abs t₁ t₂) =
     Abs (r env t₁) (toScope (r (nestEnv env Nothing Nothing) (fromScope t₂)))
 

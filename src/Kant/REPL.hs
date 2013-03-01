@@ -73,7 +73,10 @@ replOutput env₁ s₁ =
            IDecl s₂    -> do d <- parseE (parseDecl s₂)
                              env₂ <- elab env₁ d
                              return (OOK, env₂)
-           ILoad fp    -> undefined
+           ILoad fp    -> do s₂ <- readSafe fp
+                             m <- parseE (parseDecl s₂)
+                             env₂ <- elab env₁ m
+                             return (OOK, env₂)
            IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
                              return (OPretty t, env₁)
            IQuit       -> return (OQuit, env₁)

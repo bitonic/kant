@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
-module Kant.Elaborate (elaborate) where
+module Kant.Elaborate (Elaborate(..)) where
 
 import           Control.Monad (when, unless)
 import           Data.Foldable (foldrM)
@@ -19,27 +19,31 @@ import           Kant.Decl
 import           Kant.Env
 import           Kant.TyCheck
 
-elaborate :: MonadTyCheck m => EnvId -> Decl -> m EnvId
-elaborate env (Val n t) =
-    do checkDup env n; ty <- tyCheck env t; return (addFree env n (Just t) (Just ty))
-elaborate env (Postulate n ty) =
-    do checkDup env n; tyCheck env ty; return (addFree env n Nothing (Just ty))
-elaborate env₁ (Data tyc cty cons) =
-    do tyCheck env₁ cty
-       if returnsTy cty
-          then do let env₂ = addFree env₁ tyc Nothing (Just cty)
-                  env₃ <- foldrM (\(dc, dty) env₃ -> elaborateCon env₃ tyc dc dty)
-                                 env₂ cons
-                  ety <- elimTy env₃ tyc cty cons
-                  let en = elimName tyc
-                      env₄ = addFree env₃ en Nothing (Just ety)
-                  return (addElim env₄ en (buildElim (arrLen cty) tyc cons))
-          else throwError (ExpectingTypeCon tyc cty)
-  where
-    returnsTy :: Term v -> Bool
-    returnsTy (Arr (Abs _ s)) = returnsTy (fromScope s)
-    returnsTy Ty              = True
-    returnsTy _               = False
+class Elaborate a where
+    elaborate :: MonadTyCheck m => EnvId -> a -> m EnvId
+
+instance Elaborate Decl where
+    elaborate env (Val n t) =
+        do checkDup env n; ty <- tyCheck env t;
+           return (addFree env n (Just t) (Just ty))
+    elaborate env (Postulate n ty) =
+        do checkDup env n; tyCheck env ty; return (addFree env n Nothing (Just ty))
+    elaborate env₁ (Data tyc cty cons) =
+        do tyCheck env₁ cty
+           if returnsTy cty
+              then do let env₂ = addFree env₁ tyc Nothing (Just cty)
+                      env₃ <- foldrM (\(dc, dty) env₃ -> elaborateCon env₃ tyc dc dty)
+                                     env₂ cons
+                      ety <- elimTy env₃ tyc cty cons
+                      let en = elimName tyc
+                          env₄ = addFree env₃ en Nothing (Just ety)
+                      return (addElim env₄ en (buildElim (arrLen cty) tyc cons))
+              else throwError (ExpectingTypeCon tyc cty)
+      where
+        returnsTy :: Term v -> Bool
+        returnsTy (Arr (Abs _ s)) = returnsTy (fromScope s)
+        returnsTy Ty              = True
+        returnsTy _               = False
 
 elaborateCon :: MonadTyCheck m
              => EnvId
@@ -106,3 +110,8 @@ elimName tyc = tyc ++ "-Elim"
 checkDup :: (Eq v, MonadTyCheck m) => Env v -> v -> m ()
 checkDup env v = when (isJust (envType env v) || isJust (envValue env v))
                       (throwError (DuplicateName (envPull env v)))
+
+instance Elaborate Module where
+    elaborate e = go e . unModule
+      where go env []             = return env
+            go env (decl : decls) = (`go` decls) =<< elaborate env decl
