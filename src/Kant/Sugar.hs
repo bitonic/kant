@@ -20,7 +20,7 @@ data SDecl
     deriving (Show)
 
 type SParam = (Maybe [Id], STerm)
-type SConstr = (ConId, [SParam])
+type SConstr = (ConId, STerm)
 
 -- TODO add let bindings
 -- | A term matching what we parse, which can be 'desugar'ed and 'distill'ed

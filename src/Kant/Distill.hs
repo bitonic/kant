@@ -1,4 +1,4 @@
-module Kant.Distill (distillT) where
+module Kant.Distill (distill) where
 
 import           Control.Arrow (first, second)
 import           Data.List (groupBy)
@@ -11,17 +11,17 @@ import           Bound.Name
 import           Kant.Sugar
 import           Kant.Term
 
-distillT :: TermId -> STerm
-distillT (V v) = SV v
-distillT Ty = STy
-distillT t₁@(Lam _) = SLam (distillPars pars) (distillT t₂)
+distill :: TermId -> STerm
+distill (V v) = SV v
+distill Ty = STy
+distill t₁@(Lam _) = SLam (distillPars pars) (distill t₂)
   where (pars, t₂) = unrollLam t₁
-distillT t₁@(Arr _) = SArr (distillPars pars) (distillT t₂)
+distill t₁@(Arr _) = SArr (distillPars pars) (distill t₂)
   where (pars, t₂) = unrollArr t₁
-distillT (App t₁ t₂) = SApp (distillT t₁) (distillT t₂)
+distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
 
 distillPars :: [(Maybe [Id], TermId)] -> [SParam]
-distillPars = map (second distillT)
+distillPars = map (second distill)
 
 groupPars :: [(Maybe Id, TermId)] -> [(Maybe [Id], TermId)]
 groupPars pars = [(sequence (map fst tys), ty) | tys@((_, ty):_) <- go pars]

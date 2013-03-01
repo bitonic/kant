@@ -88,7 +88,7 @@ Param
     | SingleTerm                             { (Nothing, $1) }
 
 DataCon :: { SConstr }
-DataCon : name Params                        { ($1, $2) }
+DataCon : name ':' SingleTerm                { ($1, $3) }
 
 Term :: { STerm }
 Term
@@ -136,7 +136,7 @@ parseDecl :: String -> ParseResult SDecl
 parseDecl s = runAlex s parseDecl_
 
 parseTerm :: String -> ParseResult TermId
-parseTerm s = desugarT <$> runAlex s parseTerm_
+parseTerm s = desugar <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO SModule

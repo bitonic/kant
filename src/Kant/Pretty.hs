@@ -36,7 +36,7 @@ instance IsString Doc where
     fromString = pretty
 
 instance (v ~ Id) => Pretty (Term v) where
-    pretty = pretty . distillT
+    pretty = pretty . distill
 
 instance Pretty STerm where
     pretty (SV v) = pretty v
@@ -91,9 +91,7 @@ instance Pretty SDecl where
         end    = if single then (<> "") else (<$$> ")")
     pretty (SData c pars cons) =
         group (nest ("data" <+> pretty c <+> prettyPars' pars <+>
-                     group (prettyBarred pcon cons)))
-      where
-        pcon (c', pars') = pretty c' <> spaceIfCons pars' <> align (prettyPars' pars')
+                     group (prettyBarred (uncurry typed) cons)))
     pretty (SPostulate n ty) = "postulate" <+> typed n ty
 
     prettyList = vcat . intersperse "" . map pretty

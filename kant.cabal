@@ -36,6 +36,7 @@ Library
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant.Term,
+                      Kant.Decl,
                       Kant.Env,
                       Kant.Sugar,
                       Kant.Desugar,
