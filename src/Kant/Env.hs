@@ -8,9 +8,14 @@ module Kant.Env
     , nestEnvTy
     , envFree
     , addFree
+    , envFreeVs
     ) where
 
 import           Control.Applicative ((<$>))
+import           Data.Foldable (foldMap)
+
+import           Data.Set (Set)
+import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -68,3 +73,8 @@ addFree env@Env{envValue = value, envType = type_} v mv mty =
     env{ envValue = \v' -> if v == v' then mv  else value v'
        , envType  = \v' -> if v == v' then mty else type_ v'
        }
+
+envFreeVs :: Ord v => Env v -> Term v -> Set Id
+envFreeVs env = foldMap (\v -> if envFree env v
+                               then Set.singleton (envPull env v)
+                               else Set.empty)

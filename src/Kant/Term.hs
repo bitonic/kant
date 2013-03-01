@@ -17,14 +17,10 @@ module Kant.Term
     , AppV(..)
     , appV
     , appHead
-    , freeVs
     ) where
 
-import           Data.Foldable (Foldable(..))
+import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
-
-import           Data.Set (Set)
-import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -81,5 +77,3 @@ appV t = AppV t []
 appHead :: Term v -> Term v
 appHead (appV -> AppV t _) = t
 
-freeVs :: (Eq v, Ord v, Foldable t) => t v -> Set v
-freeVs = foldMap Set.singleton

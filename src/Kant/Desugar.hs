@@ -31,4 +31,4 @@ instance (a ~ Decl) => Desugar SDecl a where
     desugar (SVal n pars t) = Val n (desugar (SLam pars t))
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
-        Data c (desugar (SLam pars STy)) (map (second desugar) cons)
+        Data c (desugar (SArr pars STy)) (map (second desugar) cons)
