@@ -114,8 +114,15 @@ instance Pretty TyCheckError where
                nest ("instead of" <$> pretty ty))
     pretty (ExpectingTypeCon tyc ty) =
         group (nest ("Expecting Type as return type for type constructor" <+>
-                     pretty tyc) <$>
-               nest ("instead of" <$> pretty ty))
+                     pretty tyc <+> "instead of" <$> pretty ty))
+    pretty (ExpectingTypeData dc tyc ty) =
+        group (nest ("Expecting something constructing a" <+> pretty tyc <+>
+                     "for data constructor" <+> pretty dc <+> "instead of" <$>
+                     pretty ty))
+    pretty (WrongRecTypePos dc tyc ty) =
+        group (nest ("Recursive occurrence of" <+> pretty tyc <+>
+                     "in wrong position in data constructor" <+> pretty dc <+>
+                     "of type" <$> pretty ty))
 
 instance Pretty Output where
     pretty (OTyCheck ty) = pretty ty

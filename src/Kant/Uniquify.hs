@@ -14,7 +14,7 @@ import qualified Data.Map as Map
 import           Kant.Term
 import           Kant.Env
 
-uniquify :: (Ord v, Eq v) => Env v -> [Term v] -> [Term v]
+uniquify :: (Ord v) => Env v -> [Term v] -> [Term v]
 uniquify env ts = evalState (mapM (mapM go) ts) (Map.fromList fs)
   where
     fs   = zip (Set.toList (execState (mapM (freeVars env) ts) Set.empty))

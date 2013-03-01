@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Kant.TyCheck
     ( TyCheckError(..)
+    , expectingTypeData
+    , wrongRecTypePos
     , MonadTyCheck
     , tyCheck
     ) where
@@ -26,6 +28,8 @@ data TyCheckError
     | ExpectingFunction TermId TermId
     | ExpectingType TermId TermId
     | ExpectingTypeCon ConId TermId
+    | ExpectingTypeData ConId ConId TermId
+    | WrongRecTypePos ConId ConId TermId
     deriving (Eq, Show)
 
 instance Error TyCheckError
@@ -44,6 +48,14 @@ expectingType env t ty =
 expectingFunction :: (Ord v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
 expectingFunction env t ty =
     let [t', ty'] = slam env [t, ty] in throwError (ExpectingFunction t' ty')
+
+expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
+                  => Env v -> ConId -> ConId -> Term v -> m a
+expectingTypeData env dc tyc ty  =
+    throwError (ExpectingTypeData dc tyc (slam' env ty))
+
+wrongRecTypePos :: (Ord v, MonadTyCheck m) => Env v -> ConId -> ConId -> Term v -> m a
+wrongRecTypePos env dc tyc ty = throwError (WrongRecTypePos dc tyc (slam' env ty))
 
 lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (Term v)
 lookupTy env v = case envType env v of

@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Term
     ( Id
     , ConId
@@ -9,12 +10,21 @@ module Kant.Term
     , Term(..)
     , TermId
     , Abs(..)
+      -- * Smart constructors
     , lam
     , arr
+      -- * Smart destructors
+    , AppV(..)
+    , appV
+    , appHead
+    , freeVs
     ) where
 
-import           Data.Foldable (Foldable)
+import           Data.Foldable (Foldable(..))
 import           Data.Traversable (Traversable)
+
+import           Data.Set (Set)
+import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -60,3 +70,16 @@ abs_ v t₁ t₂ =  Abs t₁ (abstract1Name v t₂)
 lam, arr :: Id -> Term Id -> Term Id -> Term Id
 lam v t = Lam . abs_ v t
 arr v t = Arr . abs_ v t
+
+data AppV v = AppV (Term v) [Term v]
+
+appV :: Term v -> AppV v
+appV (App t₁ t₂) = AppV t (ts ++ [t₂])
+  where AppV t ts = appV t₁
+appV t = AppV t []
+
+appHead :: Term v -> Term v
+appHead (appV -> AppV t _) = t
+
+freeVs :: (Eq v, Ord v, Foldable t) => t v -> Set v
+freeVs = foldMap Set.singleton
