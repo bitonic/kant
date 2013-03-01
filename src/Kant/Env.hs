@@ -1,7 +1,9 @@
+{-# LANGUAGE RankNTypes #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Env
-    ( Env(..)
+    ( Elim
+    , Env(..)
     , EnvId
     , newEnv
     , nestEnv
@@ -9,6 +11,7 @@ module Kant.Env
     , envFree
     , addFree
     , envFreeVs
+    , addElim
     ) where
 
 import           Control.Applicative ((<$>))
@@ -23,11 +26,13 @@ import           Bound.Name
 import           Kant.Term
 
 type Ctx v = v -> Maybe (Term v)
+type Elim = forall v. Env v -> [Term v] -> Term v
 
 -- | Bringing it all together
 data Env v = Env
     { envValue  :: Ctx v
     , envType   :: Ctx v
+    , envElim   :: ConId -> Elim
     , envPull   :: v -> Id
     , envNest   :: Id -> v
     , envRename :: v -> (Id -> Id) -> v
@@ -40,13 +45,13 @@ nestf t _ (B _) = fmap F <$> t
 nestf _ f (F v) = fmap F <$> f v
 
 nestEnv :: Env v -> Maybe (Term v) -> Maybe (Term v) -> Env (Var (Name Id ()) v)
-nestEnv Env{ envValue = value
+nestEnv env@Env{ envValue = value
            , envType = type_
            , envPull = pull
            , envNest = nest
            , envRename = rename
            } t ty =
-    Env{ envValue  = nestf t value
+    env{ envValue  = nestf t value
        , envType   = nestf ty type_
        , envPull   = \v -> case v of B n -> name n; F v' -> pull v'
        , envNest   = F . nest
@@ -57,6 +62,7 @@ nestEnv Env{ envValue = value
 newEnv :: EnvId
 newEnv = Env{ envValue  = const Nothing
             , envType   = const Nothing
+            , envElim   = error "newEnv: looking up a non-existant elim"
             , envPull   = id
             , envNest   = id
             , envRename = \v f -> f v
@@ -78,3 +84,7 @@ envFreeVs :: Ord v => Env v -> Term v -> Set Id
 envFreeVs env = foldMap (\v -> if envFree env v
                                then Set.singleton (envPull env v)
                                else Set.empty)
+
+addElim :: Env v -> Id -> Elim -> Env v
+addElim env@Env{envElim = elim} n el =
+    env{envElim = \n' -> if n == n' then el else elim n'}

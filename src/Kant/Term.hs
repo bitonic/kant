@@ -13,6 +13,7 @@ module Kant.Term
       -- * Smart constructors
     , lam
     , arr
+    , app
       -- * Smart destructors
     , AppV(..)
     , appV
@@ -40,6 +41,8 @@ data Term v
     | Lam (Abs v)
     | Arr (Abs v)
     | App (Term v) (Term v)
+    | Canon ConId [Term v]
+    | Elim ConId [Term v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type TermId = Term Id
@@ -52,11 +55,13 @@ instance Read1 Term where readsPrec1 = readsPrec
 instance Monad Term where
     return = V
 
-    V v       >>= f = f v
-    Ty        >>= _ = Ty
-    Lam ab    >>= f = Lam (subAb ab f)
-    Arr ab    >>= f = Arr (subAb ab f)
-    App t₁ t₂ >>= f = App (t₁ >>= f) (t₂ >>= f)
+    V v        >>= f = f v
+    Ty         >>= _ = Ty
+    Lam ab     >>= f = Lam (subAb ab f)
+    Arr ab     >>= f = Arr (subAb ab f)
+    App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Canon c ts >>= f = Canon c (map (>>= f) ts)
+    Elim c ts  >>= f = Elim c (map (>>= f) ts)
 
 data Abs v = Abs (Term v) (Scope (NameId ()) Term v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
@@ -64,12 +69,15 @@ data Abs v = Abs (Term v) (Scope (NameId ()) Term v)
 subAb :: Abs a -> (a -> Term b) -> Abs b
 subAb (Abs t s) f = Abs (t >>= f) (s >>>= f)
 
-abs_ :: Id -> Term Id -> Term Id -> Abs Id
+abs_ :: Id -> TermId -> TermId -> Abs Id
 abs_ v t₁ t₂ =  Abs t₁ (abstract1Name v t₂)
 
-lam, arr :: Id -> Term Id -> Term Id -> Term Id
+lam, arr :: Id -> TermId -> TermId -> TermId
 lam v t = Lam . abs_ v t
 arr v t = Arr . abs_ v t
+
+app :: [TermId] -> TermId
+app = foldl1 App
 
 data AppV v = AppV (Term v) [Term v]
 

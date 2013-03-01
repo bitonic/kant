@@ -15,6 +15,8 @@ distill t₁@(Lam _) = SLam (distillPars pars) (distill t₂)
 distill t₁@(Arr _) = SArr (distillPars pars) (distill t₂)
   where (pars, t₂) = unrollArr t₁
 distill (App t₁ t₂) = SApp (distill t₁) (distill t₂)
+distill (Canon c ts) = distill (app (V c : ts))
+distill (Elim ce ts) = distill (app (V ce : ts))
 
 distillPars :: [(Maybe [Id], TermId)] -> [SParam]
 distillPars = map (second distill)
