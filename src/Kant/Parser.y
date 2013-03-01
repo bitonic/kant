@@ -104,8 +104,13 @@ SingleTerm
 
 Arr :: { ([SParam], STerm) }
 Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
-    | '[' Seq(name) ':' Term ']' '->' Arr    { first ((Just $2, $4):) $7 }
+    | Arr2                                   { $1 }
     | App                                    { ([], $1) }
+
+Arr2 :: { ([SParam], STerm) }
+Arr2
+    : '[' Seq(name) ':' Term ']' Arr2        { first ((Just $2, $4):) $6 }
+    | '->' Arr                               { $2 }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
