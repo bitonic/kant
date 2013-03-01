@@ -89,7 +89,7 @@ Param
     | SingleTerm                             { (Nothing, $1) }
 
 DataCon :: { SConstr }
-DataCon : name ':' SingleTerm                { ($1, $3) }
+DataCon : name ':' Term                      { ($1, $3) }
 
 Term :: { STerm }
 Term
