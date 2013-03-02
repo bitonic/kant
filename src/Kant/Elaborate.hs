@@ -78,19 +78,26 @@ elimTy tyc tycty cons = targets tycty
     targets = telescope targetsf Arr newEnv
     targetsf env₁ ts =
         let motive     = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
+            motiveV    = V (B dummyN)
             env₂       = neste₂ env₁
             motiveArgs = map nestt₂ ts ++ [V (F (B dummyN))]
         in mkArr (app (V (envNest env₁ tyc) : ts))
-                 (mkArr motive (methods env₂ (V (B dummyN)) motiveArgs cons))
+                 (mkArr motive (methods env₂ motiveV motiveArgs cons))
     motivef env ts = mkArr (app (V (envNest env tyc) : ts)) Ty
 
     methods :: Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
-    methods _ motive ts [] = app (motive : ts)
-    methods env motive ts ((dc, ty) : cons') =
-        mkArr (telescope (methodf dc ty motive) Arr env (envNest env <$> ty))
-              (methods (neste₁ env) (nestt₁ motive) (map nestt₁ ts) cons')
+    methods _ motiveV ts [] = app (motiveV : ts)
+    methods env motiveV ts ((dc, ty) : cons') =
+        mkArr (method env dc motiveV [] (envNest env <$> ty))
+              (methods (neste₁ env) (nestt₁ motiveV) (map nestt₁ ts) cons')
 
-    methodf dc ty motive env ts = V (envNest env "dummy")
+    -- I can't use `telescope' because I need to bump the motiveV each time
+    method :: Env v -> ConId -> Term v -> [v] -> Term v -> Term v
+    method env dc motiveV vs (Arr (Abs ty s)) =
+        mkArr ty (method (neste₁ env) dc (nestt₁ motiveV)
+                         (map F vs ++ [B (bindingN s)]) (fromScope s))
+    method env dc motiveV vs (appV -> AppV _ pars) =
+        app [app (motiveV : pars), app (V (envNest env dc) : map V vs)]
 
 buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
@@ -148,7 +155,7 @@ telescope f g env' = go env' []
     go env vs (Arr (Abs ty s)) =
         g (Abs ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs)
                                (fromScope s))))
-    go env vs _ = f env (map V vs)
+    go env vs _ = f env (map V (reverse vs))
 
 instance Elaborate Module where
     elaborate e = go e . unModule
