@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+-- | This is largely ripped off fig. 9 of 'The View from the Left'.
 module Kant.Elaborate (Elaborate(..)) where
 
 import           Control.Applicative ((<$>))
