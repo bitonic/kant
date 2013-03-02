@@ -14,6 +14,7 @@ import           Control.Monad.Error (MonadError(..))
 import qualified Data.Set as Set
 
 import           Bound
+import           Bound.Name
 
 import           Kant.Term
 import           Kant.Decl
@@ -29,19 +30,23 @@ instance Elaborate Decl where
            return (addFree env n (Just t) (Just ty))
     elaborate env (Postulate n ty) =
         do checkDup env n; tyCheck env ty; return (addFree env n Nothing (Just ty))
-    elaborate env₁ (Data tyc cty cons) =
-        do tyCheck env₁ cty
-           if returnsTy cty
-              then do let env₂ = addFree env₁ tyc Nothing (Just cty)
-                      env₃ <- foldrM (\(dc, dty) env₃ -> elaborateCon env₃ tyc dc dty)
-                                     env₂ cons
-                      let ety  = elimTy tyc cty cons
-                          en   = elimName tyc
-                          et   = telescope (\_ -> Elim en) Lam newEnv ety
-                          env₄ = addFree env₃ en (Just et)  (Just ety)
-                      return (addElim env₄ en (buildElim (arrLen cty) tyc cons))
-              else throwError (ExpectingTypeCon tyc cty)
+    elaborate env₁ (Data tyc tycty dcs) =
+        do tyCheck env₁ tycty
+           if returnsTy tycty
+              then do let env₂ = addFree env₁ tyc Nothing (Just tycty)
+                      -- Create the functions that will form 'Canon's
+                      env₃ <- foldrM (\(dc, dcty) env₃ ->
+                                       elaborateCon env₃ tyc dc dcty)
+                                     env₂ dcs
+                      let elty = elimTy tyc tycty dcs -- D-elim type
+                          eln  = elimName tyc         -- D-elim name
+                          -- Function that will form the 'Elim's
+                          elt  = telescope (\_ -> Elim eln) Lam newEnv elty
+                          env₄ = addFree env₃ eln (Just elt)  (Just elty)
+                      return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs))
+              else throwError (ExpectingTypeCon tyc tycty)
       where
+        -- Check that the type constructor returns a type
         returnsTy :: Term v -> Bool
         returnsTy (Arr (Abs _ s)) = returnsTy (fromScope s)
         returnsTy Ty              = True
@@ -57,18 +62,19 @@ elaborateCon env tyc dc ty =
     do checkDup env dc
        tyCheck env ty
        goodTy env ty
-       return (addFree env dc (Just (buildCanon ty)) (Just ty))
+       let t = telescope (\_ -> Canon dc) Lam newEnv ty
+       return (addFree env dc (Just t) (Just ty))
   where
     goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
-    goodTy env' (Arr (Abs ty' s)) =
-        do let fvs  = envFreeVs env' ty'
-           unless (not (Set.member tyc fvs) || appHead ty' == V (envNest env' tyc))
+    goodTy env' (Arr (Abs arg s)) =
+        do -- If the type constructor appears in the type, then it must be at
+           -- the top level.
+           let fvs  = envFreeVs env' arg
+           unless (not (Set.member tyc fvs) || appHead arg == V (envNest env' tyc))
                   (wrongRecTypePos env dc tyc ty)
            goodTy (neste₁ env') (fromScope s)
-    goodTy env' (appV -> AppV t _) =
-        unless (t == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
-
-    buildCanon = telescope (\_ -> Canon dc) Lam newEnv
+    goodTy env' (appV -> AppV arg _) =
+        unless (arg == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
 
 elimTy :: ConId                 -- ^ Tycon
        -> TermId                -- ^ Tycon type
@@ -76,39 +82,50 @@ elimTy :: ConId                 -- ^ Tycon
        -> TermId
 elimTy tyc tycty cons = targets tycty
   where
+    -- First scope the arguments of the type constructor
     targets = telescope targetsf Arr newEnv
-    targetsf env₁ ts =
+    targetsf env₁ args =
+        -- Then scope a "motive", which is a predicate on D, so we need to scope
+        -- again all the parameters plus an instance of D with those parameters.
         let motive     = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
-            motiveV    = V (B dummyN)
+            -- The variable that will refer to the motive
+            motiveV    = V (B (Name "P" ()))
             env₂       = neste₂ env₁
-            motiveArgs = map nestt₂ ts ++ [V (F (B dummyN))]
-        in mkArr (app (V (envNest env₁ tyc) : ts))
+            -- The arguments to the result of the functions, which will be `P
+            -- args x' where args are the arguments for D and x is the instance
+            -- of D. Note that the variable refers to the thing scoped just
+            -- before the motive: `x'.
+            motiveArgs = map nestt₂ args ++ [V (F (B dummyN))]
+        in mkArr (app (V (envNest env₁ tyc) : args))
                  (mkArr motive (methods env₂ motiveV motiveArgs cons))
-    motivef env ts = mkArr (app (V (envNest env tyc) : ts)) Ty
+    motivef env args = mkArr (app (V (envNest env tyc) : args)) Ty
 
     methods :: Eq v => Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
-    methods _ motiveV ts [] = app (motiveV : ts)
-    methods env motiveV ts ((dc, ty) : cons') =
-        mkArr (method env dc motiveV [] ty (envNest env <$> ty))
-              (methods (neste₁ env) (nestt₁ motiveV) (map nestt₁ ts) cons')
+    methods _ motiveV args [] = app (motiveV : args)
+    methods env motiveV args ((dc, dcty) : dcs) =
+        mkArr (method env dc motiveV [] dcty)
+              (methods (neste₁ env) (nestt₁ motiveV) (map nestt₁ args) dcs)
 
     -- I can't use `telescope' because I need to bump the motiveV each time
-    method :: Eq v => Env v -> ConId -> Term v -> [v] -> TermId -> Term v -> Term v
-    method env dc motiveV vs tyo (Arr (Abs ty s)) =
-        mkArr ty (method (neste₁ env) dc (nestt₁ motiveV)
-                         (map F vs ++ [B (bindingN s)]) tyo (fromScope s))
-    method env dc motiveV vs ty (appV -> AppV _ pars) =
-        hyps 0 env (app (motiveV : pars)) dc (map V vs) ty
+    method :: Eq v => Env v -> ConId -> Term v -> [v] -> TermId -> Term v
+    method env₀ dc motiveV₀ vs₀ dcty =
+        let go :: Eq v => Env v -> Term v -> [v] -> Term v -> Term v
+            go env motiveV vs (Arr (Abs arg s)) =
+                mkArr arg (go (neste₁ env) (nestt₁ motiveV)
+                              (map F vs ++ [B (bindingN s)]) (fromScope s))
+            go env motiveV vs (appV -> AppV _ args) =
+                hyps 0 env (app (motiveV : args)) dc (map V vs) dcty
+        in go env₀ motiveV₀ vs₀ (envNest env₀ <$> dcty)
 
     hyps :: Eq v => Int -> Env v -> Term v -> ConId -> [Term v] -> TermId -> Term v
-    hyps i env motive dc args (Arr (Abs (appV -> AppV ty _) s)) =
+    hyps i env motive dcty args (Arr (Abs (appV -> AppV ty _) s)) =
         let rest = instDummy s
         in if ty == V tyc
            then mkArr (app [motive, args !! i])
-                      (hyps (i+1) (neste₁ env) (nestt₁ motive) dc (map nestt₁ args)
+                      (hyps (i+1) (neste₁ env) (nestt₁ motive) dcty (map nestt₁ args)
                             rest)
-           else hyps (i+1) env motive dc args rest
-    hyps _ env motive dc args _ = app [motive, app (V (envNest env dc) : args)]
+           else hyps (i+1) env motive dcty args rest
+    hyps _ env motive dcty args _ = app [motive, app (V (envNest env dcty) : args)]
 
 buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
@@ -116,22 +133,22 @@ buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- constructors.
 buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
     error "buildElim: got wrong number of arguments in eliminator"
-buildElim i tyc cons (ts :: [Term v]) =
-    case des of
-        Canon dc ts' | Just j <- elemIndex dc (map fst cons) ->
-            let method = methods !! j; dcty = snd (cons !! j)
+buildElim i tyc dcs (ts :: [Term v]) =
+    case t of
+        Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
+            let method = methods !! j; dcty = snd (dcs !! j)
             -- newEnv, since we only need to pull out the type constructor
-            in Just (app (method : ts' ++ recs 0 ts' dcty))
+            in Just (app (method : args ++ recs 0 args dcty))
         Canon _ _ -> error "buildElim: constructor not present"
         _ -> Nothing
   where
-    (pars, (des : motive : methods)) = splitAt i ts
+    (pars, (t : motive : methods)) = splitAt i ts
 
     recs :: Int -> [Term v] -> TermId -> [Term v]
-    recs n ts' (Arr (Abs (appV -> AppV ty' _) s)) =
-        (if ty' == V tyc then [recElim (ts' !! n)] else []) ++
+    recs n args (Arr (Abs (appV -> AppV tyHead _) s)) =
+        (if tyHead == V tyc then [recElim (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
-        recs (n+1) ts' (instDummy s)
+        recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
     recElim x = Elim (elimName tyc) (pars ++ [x, motive] ++ methods)
