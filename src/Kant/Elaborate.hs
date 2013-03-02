@@ -77,18 +77,18 @@ elimTy tyc tycty cons = targets tycty
   where
     targets = telescope targetsf Arr newEnv
     targetsf env₁ ts =
-        let motive = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
-            env₂   = neste₂ env₁
-            x      = V (F (B dummyN))
-        in arrs (app (V (envNest env₁ tyc) : ts))
-                (arrs motive (methods env₂ (V (B dummyN)) (map nestt₂ ts ++ [x]) cons))
-    motivef env ts = arrs (app (V (envNest env tyc) : ts)) Ty
+        let motive     = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
+            env₂       = neste₂ env₁
+            motiveArgs = map nestt₂ ts ++ [V (F (B dummyN))]
+        in mkArr (app (V (envNest env₁ tyc) : ts))
+                 (mkArr motive (methods env₂ (V (B dummyN)) motiveArgs cons))
+    motivef env ts = mkArr (app (V (envNest env tyc) : ts)) Ty
 
     methods :: Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
     methods _ motive ts [] = app (motive : ts)
     methods env motive ts ((dc, ty) : cons') =
-        arrs (telescope (methodf dc ty motive) Arr env (envNest env <$> ty))
-             (methods (neste₁ env) (nestt₁ motive) (map nestt₁ ts) cons')
+        mkArr (telescope (methodf dc ty motive) Arr env (envNest env <$> ty))
+              (methods (neste₁ env) (nestt₁ motive) (map nestt₁ ts) cons')
 
     methodf dc ty motive env ts = V (envNest env "dummy")
 
@@ -136,8 +136,8 @@ nestt₁ = fmap F
 nestt₂ :: Functor f => f a -> f (Var b (Var b a))
 nestt₂ = fmap (F . F)
 
-arrs :: Term v -> Term (Var (NameId ()) v) -> Term v
-arrs  t₁ t₂ = Arr (Abs t₁ (toScope t₂))
+mkArr :: Term v -> Term (Var (NameId ()) v) -> Term v
+mkArr  t₁ t₂ = Arr (Abs t₁ (toScope t₂))
 
 telescope :: (forall a. Env a -> [Term a] -> Term a)
           -> (forall a. Abs a -> Term a)
