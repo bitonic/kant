@@ -65,7 +65,7 @@ replOutput env₁ s₁ =
        case c of
            ITyCheck s₂ -> do t <- parse s₂
                              ty <- tyct env₁ t
-                             return (OTyCheck ty, env₁)
+                             return (OTyCheck (nf env₁ ty), env₁)
            IEval s₂    -> do t <- parse s₂
                              tyct env₁ t
                              let t' = nf env₁ t
@@ -77,7 +77,8 @@ replOutput env₁ s₁ =
                              m <- parseE (parseDecl s₂)
                              env₂ <- elab env₁ m
                              return (OOK, env₂)
-           IPretty s₂  -> do t <- whnf env₁ <$> parse s₂; return (OPretty t, env₁)
+           IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
+                             return (OPretty t, env₁)
            IQuit       -> return (OQuit, env₁)
            ISkip       -> return (OSkip, env₁)
   where

@@ -37,7 +37,8 @@ instance Elaborate Decl where
                                      env₂ cons
                       let ety  = elimTy tyc cty cons
                           en   = elimName tyc
-                          env₄ = addFree env₃ en Nothing (Just ety)
+                          et   = telescope (\_ -> Elim en) Lam newEnv ety
+                          env₄ = addFree env₃ en (Just et)  (Just ety)
                       return (addElim env₄ en (buildElim (arrLen cty) tyc cons))
               else throwError (ExpectingTypeCon tyc cty)
       where
@@ -120,18 +121,18 @@ buildElim i tyc cons (ts :: [Term v]) =
         Canon dc ts' | Just j <- elemIndex dc (map fst cons) ->
             let method = methods !! j; dcty = snd (cons !! j)
             -- newEnv, since we only need to pull out the type constructor
-            in Just (app (method : ts' ++ recs 0 dcty))
+            in Just (app (method : ts' ++ recs 0 ts' dcty))
         Canon _ _ -> error "buildElim: constructor not present"
         _ -> Nothing
   where
     (pars, (des : motive : methods)) = splitAt i ts
 
-    recs :: Int -> TermId -> [Term v]
-    recs n (Arr (Abs (appV -> AppV ty' _) s)) =
-        (if ty' == V tyc then [recElim (methods !! n)] else []) ++
+    recs :: Int -> [Term v] -> TermId -> [Term v]
+    recs n ts' (Arr (Abs (appV -> AppV ty' _) s)) =
+        (if ty' == V tyc then [recElim (ts' !! n)] else []) ++
          -- It doesn't matter what we instantiate here
-        recs (n+1) (instDummy s)
-    recs _ _ = []
+        recs (n+1) ts' (instDummy s)
+    recs _ _ _ = []
 
     recElim x = Elim (elimName tyc) (pars ++ [x, motive] ++ methods)
 

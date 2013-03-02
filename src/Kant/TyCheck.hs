@@ -97,4 +97,4 @@ tyCheck env (Elim en ts) = tyCheck env (app (V (envNest env en) : ts))
 tyCheckEq :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheckEq env ty t =
     do ty' <- tyCheck env t
-       unless (ty' == ty) (mismatch env ty t ty')
+       unless (nf env ty' == nf env ty) (mismatch env ty t ty')
