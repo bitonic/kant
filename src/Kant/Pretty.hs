@@ -10,8 +10,8 @@ import           Data.List (intersperse)
 import           Data.String (IsString(..))
 
 import           Text.PrettyPrint.Leijen
-                 (Pretty(..), (<+>), (<>), Doc, align, hsep, vcat,
-                  (<$>), vsep, group, (<$$>), hcat)
+                 (Pretty(..), (<+>), (<>), Doc, align, hsep, vcat, (<$>), vsep,
+                  group, (<$$>), hcat)
 import qualified Text.PrettyPrint.Leijen as PrettyPrint
 
 import           Kant.Term
@@ -41,7 +41,7 @@ instance (v ~ Id) => Pretty (Term v) where
 instance Pretty STerm where
     pretty (SV v) = pretty v
     pretty STy = "Type"
-    pretty (SArr pars ty) = prettyPars pars " -> " <+> "->" <+> pretty ty
+    pretty (SArr pars ty) = prettyPars pars <+> "->" <+> pretty ty
     pretty to@(SApp _ _) = go to
       where
         go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
@@ -61,18 +61,18 @@ singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
-prettyPars :: [SParam] -> Doc -> Doc
-prettyPars pars' d = hcat (intersperse d (go pars'))
+prettyPars :: [SParam] -> Doc
+prettyPars pars' = hcat (intersperse " " (go pars'))
   where
     go [] = []
     go ((mns, ty) : pars) =
         (case mns of
              Nothing -> singleParens ty
-             Just ns -> "[" <> hsep' ns <+> ":" <+> pretty ty <> "]")
+             Just ns -> "[" <> hsep' ns <+> ":" <+> align (pretty ty) <> "]")
         : go pars
 
 prettyPars' :: [SParam] -> Doc
-prettyPars' pars = prettyPars pars " " <> spaceIfCons pars
+prettyPars' pars = prettyPars pars <> spaceIfCons pars
 
 prettyBarred :: (a -> Doc) -> [a] -> Doc
 prettyBarred _ [] = "{ }"
