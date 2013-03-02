@@ -85,19 +85,29 @@ elimTy tyc tycty cons = targets tycty
                  (mkArr motive (methods env₂ motiveV motiveArgs cons))
     motivef env ts = mkArr (app (V (envNest env tyc) : ts)) Ty
 
-    methods :: Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
+    methods :: Eq v => Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
     methods _ motiveV ts [] = app (motiveV : ts)
     methods env motiveV ts ((dc, ty) : cons') =
-        mkArr (method env dc motiveV [] (envNest env <$> ty))
+        mkArr (method env dc motiveV [] ty (envNest env <$> ty))
               (methods (neste₁ env) (nestt₁ motiveV) (map nestt₁ ts) cons')
 
     -- I can't use `telescope' because I need to bump the motiveV each time
-    method :: Env v -> ConId -> Term v -> [v] -> Term v -> Term v
-    method env dc motiveV vs (Arr (Abs ty s)) =
+    method :: Eq v => Env v -> ConId -> Term v -> [v] -> TermId -> Term v -> Term v
+    method env dc motiveV vs tyo (Arr (Abs ty s)) =
         mkArr ty (method (neste₁ env) dc (nestt₁ motiveV)
-                         (map F vs ++ [B (bindingN s)]) (fromScope s))
-    method env dc motiveV vs (appV -> AppV _ pars) =
-        app [app (motiveV : pars), app (V (envNest env dc) : map V vs)]
+                         (map F vs ++ [B (bindingN s)]) tyo (fromScope s))
+    method env dc motiveV vs ty (appV -> AppV _ pars) =
+        hyps 0 env (app (motiveV : pars)) dc (map V vs) ty
+
+    hyps :: Eq v => Int -> Env v -> Term v -> ConId -> [Term v] -> TermId -> Term v
+    hyps i env motive dc args (Arr (Abs (appV -> AppV ty _) s)) =
+        let rest = instDummy s
+        in if ty == V tyc
+           then mkArr (app [motive, args !! i])
+                      (hyps (i+1) (neste₁ env) (nestt₁ motive) dc (map nestt₁ args)
+                            rest)
+           else hyps (i+1) env motive dc args rest
+    hyps _ env motive dc args _ = app [motive, app (V (envNest env dc) : args)]
 
 buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
@@ -110,17 +120,18 @@ buildElim i tyc cons (ts :: [Term v]) =
         Canon dc ts' | Just j <- elemIndex dc (map fst cons) ->
             let method = methods !! j; dcty = snd (cons !! j)
             -- newEnv, since we only need to pull out the type constructor
-            in Just (app (method : ts' ++ recs 0 newEnv dcty))
+            in Just (app (method : ts' ++ recs 0 dcty))
         Canon _ _ -> error "buildElim: constructor not present"
         _ -> Nothing
   where
     (pars, (des : motive : methods)) = splitAt i ts
 
-    recs :: Eq a => Int -> Env a -> Term a -> [Term v]
-    recs n env' (Arr (Abs (appV -> AppV ty' _) s)) =
-        (if ty' == V (envNest env' tyc) then [recElim (methods !! n)] else []) ++
-        recs (n+1) (nestEnv env' Nothing Nothing) (fromScope s)
-    recs _ _ _ = []
+    recs :: Int -> TermId -> [Term v]
+    recs n (Arr (Abs (appV -> AppV ty' _) s)) =
+        (if ty' == V tyc then [recElim (methods !! n)] else []) ++
+         -- It doesn't matter what we instantiate here
+        recs (n+1) (instDummy s)
+    recs _ _ = []
 
     recElim x = Elim (elimName tyc) (pars ++ [x, motive] ++ methods)
 
@@ -146,12 +157,16 @@ nestt₂ = fmap (F . F)
 mkArr :: Term v -> Term (Var (NameId ()) v) -> Term v
 mkArr  t₁ t₂ = Arr (Abs t₁ (toScope t₂))
 
-telescope :: (forall a. Env a -> [Term a] -> Term a)
-          -> (forall a. Abs a -> Term a)
+instDummy :: Scope n Term String -> TermId
+instDummy s = instantiate1 (V "dummy") s
+
+telescope :: Eq v
+          => (forall a. Eq a => Env a -> [Term a] -> Term a)
+          -> (forall a. Eq a => Abs a -> Term a)
           -> Env v -> Term v -> Term v
 telescope f g env' = go env' []
   where
-    go :: Env v -> [v] -> Term v -> Term v
+    go :: Eq v => Env v -> [v] -> Term v -> Term v
     go env vs (Arr (Abs ty s)) =
         g (Abs ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs)
                                (fromScope s))))
