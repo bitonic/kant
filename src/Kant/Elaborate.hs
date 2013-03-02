@@ -4,6 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module Kant.Elaborate (Elaborate(..)) where
 
+import           Control.Applicative ((<$>))
 import           Control.Monad (when, unless)
 import           Data.Foldable (foldrM)
 import           Data.List (elemIndex)
@@ -34,8 +35,8 @@ instance Elaborate Decl where
               then do let env₂ = addFree env₁ tyc Nothing (Just cty)
                       env₃ <- foldrM (\(dc, dty) env₃ -> elaborateCon env₃ tyc dc dty)
                                      env₂ cons
-                      ety <- elimTy env₃ tyc cty cons
-                      let en = elimName tyc
+                      let ety  = elimTy tyc cty cons
+                          en   = elimName tyc
                           env₄ = addFree env₃ en Nothing (Just ety)
                       return (addElim env₄ en (buildElim (arrLen cty) tyc cons))
               else throwError (ExpectingTypeCon tyc cty)
@@ -55,29 +56,41 @@ elaborateCon env tyc dc ty =
     do checkDup env dc
        tyCheck env ty
        goodTy env ty
-       return (addFree env dc (Just (buildCanon [] ty)) (Just ty))
+       return (addFree env dc (Just (buildCanon ty)) (Just ty))
   where
     goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
     goodTy env' (Arr (Abs ty' s)) =
         do let fvs  = envFreeVs env' ty'
            unless (not (Set.member tyc fvs) || appHead ty' == V (envNest env' tyc))
                   (wrongRecTypePos env dc tyc ty)
-           goodTy (nestEnv env' Nothing Nothing) (fromScope s)
+           goodTy (neste₁ env') (fromScope s)
     goodTy env' (appV -> AppV t _) =
         unless (t == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
 
-    buildCanon :: [v] -> Term v -> Term v
-    buildCanon vs (Arr (Abs ty' s)) =
-        Lam (Abs ty' (toScope (buildCanon (B (bindingN s) : map F vs) (fromScope s))))
-    buildCanon vs _ = Canon dc (reverse (map V vs))
+    buildCanon = telescope (\_ -> Canon dc) Lam newEnv
 
-elimTy :: MonadTyCheck m
-       => EnvId
-       -> ConId                 -- ^ Tycon
+elimTy :: ConId                 -- ^ Tycon
        -> TermId                -- ^ Tycon type
        -> [(ConId, TermId)]     -- ^ Constructors
-       -> m TermId
-elimTy _ _ _ _ = return Ty
+       -> TermId
+elimTy tyc tycty cons = targets tycty
+  where
+    targets = telescope targetsf Arr newEnv
+    targetsf env₁ ts =
+        let motive = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
+            env₂   = neste₂ env₁
+            x      = V (F (B dummyN))
+        in arrs (app (V (envNest env₁ tyc) : ts))
+                (arrs motive (methods env₂ (V (B dummyN)) (map nestt₂ ts ++ [x]) cons))
+    motivef env ts = arrs (app (V (envNest env tyc) : ts)) Ty
+
+    methods :: Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
+    methods _ motive ts [] = app (motive : ts)
+    methods env motive ts ((dc, ty) : cons') =
+        arrs (telescope (methodf dc ty motive) Arr env (envNest env <$> ty))
+             (methods (neste₁ env) (nestt₁ motive) (map nestt₁ ts) cons')
+
+    methodf dc ty motive env ts = V (envNest env "dummy")
 
 buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
@@ -110,6 +123,32 @@ elimName tyc = tyc ++ "-Elim"
 checkDup :: (Eq v, MonadTyCheck m) => Env v -> v -> m ()
 checkDup env v = when (isJust (envType env v) || isJust (envValue env v))
                       (throwError (DuplicateName (envPull env v)))
+
+neste₁ :: Env v -> Env (Var (NameId ()) v)
+neste₁ env = nestEnv env Nothing Nothing
+
+neste₂ :: Env v -> Env (Var (NameId ()) (Var (NameId ()) v))
+neste₂ = neste₁ . neste₁
+
+nestt₁ :: Functor f => f a -> f (Var b a)
+nestt₁ = fmap F
+
+nestt₂ :: Functor f => f a -> f (Var b (Var b a))
+nestt₂ = fmap (F . F)
+
+arrs :: Term v -> Term (Var (NameId ()) v) -> Term v
+arrs  t₁ t₂ = Arr (Abs t₁ (toScope t₂))
+
+telescope :: (forall a. Env a -> [Term a] -> Term a)
+          -> (forall a. Abs a -> Term a)
+          -> Env v -> Term v -> Term v
+telescope f g env' = go env' []
+  where
+    go :: Env v -> [v] -> Term v -> Term v
+    go env vs (Arr (Abs ty s)) =
+        g (Abs ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs)
+                               (fromScope s))))
+    go env vs _ = f env (map V vs)
 
 instance Elaborate Module where
     elaborate e = go e . unModule

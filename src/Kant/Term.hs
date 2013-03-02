@@ -20,6 +20,7 @@ module Kant.Term
     , appHead
     , binding
     , bindingN
+    , dummyN
     , scopeV
     , scopeN
     , arrLen
@@ -99,8 +100,11 @@ binding s = case bindings s of
 
 bindingN :: Scope (NameId ()) Term v -> NameId ()
 bindingN s = case bindings s of
-                 []      -> Name "$" ()
+                 []      -> dummyN
                  (n : _) -> n
+
+dummyN :: NameId ()
+dummyN = Name "$" ()
 
 scopeV :: Scope (NameId ()) Term v -> (NameId () -> Term v)
        -> (Maybe (NameId ()), Term v)

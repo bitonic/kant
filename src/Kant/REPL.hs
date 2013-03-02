@@ -77,8 +77,7 @@ replOutput env₁ s₁ =
                              m <- parseE (parseDecl s₂)
                              env₂ <- elab env₁ m
                              return (OOK, env₂)
-           IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
-                             return (OPretty t, env₁)
+           IPretty s₂  -> do t <- whnf env₁ <$> parse s₂; return (OPretty t, env₁)
            IQuit       -> return (OQuit, env₁)
            ISkip       -> return (OSkip, env₁)
   where
