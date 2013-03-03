@@ -25,7 +25,8 @@ import           Bound.Name
 
 import           Kant.Term
 
-type Ctx v = v -> Maybe (Term v)
+type Value = Term
+type Ctx v = v -> Maybe (Value v)
 type Elim = forall v. Show v => [Term v] -> Maybe (Term v)
 
 -- | Bringing it all together
@@ -44,7 +45,7 @@ nestf :: Maybe (Term v) -> Ctx v -> Ctx (Var (NameId ()) v)
 nestf t _ (B _) = fmap F <$> t
 nestf _ f (F v) = fmap F <$> f v
 
-nestEnv :: Env v -> Maybe (Term v) -> Maybe (Term v) -> Env (Var (Name Id ()) v)
+nestEnv :: Env v -> Maybe (Value v) -> Maybe (Value v) -> Env (Var (Name Id ()) v)
 nestEnv env@Env{ envValue = value
            , envType = type_
            , envPull = pull

@@ -14,12 +14,12 @@ import           Kant.Term
 newtype SModule = SModule {unSModule :: [SDecl]}
 
 data SDecl
-    = SVal Id [SParam] STerm
+    = SVal Id [SParam] STerm STerm
     | SPostulate Id STerm
     | SData ConId [SParam] [SConstr]
     deriving (Show)
 
-type SParam = (Maybe [Id], STerm)
+type SParam = (Maybe Id, STerm)
 type SConstr = (ConId, STerm)
 
 -- TODO add let bindings
@@ -28,7 +28,8 @@ type SConstr = (ConId, STerm)
 data STerm
     = SV Id
     | STy
-    | SLam [SParam] STerm
+    | SLam [Maybe Id] STerm
     | SApp STerm STerm
     | SArr [SParam] STerm
+    | SAnn STerm STerm
     deriving (Show)

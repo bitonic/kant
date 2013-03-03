@@ -1,14 +1,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.TyCheck
     ( TyCheckError(..)
     , expectingTypeData
     , wrongRecTypePos
     , MonadTyCheck
-    , tyCheck
+    , tyInfer
     ) where
 
-import           Control.Applicative (Applicative, (<$>))
+import           Control.Applicative (Applicative, (<$>), (<$))
 import           Control.Monad (unless)
 
 import           Control.Monad.Error (MonadError(..), Error, ErrorT)
@@ -30,6 +31,7 @@ data TyCheckError
     | ExpectingTypeCon ConId TermId
     | ExpectingTypeData ConId ConId TermId
     | WrongRecTypePos ConId ConId TermId
+    | UntypedTerm TermId
     deriving (Eq, Show)
 
 instance Error TyCheckError
@@ -60,41 +62,43 @@ wrongRecTypePos :: (Ord v, Show v, MonadTyCheck m)
                 => Env v -> ConId -> ConId -> Term v -> m a
 wrongRecTypePos env dc tyc ty = throwError (WrongRecTypePos dc tyc (slam' env ty))
 
+untypedTerm :: (Ord v, Show v, MonadError TyCheckError m) => Env v -> Term v -> m a
+untypedTerm env t = throwError (UntypedTerm (slam' env t))
+
 lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (Term v)
 lookupTy env v = case envType env v of
                      Nothing -> throwError (OutOfBounds (envPull env v))
                      Just ty -> return ty
 
-tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
-tyCheck _ Ty = return Ty
-tyCheck env (V v) = lookupTy env v
-tyCheck env (Lam (Abs ty s)) =
-    do tyty <- tyCheck env ty
-       case nf env tyty of
-           Ty -> Arr . Abs ty . toScope <$>
-                 tyCheck (nestEnvTy env ty) (fromScope s)
-           _ -> expectingType env ty tyty
-tyCheck env₁ (Arr (Abs ty₁ s)) =
-    do tyty₁ <- tyCheck env₁ ty₁
+tyInfer :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
+tyInfer _ Ty = return Ty
+tyInfer env (V v) = lookupTy env v
+tyInfer env t@(Lam _) = untypedTerm env t
+tyInfer env₁ (Arr ty₁ s) =
+    do tyty₁ <- tyInfer env₁ ty₁
        case whnf env₁ tyty₁ of
            Ty -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
-                    tyty₂ <- tyCheck env₂ ty₂
+                    tyty₂ <- tyInfer env₂ ty₂
                     case nf env₂ tyty₂ of
                         Ty -> return Ty
                         _ -> expectingType env₂ ty₂ tyty₂
            _ -> expectingType env₁ ty₁ tyty₁
-tyCheck env (App t₁ t₂) =
-    do tyt₁ <- tyCheck env t₁
+tyInfer env (App t₁ t₂) =
+    do tyt₁ <- tyInfer env t₁
        case whnf env tyt₁ of
-           Arr (Abs ty₁ s) ->
-               do tyCheckEq env ty₁ t₂
+           Arr ty₁ s ->
+               do tyCheck env ty₁ t₂
                   return (instantiate1 t₂ s)
            _ -> expectingFunction env t₁ tyt₁
-tyCheck env (Canon dc ts) = tyCheck env (app (V (envNest env dc) : ts))
-tyCheck env (Elim en ts) = tyCheck env (app (V (envNest env en) : ts))
+tyInfer env (Canon dc ts) = tyInfer env (app (V (envNest env dc) : ts))
+tyInfer env (Elim en ts) = tyInfer env (app (V (envNest env en) : ts))
+tyInfer env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
 
--- | @tyCheckEq ty t@ thecks that the term @t@ has type @ty@.
-tyCheckEq :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
-tyCheckEq env ty t =
-    do ty' <- tyCheck env t
-       unless (nf env ty' == nf env ty) (mismatch env ty t ty')
+tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
+tyCheck env t ty = tyCheck' env t (nf env ty)
+
+tyCheck' :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
+tyCheck' env (Lam s₁) (Arr ty s₂) =
+    tyCheck' (nestEnvTy env ty) (fromScope s₁) (fromScope s₂)
+tyCheck' env t ty = do tyt <- nf env <$> tyInfer env t
+                       unless (ty == tyt) (mismatch env ty t tyt)

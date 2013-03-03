@@ -15,20 +15,17 @@ class Desugar a b where
 instance (a ~ TermId) => Desugar STerm a where
     desugar (SV n) = V n
     desugar STy = Ty
-    desugar (SLam pars t) = desugarAb lam pars t
-    desugar (SArr pars t) = desugarAb arr pars t
+    desugar (SLam [] t) = desugar t
+    desugar (SLam (vn : vs) t) = lam vn (desugar (SLam vs t))
+    desugar (SArr [] t) = desugar t
+    desugar (SArr ((vn, ty₁) : pars) ty₂) =
+        arr vn (desugar ty₁) (desugar (SArr pars ty₂))
     desugar (SApp t₁ t₂) = App (desugar t₁) (desugar t₂)
-
-desugarAb :: (String -> TermId -> TermId -> TermId)
-          -> [(Maybe [String], STerm)] -> STerm -> TermId
-desugarAb _ [] t = desugar t
-desugarAb f ((Nothing, ty) : pars) t = f "" (desugar ty) (desugarAb f pars t)
-desugarAb f ((Just [], _) : pars) t = desugarAb f pars t
-desugarAb f ((Just (n : ns), ty) : pars) t =
-    f n (desugar ty) (desugarAb f ((Just ns, ty) : pars) t)
+    desugar (SAnn ty t) = Ann (desugar ty) (desugar t)
 
 instance (a ~ Decl) => Desugar SDecl a where
-    desugar (SVal n pars t) = Val n (desugar (SLam pars t))
+    desugar (SVal n pars ty t) =
+        Val n (desugar (SAnn (SArr pars ty) (SLam (map fst pars) t)))
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
         Data c (desugar (SArr pars STy)) (map (second desugar) cons)

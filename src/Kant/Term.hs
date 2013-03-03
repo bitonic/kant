@@ -7,9 +7,9 @@ module Kant.Term
     ( Id
     , ConId
     , NameId
+    , TermScope
     , Term(..)
     , TermId
-    , Abs(..)
       -- * Smart constructors
     , lam
     , arr
@@ -24,6 +24,7 @@ module Kant.Term
     , scopeV
     , scopeN
     , arrLen
+    , annV
     ) where
 
 import           Control.Applicative ((<$>))
@@ -39,12 +40,15 @@ type Id = String
 type ConId = Id
 type NameId = Name Id
 
+type TermScope = Scope (NameId ()) Term
+
 data Term v
     = V v
     | Ty
-    | Lam (Abs v)
-    | Arr (Abs v)
+    | Lam (TermScope v)
+    | Arr (Term v) (TermScope v)
     | App (Term v) (Term v)
+    | Ann (Term v) (Term v)
     | Canon ConId [Term v]
     | Elim ConId [Term v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
@@ -61,24 +65,20 @@ instance Monad Term where
 
     V v        >>= f = f v
     Ty         >>= _ = Ty
-    Lam ab     >>= f = Lam (subAb ab f)
-    Arr ab     >>= f = Arr (subAb ab f)
+    Lam s      >>= f = Lam (s >>>= f)
+    Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
     App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
     Canon c ts >>= f = Canon c (map (>>= f) ts)
     Elim c ts  >>= f = Elim c (map (>>= f) ts)
+    Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
 
-data Abs v = Abs (Term v) (Scope (NameId ()) Term v)
-    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+lam :: Maybe Id -> TermId -> TermId
+lam Nothing  t = Lam (toScope (F <$> t))
+lam (Just v) t = Lam (abstract1Name v t)
 
-subAb :: Abs a -> (a -> Term b) -> Abs b
-subAb (Abs t s) f = Abs (t >>= f) (s >>>= f)
-
-abs_ :: Id -> TermId -> TermId -> Abs Id
-abs_ v t₁ t₂ =  Abs t₁ (abstract1Name v t₂)
-
-lam, arr :: Id -> TermId -> TermId -> TermId
-lam v t = Lam . abs_ v t
-arr v t = Arr . abs_ v t
+arr :: Maybe Id -> TermId -> TermId -> TermId
+arr Nothing  ty t = Arr ty (toScope (F <$> t))
+arr (Just v) ty t = Arr ty (abstract1Name v t)
 
 app :: [Term v] -> Term v
 app = foldl1 App
@@ -117,5 +117,9 @@ scopeN :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
 scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
 
 arrLen :: Term v -> Int
-arrLen (Arr (Abs _ s)) = 1 + arrLen (fromScope s)
-arrLen _               = 0
+arrLen (Arr _ s) = 1 + arrLen (fromScope s)
+arrLen _         = 0
+
+annV :: Term t -> Term t
+annV (Ann _ t) = t
+annV t         = t

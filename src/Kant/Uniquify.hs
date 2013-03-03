@@ -26,24 +26,23 @@ uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
 
     go (V v) = return (V v)
     go Ty = return Ty
-    go (Arr ab) = Arr <$> goAb ab
-    go (Lam ab) = Lam <$> goAb ab
+    go (Arr ty s) = Arr <$> go ty <*> goScope s
+    go (Lam s) = Lam <$> goScope s
     go (App t₁ t₂) = App <$> go t₁ <*> go t₂
     go (Canon c ts') = Canon c <$> mapM go ts'
     go (Elim ce ts') = Elim ce <$> mapM go ts'
+    go (Ann ty t) = Ann <$> go ty <*> go t
 
-    goAb :: (Ord v, Show v) => Abs v -> State (Map Id Integer) (Abs v)
-    goAb (Abs ty s) =
-        do ty' <- go ty
-           m <- get
-           s' <- case binding s of
-                     Nothing -> toScope <$> go (fromScope s)
-                     Just (Name n ()) ->
-                         do let ix = fromMaybe 0 (Map.lookup n m)
-                                v' = B (Name (if ix == 0 then n else n ++ show ix) ())
-                            put (Map.insert n (ix+1) m)
-                            toScope <$> go (substitute v' (V v') (fromScope s))
-           return (Abs ty' s')
+    goScope :: (Ord v, Show v) => TermScope v -> State (Map Id Integer) (TermScope v)
+    goScope s =
+        case binding s of
+            Nothing -> toScope <$> go (fromScope s)
+            Just (Name n ()) ->
+                do m <- get
+                   let ix = fromMaybe 0 (Map.lookup n m)
+                       v' = B (Name (if ix == 0 then n else n ++ show ix) ())
+                   put (Map.insert n (ix+1) m)
+                   toScope <$> go (substitute v' (V v') (fromScope s))
 
 freeVars :: (Ord v) => Env v -> Term v -> State (Set Id) ()
 freeVars env t = void (mapM go t)
