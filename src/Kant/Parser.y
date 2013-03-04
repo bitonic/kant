@@ -44,6 +44,7 @@ import           Kant.Desugar
     '->'                { ARROW }
     '=>'                { DARROW }
     '\\'                { LAMBDA }
+    '_'                 { UNDERSCORE }
     'data'              { DATA }
     'postulate'         { POSTULATE }
     'Type'              { TYPE }
@@ -73,46 +74,47 @@ Decl : Val                                   { $1 }
      | Data                                  { $1 }
 
 Data :: { SDecl }
-Data : 'data' name Params '{' Bar(DataCon) '}'
-       { SData $2 $3 $5 }
+Data : 'data' name Arr1(Type) '{' Bar(DataCon) '}'
+       { SData $2 (fst $3) $5 }
 
 Val :: { SDecl }
-Val : name Params '=>' SingleTerm { SVal $1 $2 $4 }
-
-Params :: { [SParam] }
-Params : Seq0(Param)                         { $1 }
-
-Param :: { SParam }
-Param
-    : '[' Seq(name) ':' Term ']'             { (Just $2, $4) }
-    | SingleTerm                             { (Nothing, $1) }
+Val : name Arr '=>' SingleTerm               { SVal $1 (fst $2) (snd $2) $4 }
 
 DataCon :: { SConstr }
 DataCon : name ':' Term                      { ($1, $3) }
 
 Term :: { STerm }
 Term
-    : '\\' Seq(Param) '=>' Term              { SLam $2 $4 }
+    : '\\' Seq(Binder) '=>' Term             { SLam $2 $4 }
     | Arr                                    { uncurry SArr $1 }
 
 SingleTerm :: { STerm }
 SingleTerm
     : name                                   { SV $1 }
-    | 'Type'                                 { STy }
+    | Type                                   { $1 }
     | '(' Term ')'                           { $2 }
 
-Arr :: { ([SParam], STerm) }
-Arr : App '->' Arr                           { first ((Nothing, $1):) $3 }
-    | Arr2                                   { $1 }
-    | App                                    { ([], $1) }
+Type :: { STerm }
+Type : 'Type'                                { STy }
 
-Arr2 :: { ([SParam], STerm) }
-Arr2
-    : '[' Seq(name) ':' Term ']' Arr2        { first ((Just $2, $4):) $6 }
-    | '->' Arr                               { $2 }
+Arr :: { ([SParam], STerm) }
+Arr : Arr1(App)                              { $1 }
+
+Arr1(X)
+    : Seq(Pi) '->' Arr                       { first (concat $1 ++) $3 }
+    | App '->' Arr                           { first ((Nothing, $1) :) $3 }
+    | X                                      { ([], $1) }
+
+Pi  :: { [SParam] }
+Pi  : '[' Seq(Binder) ':' Term ']'           { zip $2 (repeat $4) }
 
 App :: { STerm }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
+
+Binder :: { Maybe Id }
+Binder
+    : '_'                                    { Nothing }
+    | name                                   { Just $1 }
 
 {
 

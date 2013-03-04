@@ -33,6 +33,7 @@ tokens :-
     "|"                                   { simpleTok BAR }
     "->"                                  { simpleTok ARROW }
     "=>"                                  { simpleTok DARROW }
+    "_"                                   { simpleTok UNDERSCORE }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
@@ -58,6 +59,7 @@ data Token
     | NAME Id
     | TYPE
     | EOF
+    | UNDERSCORE
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r
