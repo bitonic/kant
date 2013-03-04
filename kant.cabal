@@ -38,19 +38,19 @@ Library
     Exposed-Modules:  Kant.Term,
                       Kant.Decl,
                       Kant.Env,
-                      Kant.Sugar,
-                      Kant.Desugar,
-                      Kant.Distill,
-                      Kant.Parser,
-                      Kant.Pretty,
                       Kant.Reduce,
                       Kant.TyCheck,
                       Kant.Elaborate,
-                      Kant.REPL,
-                      Kant.Uniquify
+                      Kant.Uniquify,
+                      Kant.Sugar,
+                      Kant.Desugar,
+                      Kant.Distill,
+                      Kant.Parser
+--                      Kant.Pretty,
+--                      Kant.REPL
 
-    Other-Modules:    Kant.Lexer,
-                      Kant.REPL.Types
+    Other-Modules:    Kant.Lexer
+--                      Kant.REPL.Types
 
 executable kant
     Main-Is:          kant.hs

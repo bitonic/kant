@@ -27,12 +27,12 @@ class Elaborate a where
 
 instance Elaborate Decl where
     elaborate env (Val n t) =
-        do checkDup env n; ty <- tyCheck env t;
+        do checkDup env n; ty <- tyInfer env t;
            return (addFree env n (Just t) (Just ty))
     elaborate env (Postulate n ty) =
-        do checkDup env n; tyCheck env ty; return (addFree env n Nothing (Just ty))
+        do checkDup env n; tyInfer env ty; return (addFree env n Nothing (Just ty))
     elaborate env₁ (Data tyc tycty dcs) =
-        do tyCheck env₁ tycty
+        do tyInfer env₁ tycty
            if returnsTy tycty
               then do let env₂ = addFree env₁ tyc Nothing (Just tycty)
                       -- Create the functions that will form 'Canon's
@@ -42,16 +42,16 @@ instance Elaborate Decl where
                       let elty = elimTy tyc tycty dcs -- D-elim type
                           eln  = elimName tyc         -- D-elim name
                           -- Function that will form the 'Elim's
-                          elt  = telescope (\_ -> Elim eln) Lam newEnv elty
+                          elt  = typedLam (Elim eln) elty
                           env₄ = addFree env₃ eln (Just elt)  (Just elty)
                       return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs))
               else throwError (ExpectingTypeCon tyc tycty)
       where
         -- Check that the type constructor returns a type
         returnsTy :: Term v -> Bool
-        returnsTy (Arr (Abs _ s)) = returnsTy (fromScope s)
-        returnsTy Ty              = True
-        returnsTy _               = False
+        returnsTy (Arr  _ s) = returnsTy (fromScope s)
+        returnsTy Ty         = True
+        returnsTy _          = False
 
 elaborateCon :: MonadTyCheck m
              => EnvId
@@ -61,13 +61,13 @@ elaborateCon :: MonadTyCheck m
              -> m EnvId
 elaborateCon env tyc dc ty =
     do checkDup env dc
-       tyCheck env ty
+       tyInfer env ty
        goodTy env ty
-       let t = telescope (\_ -> Canon dc) Lam newEnv ty
+       let t = typedLam (Canon dc) ty
        return (addFree env dc (Just t) (Just ty))
   where
     goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
-    goodTy env' (Arr (Abs arg s)) =
+    goodTy env' (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
            let fvs  = envFreeVs env' arg
@@ -84,11 +84,11 @@ elimTy :: ConId                 -- ^ Tycon
 elimTy tyc tycty cons = targets tycty
   where
     -- First scope the arguments of the type constructor
-    targets = telescope targetsf Arr newEnv
+    targets = telescope targetsf newEnv
     targetsf env₁ args =
         -- Then scope a "motive", which is a predicate on D, so we need to scope
         -- again all the parameters plus an instance of D with those parameters.
-        let motive     = nestt₁ (telescope motivef Arr env₁ (envNest env₁ <$> tycty))
+        let motive     = nestt₁ (telescope motivef env₁ (envNest env₁ <$> tycty))
             -- The variable that will refer to the motive
             motiveV    = V (B (Name "P" ()))
             env₂       = neste₂ env₁
@@ -111,7 +111,7 @@ elimTy tyc tycty cons = targets tycty
     method :: Eq v => Env v -> ConId -> Term v -> [v] -> TermId -> Term v
     method env₀ dc motiveV₀ vs₀ dcty =
         let go :: Eq v => Env v -> Term v -> [v] -> Term v -> Term v
-            go env motiveV vs (Arr (Abs arg s)) =
+            go env motiveV vs (Arr arg s) =
                 mkArr arg (go (neste₁ env) (nestt₁ motiveV)
                               (map F vs ++ [B (bindingN s)]) (fromScope s))
             go env motiveV vs (appV -> AppV _ args) =
@@ -119,7 +119,7 @@ elimTy tyc tycty cons = targets tycty
         in go env₀ motiveV₀ vs₀ (envNest env₀ <$> dcty)
 
     hyps :: Eq v => Int -> Env v -> Term v -> ConId -> [Term v] -> TermId -> Term v
-    hyps i env motive dcty args (Arr (Abs (appV -> AppV ty _) s)) =
+    hyps i env motive dcty args (Arr (appV -> AppV ty _) s) =
         let rest = instDummy s
         in if ty == V tyc
            then mkArr (app [motive, args !! i])
@@ -146,7 +146,7 @@ buildElim i tyc dcs (ts :: [Term v]) =
     (pars, (t : motive : methods)) = splitAt i ts
 
     recs :: Int -> [Term v] -> TermId -> [Term v]
-    recs n args (Arr (Abs (appV -> AppV tyHead _) s)) =
+    recs n args (Arr (appV -> AppV tyHead _) s) =
         (if tyHead == V tyc then [recElim (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
         recs (n+1) args (instDummy s)
@@ -174,22 +174,28 @@ nestt₂ :: Functor f => f a -> f (Var b (Var b a))
 nestt₂ = fmap (F . F)
 
 mkArr :: Term v -> Term (Var (NameId ()) v) -> Term v
-mkArr  t₁ t₂ = Arr (Abs t₁ (toScope t₂))
+mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 
 instDummy :: Scope n Term String -> TermId
 instDummy s = instantiate1 (V "dummy") s
 
 telescope :: Eq v
           => (forall a. Eq a => Env a -> [Term a] -> Term a)
-          -> (forall a. Eq a => Abs a -> Term a)
           -> Env v -> Term v -> Term v
-telescope f g env' = go env' []
+telescope f env' = go env' []
   where
     go :: Eq v => Env v -> [v] -> Term v -> Term v
-    go env vs (Arr (Abs ty s)) =
-        g (Abs ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs)
-                               (fromScope s))))
+    go env vs (Arr ty s) =
+        Arr ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
     go env vs _ = f env (map V (reverse vs))
+
+typedLam :: (forall a. [Term a] -> Term a) -> TermId -> TermId
+typedLam f ty = Ann ty (go newEnv [] ty)
+  where
+    go :: Eq v => Env v -> [v] -> Term v -> Term v
+    go env vs (Arr _ s) =
+        Lam (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
+    go _ vs _ = f (map V (reverse vs))
 
 instance Elaborate Module where
     elaborate e = go e . unModule
