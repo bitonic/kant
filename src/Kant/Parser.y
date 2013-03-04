@@ -74,8 +74,8 @@ Decl : Val                                   { $1 }
      | Data                                  { $1 }
 
 Data :: { SDecl }
-Data : 'data' name Arr1(Type) '{' Bar(DataCon) '}'
-       { SData $2 (fst $3) $5 }
+Data : 'data' name ':' Arr1(Type) '{' Bar(DataCon) '}'
+       { SData $2 (fst $4) $6 }
 
 Val :: { SDecl }
 Val : name Arr '=>' SingleTerm               { SVal $1 (fst $2) (snd $2) $4 }

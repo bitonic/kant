@@ -74,7 +74,7 @@ elaborateCon env tyc dc ty =
            unless (not (Set.member tyc fvs) || appHead arg == V (envNest env' tyc))
                   (wrongRecTypePos env dc tyc ty)
            goodTy (neste₁ env') (fromScope s)
-    goodTy env' (appV -> AppV arg _) =
+    goodTy env' (appV -> (arg, _)) =
         unless (arg == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
 
 elimTy :: ConId                 -- ^ Tycon
@@ -114,12 +114,12 @@ elimTy tyc tycty cons = targets tycty
             go env motiveV vs (Arr arg s) =
                 mkArr arg (go (neste₁ env) (nestt₁ motiveV)
                               (map F vs ++ [B (bindingN s)]) (fromScope s))
-            go env motiveV vs (appV -> AppV _ args) =
+            go env motiveV vs (appV -> (_, args)) =
                 hyps 0 env (app (motiveV : args)) dc (map V vs) dcty
         in go env₀ motiveV₀ vs₀ (envNest env₀ <$> dcty)
 
     hyps :: Eq v => Int -> Env v -> Term v -> ConId -> [Term v] -> TermId -> Term v
-    hyps i env motive dcty args (Arr (appV -> AppV ty _) s) =
+    hyps i env motive dcty args (Arr (appV -> (ty, _)) s) =
         let rest = instDummy s
         in if ty == V tyc
            then mkArr (app [motive, args !! i])
@@ -146,7 +146,7 @@ buildElim i tyc dcs (ts :: [Term v]) =
     (pars, (t : motive : methods)) = splitAt i ts
 
     recs :: Int -> [Term v] -> TermId -> [Term v]
-    recs n args (Arr (appV -> AppV tyHead _) s) =
+    recs n args (Arr (appV -> (tyHead, _)) s) =
         (if tyHead == V tyc then [recElim (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
         recs (n+1) args (instDummy s)

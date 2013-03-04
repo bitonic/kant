@@ -15,7 +15,6 @@ module Kant.Term
     , arr
     , app
       -- * Smart destructors
-    , AppV(..)
     , appV
     , appHead
     , binding
@@ -83,15 +82,12 @@ arr (Just v) ty t = Arr ty (abstract1Name v t)
 app :: [Term v] -> Term v
 app = foldl1 App
 
-data AppV v = AppV (Term v) [Term v]
-
-appV :: Term v -> AppV v
-appV (App t₁ t₂) = AppV t (ts ++ [t₂])
-  where AppV t ts = appV t₁
-appV t = AppV t []
+appV :: Term v -> (Term v, [Term v])
+appV (App t₁ t₂) = (t, ts ++ [t₂]) where (t, ts) = appV t₁
+appV t = (t, [])
 
 appHead :: Term v -> Term v
-appHead (appV -> AppV t _) = t
+appHead (appV -> (t, _)) = t
 
 binding :: Scope (NameId ()) Term v -> Maybe (NameId ())
 binding s = case bindings s of
