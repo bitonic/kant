@@ -81,15 +81,13 @@ tyInfer env₁ (Arr ty₁ s) =
                     tyty₂ <- tyInfer env₂ ty₂
                     case nf env₂ tyty₂ of
                         Ty -> return Ty
-                        _ -> expectingType env₂ ty₂ tyty₂
+                        _  -> expectingType env₂ ty₂ tyty₂
            _ -> expectingType env₁ ty₁ tyty₁
 tyInfer env (App t₁ t₂) =
     do tyt₁ <- tyInfer env t₁
        case whnf env tyt₁ of
-           Arr ty₁ s ->
-               do tyCheck env ty₁ t₂
-                  return (instantiate1 t₂ s)
-           _ -> expectingFunction env t₁ tyt₁
+           Arr ty₁ s -> do tyCheck env t₂ ty₁; return (instantiate1 t₂ s)
+           _         -> expectingFunction env t₁ tyt₁
 tyInfer env (Canon dc ts) = tyInfer env (app (V (envNest env dc) : ts))
 tyInfer env (Elim en ts) = tyInfer env (app (V (envNest env en) : ts))
 tyInfer env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
