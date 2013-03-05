@@ -35,13 +35,12 @@ app [A : Type] [xs : List A] : List A -> List A => (
         (\A x _ f ys => cons A x (f ys))
 )
 
--- map [A B : Type] [xs : List A] : (A -> B) -> List B => (
---     List-Elim
---         A
---         xs
---         (\A _ => (A -> B) -> List B)
---         (\A =>
--- )
+map [A : Type] [xs : List A] : [B : Type] -> (A -> B) -> List B => (
+    List-Elim A xs
+        (\A _ => [B : Type] -> (A -> B) -> List B)
+        (\_ B _ => nil B)
+        (\_ x xs rec B f => cons B (f x) (rec B f))
+)
 
 length [A : Type] [xs : List A] : Nat => (
     List-Elim
@@ -54,7 +53,7 @@ length [A : Type] [xs : List A] : Nat => (
 
 upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 
--- upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
+upto4 : List Nat => (cons Nat zero (map Nat upto3 Nat (plus one)))
 
 data Sigma : [A : Type] [B : A -> Type] -> Type
      { si : [A : Type] [B : A -> Type] [x : A] -> B x -> Sigma A B }
