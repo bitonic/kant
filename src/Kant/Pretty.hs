@@ -21,9 +21,6 @@ import           Kant.REPL.Types
 putPretty :: Pretty a => a -> IO ()
 putPretty = putStrLn . show . pretty
 
-hsep' :: Pretty a => [a] -> Doc
-hsep' = hsep . map pretty
-
 spaceIfCons :: [a] -> Doc
 spaceIfCons [] = ""
 spaceIfCons _  = " "
@@ -62,12 +59,12 @@ prettyPars pars' = hcat (go pars')
     go [] = []
     go ((mns, ty) : pars) =
         (case mns of
-             Nothing -> mapp ty
-             Just ns -> "[" <> pretty ns <+> ":" <+> align (pretty ty) <> "]"
-         <> marr pars)
+             Nothing -> mapp ty <+> "-> "
+             Just ns -> "[" <> pretty ns <+> ":" <+> align (pretty ty) <> "]" <+>
+                        marr pars)
         : go pars
     marr []                 = ""
-    marr ((Nothing, _) : _) = " -> "
+    marr ((Nothing, _) : _) = "-> "
     marr ((Just _, _) : _)  = ""
     mapp t@(SApp _ _) = pretty t
     mapp t            = singleParens t

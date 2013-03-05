@@ -1,6 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (second)
@@ -9,10 +7,13 @@ import           Kant.Term
 import           Kant.Decl
 import           Kant.Sugar
 
-class Desugar a b where
-    desugar :: a -> b
+class Desugar a where
+    type Core a :: *
+    desugar :: a -> Core a
 
-instance (a ~ TermId) => Desugar STerm a where
+instance Desugar STerm where
+    type Core STerm = TermId
+
     desugar (SV n) = V n
     desugar STy = Ty
     desugar (SLam [] t) = desugar t
@@ -21,14 +22,18 @@ instance (a ~ TermId) => Desugar STerm a where
     desugar (SArr ((vn, ty₁) : pars) ty₂) =
         arr vn (desugar ty₁) (desugar (SArr pars ty₂))
     desugar (SApp t₁ t₂) = App (desugar t₁) (desugar t₂)
-    desugar (SAnn ty t) = Ann (desugar ty) (desugar t)
+    desugar (SAnn pars ty t) =
+        Ann (desugar (SArr pars ty)) (desugar (SLam (map fst pars) t))
 
-instance (a ~ Decl) => Desugar SDecl a where
+instance Desugar SDecl where
+    type Core SDecl = Decl
+
     desugar (SVal n pars ty t) =
-        Val n (desugar (SAnn (SArr pars ty) (SLam (map fst pars) t)))
+        Val n (desugar (SAnn pars ty t))
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
         Data c (desugar (SArr pars STy)) (map (second desugar) cons)
 
-instance (a ~ Module) => Desugar SModule a where
+instance Desugar SModule where
+    type Core SModule = Module
     desugar (SModule decls) = Module (map desugar decls)

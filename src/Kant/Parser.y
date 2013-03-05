@@ -86,6 +86,7 @@ DataCon : name ':' Term                      { ($1, $3) }
 Term :: { STerm }
 Term
     : '\\' Seq(Binder) '=>' Term             { SLam $2 $4 }
+    | '\\' Seq0(LamParam) ':' Term '=>' Term { SAnn $2 $4 $6 }
     | Arr                                    { uncurry SArr $1 }
 
 SingleTerm :: { STerm }
@@ -115,6 +116,10 @@ Binder :: { Maybe Id }
 Binder
     : '_'                                    { Nothing }
     | name                                   { Just $1 }
+
+LamParam :: { SParam }
+LamParam
+    : '[' Binder ':' Term ']'                { ($2, $4) }
 
 {
 

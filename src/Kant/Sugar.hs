@@ -29,7 +29,7 @@ data STerm
     = SV Id
     | STy
     | SLam [Maybe Id] STerm
+    | SAnn [SParam] STerm STerm
     | SApp STerm STerm
     | SArr [SParam] STerm
-    | SAnn STerm STerm
     deriving (Show)
