@@ -1,125 +1,127 @@
 
-data Nat : Type { zero | suc Nat }
+data Nat : Type { zero : Nat | suc : Nat -> Nat }
 
 one : Nat => (suc zero)
 two : Nat => (suc one)
 three : Nat => (suc two)
 
-plus | [x y : Nat] : Nat => (
-  case x return Nat
-    { zero   => y
-    | suc x' => suc (plus x' y)
-    }
+plus [x : Nat] : Nat -> Nat => (
+   Nat-Elim
+       x                        -- Thing to eliminate
+       (\_ => Nat -> Nat)       -- Return type
+       (\y => y)                -- Base case, if x is zero
+       (\_ f y => suc (f y))    -- Inductive step
 )
 
-times | [x y : Nat] : Nat => (
-  case x return Nat
-    { zero   => zero
-    | suc x' => plus y (times x' y)
-    }
+times [x : Nat] : Nat -> Nat => (
+    Nat-Elim
+        x
+        (\_ => Nat -> Nat)
+        (\_ => zero)
+        (\_ f y => plus y (f y))
 )
 
-data List [A : Type] : Type { nil | cons A (List A) }
-
-app [A : Type] | [xs ys : List A] : List A => (
-  case xs return List A
-    { nil        => ys
-    | cons x xs' => cons A x (app A xs' ys)
+data List : Type -> Type
+    { nil  : [A : Type]                -> List A
+    | cons : [A : Type] -> A -> List A -> List A
     }
- )
 
-map [A B : Type] [f : A -> B] | [xs : List A] : List B => (
-  case xs return List B
-    { nil        => nil B
-    | cons x xs' => cons B (f x) (map A B f xs')
-    }
+app [A : Type] [xs : List A] : List A -> List A => (
+    List-Elim
+        A
+        xs
+        (\A _ => List A -> List A)
+        (\_ ys => ys)
+        (\A x _ f ys => cons A x (f ys))
 )
 
-length [A : Type] | [xs : List A] : Nat => (
-  case xs return Nat
-    { nil        => zero
-    | cons _ xs' => suc (length A xs')
-    }
+-- map [A B : Type] [xs : List A] : (A -> B) -> List B => (
+--     List-Elim
+--         A
+--         xs
+--         (\A _ => (A -> B) -> List B)
+--         (\A =>
+-- )
+
+length [A : Type] [xs : List A] : Nat => (
+    List-Elim
+        A
+        xs
+        (\A _ => Nat)
+        (\_ => zero)
+        (\_ _ _ n => suc n)
 )
 
 upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 
-upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
+-- upto4 : List Nat => (cons Nat one (map Nat Nat (plus one) upto3))
 
-data Sigma [A : Type] [B : A -> Type] : Type { si [x : A] (B x) }
+data Sigma : [A : Type] [B : A -> Type] -> Type
+     { si : [A : Type] [B : A -> Type] [x : A] -> B x -> Sigma A B }
 
 fst [A : Type] [B : A -> Type] [x : Sigma A B] : A => (
-  case x return A { si y _ => y }
+    Sigma-Elim A B x (\A _ _ => A) (\_ _ x _ => x)
 )
 
 snd [A : Type] [B : A -> Type] [x : Sigma A B] : B (fst A B x) => (
-  case x return B (fst A B x) { si _ y => y }
+    Sigma-Elim A B x (\A B x => B (fst A B x)) (\_ _ _ x => x)
 )
 
 id [A : Type] [x : A] : A => x
-const [A B : Type] [x : A] B : A => x
+const [A B : Type] [x : A] [y : B] : A => x
 
-data Bool : Type { true | false }
+data Bool : Type { true : Bool | false : Bool }
 
-ite [P : Bool -> Type] [b : Bool] [x : P true] [y : P false] : P b => (
-  case b return P b
-    { true => x | false => y }
+ite [P : Bool -> Type] [b : Bool] : P true -> P false -> P b => (
+    Bool-Elim b P
 )
 
 ite' [A : Type] : Bool -> A -> A -> A => (
-  ite (\Bool => A)
+  ite (\_ => A)
 )
 
 data Empty : Type { }
 
-data Unit : Type { tt }
+absurd [p : Empty] [A : Type] : A => (
+    Empty-Elim p (\_ => A)
+)
+
+data Unit : Type { tt : Unit }
 
 T [b : Bool] : Type => (ite' Type b Unit Empty)
 
-absurd [bot : Empty] [A : Type] : A => (case bot return A { })
-
-ackerman | [m n : Nat] : Nat => (
-  case m return Nat
-    { zero   => suc n
-    | suc m' => case n return Nat
-                  { zero   => ackerman m' one
-                  | suc n' => ackerman m' (ackerman m n')
-                  }
-    }
-)
+-- ackerman | [m n : Nat] : Nat => (
+--   case m return Nat
+--     { zero   => suc n
+--     | suc m' => case n return Nat
+--                   { zero   => ackerman m' one
+--                   | suc n' => ackerman m' (ackerman m n')
+--                   }
+--     }
+-- )
 
 isZero [n : Nat] : Bool => (
-  case n return Bool
-    { zero  => true
-    | suc _ => false
-    }
+  Nat-Elim n (\_ => Bool) true (\_ _ => false)
 )
 
 isSuc [n : Nat] : Bool => (
-  case n return Bool
-    { zero  => false
-    | suc _ => true
-    }
+  Nat-Elim n (\_ => Bool) false (\_ _ => true)
 )
 
 not [b : Bool] : Bool => (
-  case b return Bool { true => false | false => true }
+  ite' Bool b false true
 )
 
 pred [n : Nat] : T (isSuc n) -> Nat => (
-  case n return (T (isSuc n) -> Nat)
-    { zero   => \[p : T (isSuc zero)] => absurd p Nat
-    | suc n' => \(T (isSuc (suc n')) => n'
-    }
+    Nat-Elim n (\m => T (isSuc m) -> Nat) (\p => absurd p Nat) (\m _ _ => m)
 )
 
-data Fin [n : Nat] : Type
-  { fzero (isSuc n)
-  | fsuc [p : T (isSuc n)] (Fin (pred n p))
-  }
+data Fin : Nat -> Type
+    { fzero : [n : Nat]          -> Fin (suc n)
+    | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
+    }
 
--- ix : [A : Type] [xs : List A] [n : Fin n] : A => (
---   case xs return A
---     { nil => case 
---     }
+
+-- ix : [A : Type] [xs : List A] [n : Fin (length n)] : A => (
+
 -- )
