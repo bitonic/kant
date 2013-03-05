@@ -78,7 +78,7 @@ Data : 'data' name ':' Arr1(Type) '{' Bar(DataCon) '}'
        { SData $2 (fst $4) $6 }
 
 Val :: { SDecl }
-Val : name Arr '=>' SingleTerm               { SVal $1 (fst $2) (snd $2) $4 }
+Val : name Seq0(Pi) ':' Term '=>' SingleTerm { SVal $1 (concat $2) $4 $6 }
 
 DataCon :: { SConstr }
 DataCon : name ':' Term                      { ($1, $3) }

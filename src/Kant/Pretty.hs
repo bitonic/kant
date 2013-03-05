@@ -63,7 +63,7 @@ prettyPars pars' = hcat (go pars')
     go ((mns, ty) : pars) =
         (case mns of
              Nothing -> mapp ty
-             Just ns -> "[" <> hsep' ns <+> ":" <+> align (pretty ty) <> "]"
+             Just ns -> "[" <> pretty ns <+> ":" <+> align (pretty ty) <> "]"
          <> marr pars)
         : go pars
     marr []                 = ""
