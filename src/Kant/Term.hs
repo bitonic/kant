@@ -25,11 +25,15 @@ module Kant.Term
     , scopeN
     , arrLen
     , annV
+      -- * Holes
+    , HoleCtx(..)
     ) where
 
 import           Control.Applicative ((<$>))
 import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
+
+import           Data.Map (Map)
 
 import           Bound
 import           Bound.Name
@@ -123,3 +127,9 @@ arrLen _         = 0
 annV :: Term t -> Term t
 annV (Ann _ t) = t
 annV t         = t
+
+data HoleCtx = HoleCtx
+    { holeName :: HoleId
+    , holeGoal :: TermId
+    , holeCtx  :: Map Id TermId
+    }
