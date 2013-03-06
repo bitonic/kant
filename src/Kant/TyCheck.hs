@@ -98,11 +98,11 @@ tyInfer env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
 tyInfer env t@(Hole _) = untypedTerm env t
 
 tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
-tyCheck env t ty = tyCheck' env t (nf env ty)
-
-tyCheck' :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
-tyCheck' env (Lam s₁) (Arr ty s₂) =
-    tyCheck' (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
-tyCheck' env (Hole hn) ty = undefined
-tyCheck' env t ty = do tyt <- nf env <$> tyInfer env t
-                       unless (ty == tyt) (mismatch env ty t tyt)
+tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
+  where
+    go :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
+    go env (Lam s₁) (Arr ty s₂) =
+        go (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
+    go env (Hole hn) ty = undefined
+    go env t ty = do tyt <- nf env <$> tyInfer env t
+                     unless (ty == tyt) (mismatch env ty t tyt)
