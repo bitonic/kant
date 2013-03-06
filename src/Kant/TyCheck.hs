@@ -32,6 +32,7 @@ data TyCheckError
     | ExpectingTypeData ConId ConId TermId
     | WrongRecTypePos ConId ConId TermId
     | UntypedTerm TermId
+    | DuplicateHole HoleId
     deriving (Eq, Show)
 
 instance Error TyCheckError
@@ -42,19 +43,19 @@ instance MonadTyCheck (ErrorT TyCheckError IO)
 mismatch :: (Ord v, Show v, MonadTyCheck m)
          => Env v -> Term v -> Term v -> Term v -> m a
 mismatch env t₁ t₂ t₃ =
-    runSlam $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
-                 return (throwError (Mismatch t₁' t₂' t₃'))
+    runFresh $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
+                  return (throwError (Mismatch t₁' t₂' t₃'))
 
 expectingType :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
 expectingType env t ty =
-    runSlam $ do [t', ty'] <- mapM (slam env) [t, ty]
-                 return (throwError (ExpectingType t' ty'))
+    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
+                  return (throwError (ExpectingType t' ty'))
 
 expectingFunction :: (Ord v, Show v, MonadTyCheck m)
                   => Env v -> Term v -> Term v -> m a
 expectingFunction env t ty =
-    runSlam $ do [t', ty'] <- mapM (slam env) [t, ty]
-                 return (throwError (ExpectingFunction t' ty'))
+    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
+                  return (throwError (ExpectingFunction t' ty'))
 
 expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
                   => Env v -> ConId -> ConId -> Term v -> m a
@@ -94,6 +95,7 @@ tyInfer env (App t₁ t₂) =
 tyInfer env (Canon dc ts) = tyInfer env (app (V (envNest env dc) : ts))
 tyInfer env (Elim en ts) = tyInfer env (app (V (envNest env en) : ts))
 tyInfer env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
+tyInfer env t@(Hole _) = untypedTerm env t
 
 tyCheck :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheck env t ty = tyCheck' env t (nf env ty)
@@ -101,5 +103,6 @@ tyCheck env t ty = tyCheck' env t (nf env ty)
 tyCheck' :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheck' env (Lam s₁) (Arr ty s₂) =
     tyCheck' (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
+tyCheck' env (Hole hn) ty = undefined
 tyCheck' env t ty = do tyt <- nf env <$> tyInfer env t
                        unless (ty == tyt) (mismatch env ty t tyt)
