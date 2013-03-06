@@ -24,7 +24,7 @@ distill' (Canon _ _) = SPrim
 distill' (Elim _ _) = SPrim
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
-distill' (Hole _) = SPrim
+distill' (Hole hn) = SHole hn
 
 unrollArr :: TermId -> ([(Maybe Id, TermId)], TermId)
 unrollArr (Arr ty s) = ((n, ty) : pars, t₂)

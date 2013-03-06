@@ -25,6 +25,7 @@ instance Desugar STerm where
     desugar (SAnn pars ty t) =
         Ann (desugar (SArr pars ty)) (desugar (SLam (map fst pars) t))
     desugar SPrim = error "desugar: trying to desugar a primitive!"
+    desugar (SHole hn) = Hole hn
 
 instance Desugar SDecl where
     type Core SDecl = Decl
