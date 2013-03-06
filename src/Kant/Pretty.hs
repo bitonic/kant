@@ -110,6 +110,8 @@ instance Pretty HoleCtx where
                      [ pretty (SPostulate n (distill ty))
                      | (n, ty) <- Map.toList hctx ]))
 
+    prettyList = vcat . map pretty
+
 instance Pretty TyCheckError where
     pretty TyCheckError = "fixme"
     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
