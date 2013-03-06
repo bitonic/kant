@@ -10,6 +10,8 @@ module Kant.Lexer
     , alexError
     ) where
 
+import           Kant.Common
+import           Kant.Term
 import           Kant.Sugar
 
 }
@@ -38,6 +40,7 @@ tokens :-
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
     "*"                                   { simpleTok TYPE }
+    "{!" .* "!}"                          { stringTok (HOLE . trim) }
     $alpha ($alpha | $digit | $syms)*     { stringTok NAME }
 
 {
@@ -60,6 +63,7 @@ data Token
     | TYPE
     | EOF
     | UNDERSCORE
+    | HOLE HoleId
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r

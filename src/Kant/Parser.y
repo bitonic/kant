@@ -48,6 +48,7 @@ import           Kant.Desugar
     'data'              { DATA }
     'postulate'         { POSTULATE }
     'Type'              { TYPE }
+    hole                { HOLE $$ }
     name                { NAME $$ }
 
 %%
@@ -93,6 +94,7 @@ SingleTerm :: { STerm }
 SingleTerm
     : name                                   { SV $1 }
     | Type                                   { $1 }
+    | hole                                   { SHole $1 }
     | '(' Term ')'                           { $2 }
 
 Type :: { STerm }

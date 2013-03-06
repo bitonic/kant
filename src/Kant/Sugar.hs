@@ -32,5 +32,6 @@ data STerm
     | SAnn [SParam] STerm STerm
     | SApp STerm STerm
     | SArr [SParam] STerm
+    | SHole HoleId
     | SPrim
     deriving (Show)
