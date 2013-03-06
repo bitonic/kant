@@ -15,7 +15,7 @@ import           Control.Monad (unless)
 import           Data.Monoid (Monoid)
 
 import           Control.Monad.Error (MonadError(..), Error, ErrorT)
-import           Control.Monad.Writer (MonadWriter(..), WriterT, execWriter)
+import           Control.Monad.Writer (MonadWriter(..), WriterT(..))
 
 import           Bound
 
@@ -82,7 +82,7 @@ lookupTy env v = case envType env v of
 type TyMonad m = WriterT [HoleCtx] m
 
 tyInfer :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v, [HoleCtx])
-tyInfer = undefined
+tyInfer env = runWriterT . tyInfer' env
 
 -- TODO this should be never necessary, I should allow holes in data decls
 tyInferNH :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
@@ -123,6 +123,6 @@ tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
        => Env v -> Term v -> Term v -> TyMonad m ()
     go env (Lam s₁) (Arr ty s₂) =
         go (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
-    go env (Hole hn) ty = undefined
+    go env (Hole hn) ty = tell [runFresh (formHole env hn ty)]
     go env t ty = do tyt <- nf env <$> tyInfer' env t
                      unless (ty == tyt) (mismatch env ty t tyt)
