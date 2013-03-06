@@ -80,7 +80,7 @@ tyInfer env t@(Lam _) = untypedTerm env t
 tyInfer env₁ (Arr ty₁ s) =
     do tyty₁ <- tyInfer env₁ ty₁
        case whnf env₁ tyty₁ of
-           Ty -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
+           Ty -> do let env₂ = nestEnvTy env₁ s ty₁; ty₂ = fromScope s
                     tyty₂ <- tyInfer env₂ ty₂
                     case nf env₂ tyty₂ of
                         Ty -> return Ty
@@ -100,6 +100,6 @@ tyCheck env t ty = tyCheck' env t (nf env ty)
 
 tyCheck' :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m ()
 tyCheck' env (Lam s₁) (Arr ty s₂) =
-    tyCheck' (nestEnvTy env ty) (fromScope s₁) (fromScope s₂)
+    tyCheck' (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
 tyCheck' env t ty = do tyt <- nf env <$> tyInfer env t
                        unless (ty == tyt) (mismatch env ty t tyt)

@@ -29,7 +29,7 @@ reduce r env (Elim c ts) =
 reduce r env (Ann _ t) = reduce r env t
 
 reduceScope :: forall v. Show v => Reducer -> Env v -> TermScope v -> TermScope v
-reduceScope r env s = (toScope (r (nestEnv env Nothing Nothing) (fromScope s)))
+reduceScope r env s = (toScope (r (nestEnv env s Nothing Nothing) (fromScope s)))
 
 whnf :: Reducer
 whnf = reduce (\_ t -> t)

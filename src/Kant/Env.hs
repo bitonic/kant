@@ -6,6 +6,7 @@ module Kant.Env
     , Env(..)
     , EnvId
     , newEnv
+    , nestEnv'
     , nestEnv
     , nestEnvTy
     , envFree
@@ -37,6 +38,7 @@ data Env v = Env
     , envPull   :: v -> Id
     , envNest   :: Id -> v
     , envRename :: v -> (Id -> Id) -> v
+    , envVars   :: [v]
     }
 
 type EnvId = Env Id
@@ -45,20 +47,31 @@ nestf :: Maybe (Term v) -> Ctx v -> Ctx (Var (NameId ()) v)
 nestf t _ (B _) = fmap F <$> t
 nestf _ f (F v) = fmap F <$> f v
 
-nestEnv :: Env v -> Maybe (Value v) -> Maybe (Value v) -> Env (Var (Name Id ()) v)
-nestEnv env@Env{ envValue = value
-           , envType = type_
-           , envPull = pull
-           , envNest = nest
+
+nestEnv' :: Env v -> Maybe (TermScope v) -> Maybe (Value v) -> Maybe (Value v)
+        -> Env (Var (Name Id ()) v)
+nestEnv' env@Env{ envValue = value
+           , envType   = type_
+           , envPull   = pull
+           , envNest   = nest
            , envRename = rename
-           } t ty =
+           , envVars   = vars
+           } sm t ty =
     env{ envValue  = nestf t value
        , envType   = nestf ty type_
        , envPull   = \v -> case v of B n -> name n; F v' -> pull v'
        , envNest   = F . nest
        , envRename = \v f -> case v of B (Name n ()) -> B (Name (f n) ())
                                        F v'          -> F (rename v' f)
+       , envVars   = case sm >>= binding of
+                         Nothing -> []
+                         Just n  -> [B n]
+                     ++ map F vars
        }
+
+nestEnv :: Env v -> TermScope v -> Maybe (Value v) -> Maybe (Value v)
+        -> Env (Var (Name Id ()) v)
+nestEnv env s t ty = nestEnv' env (Just s) t ty
 
 newEnv :: EnvId
 newEnv = Env{ envValue  = const Nothing
@@ -67,18 +80,20 @@ newEnv = Env{ envValue  = const Nothing
             , envPull   = id
             , envNest   = id
             , envRename = \v f -> f v
+            , envVars   = []
             }
 
-nestEnvTy :: Env v -> Term v -> Env (Var (NameId ()) v)
-nestEnvTy env ty = nestEnv env Nothing (Just ty)
+nestEnvTy :: Env v -> TermScope v -> Term v -> Env (Var (NameId ()) v)
+nestEnvTy env s ty = nestEnv env s Nothing (Just ty)
 
 envFree :: Eq v => Env v -> v -> Bool
 envFree Env{envPull = pull, envNest = nest} v = v == nest (pull v)
 
 addFree :: Eq v => Env v -> v -> Maybe (Term v) -> Maybe (Term v) -> Env v
-addFree env@Env{envValue = value, envType = type_} v mv mty =
+addFree env@Env{envValue = value, envType = type_, envVars = vars} v mv mty =
     env{ envValue = \v' -> if v == v' then mv  else value v'
        , envType  = \v' -> if v == v' then mty else type_ v'
+       , envVars  = v : vars
        }
 
 envFreeVs :: Ord v => Env v -> Term v -> Set Id
