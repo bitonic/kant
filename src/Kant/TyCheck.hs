@@ -42,16 +42,19 @@ instance MonadTyCheck (ErrorT TyCheckError IO)
 mismatch :: (Ord v, Show v, MonadTyCheck m)
          => Env v -> Term v -> Term v -> Term v -> m a
 mismatch env t₁ t₂ t₃ =
-    let [t₁', t₂', t₃'] = slam env [t₁, t₂, t₃] in throwError (Mismatch t₁' t₂' t₃')
+    runSlam $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
+                 return (throwError (Mismatch t₁' t₂' t₃'))
 
 expectingType :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
 expectingType env t ty =
-    let [t', ty'] = slam env [t, ty] in throwError (ExpectingType t' ty')
+    runSlam $ do [t', ty'] <- mapM (slam env) [t, ty]
+                 return (throwError (ExpectingType t' ty'))
 
 expectingFunction :: (Ord v, Show v, MonadTyCheck m)
                   => Env v -> Term v -> Term v -> m a
 expectingFunction env t ty =
-    let [t', ty'] = slam env [t, ty] in throwError (ExpectingFunction t' ty')
+    runSlam $ do [t', ty'] <- mapM (slam env) [t, ty]
+                 return (throwError (ExpectingFunction t' ty'))
 
 expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
                   => Env v -> ConId -> ConId -> Term v -> m a

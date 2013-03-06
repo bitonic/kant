@@ -1,4 +1,4 @@
-module Kant.Uniquify (slam, slam') where
+module Kant.Uniquify (runSlam, slamVar, slam, slam') where
 
 import           Control.Applicative ((<$>), (<*>))
 import           Control.Monad (when, void)
@@ -6,11 +6,9 @@ import           Data.Maybe (fromMaybe)
 import           Data.Traversable (mapM)
 import           Prelude hiding (mapM)
 
-import           Control.Monad.State (MonadState(..), evalState, execState, State)
+import           Control.Monad.State (MonadState(..), evalState, State)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
-import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
@@ -18,12 +16,11 @@ import           Bound.Name
 import           Kant.Env
 import           Kant.Term
 
-uniquify :: (Ord v, Show v) => Env v -> [Term v] -> [Term v]
-uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
-  where
-    fs = zip (Set.toList (execState (mapM (freeVars env) ts) Set.empty))
-             (repeat (0::Integer))
+type FreshMonad = State (Map Id Integer)
 
+uniquify :: (Ord v, Show v) => Env v -> Term v -> FreshMonad (Term v)
+uniquify env t = do freeVars env t; go t
+  where
     go (V v) = return (V v)
     go Ty = return Ty
     go (Arr ty s) = Arr <$> go ty <*> goScope s
@@ -31,9 +28,9 @@ uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
     go (App t₁ t₂) = App <$> go t₁ <*> go t₂
     go (Canon c ts') = Canon c <$> mapM go ts'
     go (Elim ce ts') = Elim ce <$> mapM go ts'
-    go (Ann ty t) = Ann <$> go ty <*> go t
+    go (Ann ty t') = Ann <$> go ty <*> go t'
 
-    goScope :: (Ord v, Show v) => TermScope v -> State (Map Id Integer) (TermScope v)
+    goScope :: (Ord v, Show v) => TermScope v -> FreshMonad (TermScope v)
     goScope s =
         case binding s of
             Nothing -> toScope <$> go (fromScope s)
@@ -44,12 +41,25 @@ uniquify env ts = evalState (mapM go ts) (Map.fromList fs)
                    put (Map.insert n (ix+1) m)
                    toScope <$> go (substitute v' (V v') (fromScope s))
 
-freeVars :: (Ord v) => Env v -> Term v -> State (Set Id) ()
+freeVars :: (Ord v) => Env v -> Term v -> FreshMonad ()
 freeVars env t = void (mapM go t)
-  where go v = when (envFree env v) (do s <- get; put (Set.insert (envPull env v) s))
+  where go v = when (envFree env v)
+                    (do m <- get; put (Map.insert (envPull env v) 0 m))
 
-slam :: (Ord v, Show v) => Env v -> [Term v] -> [TermId]
-slam env ts = map (envPull env <$>) (uniquify env ts)
+slam :: (Ord v, Show v) => Env v -> Term v -> FreshMonad TermId
+slam env t = (envPull env <$>) <$> uniquify env t
+
+slamVar :: (Ord v, Show v) => Env v -> v -> FreshMonad v
+slamVar env v =
+    do m <- get
+       let n = envPull env v
+       return $ case Map.lookup n m of
+                    Nothing -> v
+                    Just i  -> envRename env v (++ show i)
+
+runSlam :: FreshMonad a -> a
+runSlam s = evalState s Map.empty
 
 slam' :: (Ord v, Show v) => Env v -> Term v -> TermId
-slam' env t = head (slam env [t])
+slam' env t = runSlam (slam env t)
+
