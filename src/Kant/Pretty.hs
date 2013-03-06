@@ -9,6 +9,8 @@ module Kant.Pretty (Pretty(..), putPretty) where
 import           Data.List (intersperse)
 import           Data.String (IsString(..))
 
+import qualified Data.Map as Map
+
 import           Text.PrettyPrint.Leijen
 
 import           Kant.Term
@@ -99,6 +101,13 @@ instance Pretty SDecl where
     prettyList = vcat . intersperse "" . map pretty
 instance Pretty SModule where
     pretty = prettyList . unSModule
+
+instance Pretty HoleCtx where
+    pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
+        nest' ("Hole `" <> pretty hn <> "':" <$$>
+               vcat (group (nest' ("Goal: " <$> pretty goal)) :
+                     [ pretty (SPostulate n (distill ty))
+                     | (n, ty) <- Map.toList hctx ]))
 
 instance Pretty TyCheckError where
     pretty TyCheckError = "fixme"
