@@ -42,7 +42,7 @@ instance Pretty STerm where
             go t = singleParens t
     pretty (SLam vs t) =
         "\\" <> group (nest' (hsep (map prettyBs vs) <+> "=>" <$> align (pretty t)))
-    pretty SPrim = "?"
+    pretty (SHole hn) = "{!" <+> pretty hn <+> "!}"
 
 nest' :: Doc -> Doc
 nest' = nest 2
