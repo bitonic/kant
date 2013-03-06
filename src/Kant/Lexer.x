@@ -37,7 +37,7 @@ tokens :-
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
-    "Type" $digit*                        { simpleTok TYPE }
+    "*"                                   { simpleTok TYPE }
     $alpha ($alpha | $digit | $syms)*     { stringTok NAME }
 
 {

@@ -1,5 +1,5 @@
 
-data Nat : Type { zero : Nat | suc : Nat -> Nat }
+data Nat : * { zero : Nat | suc : Nat -> Nat }
 
 one : Nat => (suc zero)
 two : Nat => (suc one)
@@ -14,19 +14,17 @@ plus [x : Nat] : Nat -> Nat => (
 )
 
 times [x : Nat] : Nat -> Nat => (
-    Nat-Elim
-        x
-        (\_ => Nat -> Nat)
+    Nat-Elim x (\_ => Nat -> Nat)
         (\_ => zero)
         (\_ f y => plus y (f y))
 )
 
-data List : Type -> Type
-    { nil  : [A : Type]                -> List A
-    | cons : [A : Type] -> A -> List A -> List A
+data List : * -> *
+    { nil  : [A : *]                -> List A
+    | cons : [A : *] -> A -> List A -> List A
     }
 
-app [A : Type] [xs : List A] : List A -> List A => (
+app [A : *] [xs : List A] : List A -> List A => (
     List-Elim
         A
         xs
@@ -35,17 +33,15 @@ app [A : Type] [xs : List A] : List A -> List A => (
         (\A x _ f ys => cons A x (f ys))
 )
 
-map [A : Type] [xs : List A] : [B : Type] -> (A -> B) -> List B => (
+map [A : *] [xs : List A] : [B : *] -> (A -> B) -> List B => (
     List-Elim A xs
-        (\A _ => [B : Type] -> (A -> B) -> List B)
+        (\A _ => [B : *] -> (A -> B) -> List B)
         (\_ B _ => nil B)
         (\_ x xs rec B f => cons B (f x) (rec B f))
 )
 
-length [A : Type] [xs : List A] : Nat => (
-    List-Elim
-        A
-        xs
+length [A : *] [xs : List A] : Nat => (
+    List-Elim A xs
         (\A _ => Nat)
         (\_ => zero)
         (\_ _ _ n => suc n)
@@ -55,39 +51,39 @@ upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 
 upto4 : List Nat => (cons Nat zero (map Nat upto3 Nat (plus one)))
 
-data Sigma : [A : Type] [B : A -> Type] -> Type
-     { si : [A : Type] [B : A -> Type] [x : A] -> B x -> Sigma A B }
+data Sigma : [A : *] [B : A -> *] -> *
+     { si : [A : *] [B : A -> *] [x : A] -> B x -> Sigma A B }
 
-fst [A : Type] [B : A -> Type] [x : Sigma A B] : A => (
+fst [A : *] [B : A -> *] [x : Sigma A B] : A => (
     Sigma-Elim A B x (\A _ _ => A) (\_ _ x _ => x)
 )
 
-snd [A : Type] [B : A -> Type] [x : Sigma A B] : B (fst A B x) => (
+snd [A : *] [B : A -> *] [x : Sigma A B] : B (fst A B x) => (
     Sigma-Elim A B x (\A B x => B (fst A B x)) (\_ _ _ x => x)
 )
 
-id [A : Type] [x : A] : A => x
-const [A B : Type] [x : A] [y : B] : A => x
+id [A : *] [x : A] : A => x
+const [A B : *] [x : A] [y : B] : A => x
 
-data Bool : Type { true : Bool | false : Bool }
+data Bool : * { true : Bool | false : Bool }
 
-ite [P : Bool -> Type] [b : Bool] : P true -> P false -> P b => (
+ite [P : Bool -> *] [b : Bool] : P true -> P false -> P b => (
     Bool-Elim b P
 )
 
-ite' [A : Type] : Bool -> A -> A -> A => (
+ite' [A : *] : Bool -> A -> A -> A => (
   ite (\_ => A)
 )
 
-data Empty : Type { }
+data Empty : * { }
 
-absurd [p : Empty] [A : Type] : A => (
+absurd [p : Empty] [A : *] : A => (
     Empty-Elim p (\_ => A)
 )
 
-data Unit : Type { tt : Unit }
+data Unit : * { tt : Unit }
 
-T [b : Bool] : Type => (ite' Type b Unit Empty)
+T [b : Bool] : * => (ite' * b Unit Empty)
 
 -- ackerman | [m n : Nat] : Nat => (
 --   case m return Nat
@@ -115,7 +111,7 @@ pred [n : Nat] : T (isSuc n) -> Nat => (
     Nat-Elim n (\m => T (isSuc m) -> Nat) (\p => absurd p Nat) (\m _ _ => m)
 )
 
-data Fin : Nat -> Type
+data Fin : Nat -> *
     { fzero : [n : Nat]          -> Fin (suc n)
     | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
     }
