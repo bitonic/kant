@@ -18,6 +18,8 @@ module Kant.Env
 import           Control.Applicative ((<$>))
 import           Data.Foldable (foldMap)
 
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -29,6 +31,7 @@ import           Kant.Term
 type Value = Term
 type Ctx v = v -> Maybe (Value v)
 type Elim = forall v. Show v => [Term v] -> Maybe (Term v)
+type HoleCtx = [(Id, TermId)]
 
 -- | Bringing it all together
 data Env v = Env
@@ -39,6 +42,7 @@ data Env v = Env
     , envNest   :: Id -> v
     , envRename :: v -> (Id -> Id) -> v
     , envVars   :: [v]
+    , envHoles  :: Map HoleId HoleCtx
     }
 
 type EnvId = Env Id
@@ -81,6 +85,7 @@ newEnv = Env{ envValue  = const Nothing
             , envNest   = id
             , envRename = \v f -> f v
             , envVars   = []
+            , envHoles  = Map.empty
             }
 
 nestEnvTy :: Env v -> TermScope v -> Term v -> Env (Var (NameId ()) v)

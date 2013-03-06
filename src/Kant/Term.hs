@@ -6,6 +6,7 @@
 module Kant.Term
     ( Id
     , ConId
+    , HoleId
     , NameId
     , TermScope
     , Term(..)
@@ -37,6 +38,7 @@ import           Prelude.Extras
 
 type Id = String
 type ConId = Id
+type HoleId = String
 type NameId = Name Id
 
 type TermScope = Scope (NameId ()) Term
@@ -50,6 +52,7 @@ data Term v
     | Ann (Term v) (Term v)
     | Canon ConId [Term v]
     | Elim ConId [Term v]
+    | Hole HoleId
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type TermId = Term Id
@@ -70,6 +73,7 @@ instance Monad Term where
     Canon c ts >>= f = Canon c (map (>>= f) ts)
     Elim c ts  >>= f = Elim c (map (>>= f) ts)
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
+    Hole hn    >>= _ = Hole hn
 
 lam :: Maybe Id -> TermId -> TermId
 lam Nothing  t = Lam (toScope (F <$> t))
