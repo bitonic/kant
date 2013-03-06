@@ -138,11 +138,12 @@ instance Pretty TyCheckError where
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
 
 instance Pretty Output where
-    pretty (OTyCheck ty) = pretty ty
-    pretty (OPretty t)   = pretty t
-    pretty OOK           = "OK"
-    pretty OQuit         = "Bye!"
-    pretty OSkip         = ""
+    pretty (OTyCheck ty holes) = prettyList holes <$$> pretty ty
+    pretty (OPretty t)         = pretty t
+    pretty (OHoles holes)      = prettyList holes
+    pretty OOK                 = "OK"
+    pretty OQuit               = "Bye!"
+    pretty OSkip               = ""
 
 instance Pretty REPLError where
     pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))

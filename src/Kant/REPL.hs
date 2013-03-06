@@ -64,19 +64,19 @@ replOutput env₁ s₁ =
     do c <- parseInput s₁
        case c of
            ITyCheck s₂ -> do t <- parse s₂
-                             ty <- tyct env₁ t
-                             return (OTyCheck (nf env₁ ty), env₁)
+                             (ty, holes) <- tyct env₁ t
+                             return (OTyCheck (nf env₁ ty) holes, env₁)
            IEval s₂    -> do t <- parse s₂
                              tyct env₁ t
                              let t' = nf env₁ t
                              return (OPretty t', env₁)
            IDecl s₂    -> do d <- parseE (parseDecl s₂)
-                             env₂ <- elab env₁ d
-                             return (OOK, env₂)
+                             (env₂, holes) <- elab env₁ d
+                             return (OHoles holes, env₂)
            ILoad fp    -> do s₂ <- readSafe fp
                              m <- parseE (parseModule s₂)
-                             env₂ <- elab env₁ m
-                             return (OOK, env₂)
+                             (env₂, holes) <- elab env₁ m
+                             return (OHoles holes, env₂)
            IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
                              return (OPretty t, env₁)
            IQuit       -> return (OQuit, env₁)
