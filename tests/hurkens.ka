@@ -1,0 +1,42 @@
+-- This should not typecheck, but currently it does.  Taken from
+-- <http://code.haskell.org/Agda/test/succeed/Hurkens.agda>.
+
+bot : * => ([A : *] -> A)
+
+not [A : *] : * => (A -> bot)
+
+P [A : *] : * => (A -> *)
+
+U : * => ([X : *] -> (P (P X) -> X) -> P (P X))
+
+tau [t : P (P U)] : U => (
+    \X f p => t (\x => p (f (x X f)))
+)
+
+sigma [s : U] : P (P U) => (s U (\t => tau t))
+
+Delta : P U => (
+    \y => not ([p : P U] -> sigma y p -> p (tau (sigma y)))
+)
+
+Omega : U => (
+    tau (\p => [x : U] -> sigma x p -> p x)
+)
+
+D : * => (
+    [p : P U] -> sigma Omega p -> p (tau (sigma Omega))
+)
+
+lem1 [p : P U] [H1 : [x : U] -> sigma x p -> p x] : p Omega => (
+    H1 Omega (\x => H1 (tau (sigma x)))
+)
+
+lem2 : not D => (
+    lem1 Delta (\x H2 H3 => H3 Delta H2 (\p => H3 (\y => p (tau (sigma y)))))
+)
+
+lem3 : D => (
+    \p => lem1 (\y => p (tau (sigma y)))
+)
+
+loop  : bot => (lem2 lem3)
