@@ -3,7 +3,6 @@
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Env
     ( Elim
-    , HoleCtx
     , Env(..)
     , EnvId
     , newEnv
@@ -14,7 +13,6 @@ module Kant.Env
     , addFree
     , envFreeVs
     , addElim
-    , addHole
     ) where
 
 import           Control.Applicative ((<$>))
@@ -43,7 +41,6 @@ data Env v = Env
     , envNest   :: Id -> v
     , envRename :: v -> (Id -> Id) -> v
     , envVars   :: [v]
-    , envHoles  :: Map HoleId HoleCtx
     }
 
 type EnvId = Env Id
@@ -86,7 +83,6 @@ newEnv = Env{ envValue  = const Nothing
             , envNest   = id
             , envRename = \v f -> f v
             , envVars   = []
-            , envHoles  = Map.empty
             }
 
 nestEnvTy :: Env v -> TermScope v -> Term v -> Env (Var (NameId ()) v)
@@ -110,9 +106,3 @@ envFreeVs env = foldMap (\v -> if envFree env v
 addElim :: Env v -> Id -> Elim -> Env v
 addElim env@Env{envElim = elim} n el =
     env{envElim = \n' -> if n == n' then el else elim n'}
-
-addHole :: Env v -> HoleId -> HoleCtx -> Maybe (Env v)
-addHole env@Env{envHoles = holes} hn hctx =
-    case Map.lookup hn holes of
-        Nothing -> Just env{envHoles = Map.insert hn hctx holes}
-        Just _  -> Nothing

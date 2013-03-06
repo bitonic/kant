@@ -23,16 +23,19 @@ import           Kant.Env
 import           Kant.TyCheck
 
 class Elaborate a where
-    elaborate :: MonadTyCheck m => EnvId -> a -> m EnvId
+    elaborate :: MonadTyCheck m => EnvId -> a -> m (EnvId, [HoleCtx])
 
 instance Elaborate Decl where
     elaborate env (Val n t) =
-        do checkDup env n; ty <- tyInfer env t;
-           return (addFree env n (Just t) (Just ty))
+        do checkDup env n
+           (ty, holes) <- tyInfer env t;
+           return (addFree env n (Just t) (Just ty), holes)
     elaborate env (Postulate n ty) =
-        do checkDup env n; tyInfer env ty; return (addFree env n Nothing (Just ty))
+        do checkDup env n
+           (tyty, holes) <- tyInfer env ty
+           return (addFree env n Nothing (Just tyty), holes)
     elaborate env₁ (Data tyc tycty dcs) =
-        do tyInfer env₁ tycty
+        do tyInferNH env₁ tycty
            if returnsTy tycty
               then do let env₂ = addFree env₁ tyc Nothing (Just tycty)
                       -- Create the functions that will form 'Canon's
@@ -44,7 +47,7 @@ instance Elaborate Decl where
                           -- Function that will form the 'Elim's
                           elt  = typedLam (Elim eln) elty
                           env₄ = addFree env₃ eln (Just elt)  (Just elty)
-                      return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs))
+                      return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs), [])
               else throwError (ExpectingTypeCon tyc tycty)
       where
         -- Check that the type constructor returns a type
@@ -61,7 +64,7 @@ elaborateCon :: MonadTyCheck m
              -> m EnvId
 elaborateCon env tyc dc ty =
     do checkDup env dc
-       tyInfer env ty
+       tyInferNH env ty
        goodTy env ty
        let t = typedLam (Canon dc) ty
        return (addFree env dc (Just t) (Just ty))
@@ -198,6 +201,8 @@ typedLam f ty = Ann ty (go newEnv [] ty)
     go _ vs _ = f (map V (reverse vs))
 
 instance Elaborate Module where
-    elaborate e = go e . unModule
-      where go env []             = return env
-            go env (decl : decls) = (`go` decls) =<< elaborate env decl
+    elaborate e = go e [] . unModule
+      where
+        go env holes []            = return (env, holes)
+        go env holes (decl : decls) = do (ty, holes') <- elaborate env decl
+                                         go ty (holes ++ holes') decls

@@ -15,7 +15,6 @@ import           Prelude hiding (mapM)
 import           Control.Monad.State (MonadState(..), evalState, State)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 import qualified Data.Set as Set
 
 import           Bound
@@ -92,10 +91,10 @@ slam' :: (Ord v, Show v) => Env v -> Term v -> TermId
 slam' env t = runFresh (slam env t)
 
 formHole :: (Show v, Ord v) => Env v -> HoleId -> Term v -> FreshMonad v HoleCtx
-formHole env@Env{envType = type_, envHoles = holes} hn ty =
+formHole env hn ty =
     do mapM (addVar env) pruned
        hctx <- Map.fromList <$>
-               sequence [ (,) <$> slamVar env v <*> slam env (getTy (type_ v))
+               sequence [ (,) <$> slamVar env v <*> slam env (getTy (envType env v))
                         | v <- pruned]
        ty' <- slam env ty
        return HoleCtx{holeName = hn, holeGoal = ty', holeCtx = hctx}
@@ -108,5 +107,5 @@ formHole env@Env{envType = type_, envHoles = holes} hn ty =
                            then prune vs ns
                            else v : prune vs (Set.insert vn ns)
 
-    getTy (Just ty) = ty
-    getTy _         = error "formHole: var with no type in context"
+    getTy (Just ty') = ty'
+    getTy _          = error "formHole: var with no type in context"
