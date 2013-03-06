@@ -20,10 +20,11 @@ distill' t₁@(Lam _) = SLam vs (distill' t₂)
 distill' t₁@(Arr _ _) = SArr (map (second distill) pars) (distill' t₂)
   where (pars, t₂) = unrollArr t₁
 distill' (App t₁ t₂) = SApp (distill' t₁) (distill' t₂)
-distill' (Canon c ts) = distill' (app (V c : ts))
-distill' (Elim ce ts) = distill' (app (V (ce) : ts))
+distill' (Canon _ _) = SPrim
+distill' (Elim _ _) = SPrim
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
+distill' (Hole _) = SPrim
 
 unrollArr :: TermId -> ([(Maybe Id, TermId)], TermId)
 unrollArr (Arr ty s) = ((n, ty) : pars, t₂)
