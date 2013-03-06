@@ -42,6 +42,7 @@ instance Pretty STerm where
             go t = singleParens t
     pretty (SLam vs t) =
         "\\" <> group (nest' (hsep (map prettyBs vs) <+> "=>" <$> align (pretty t)))
+    pretty SPrim = "?"
 
 nest' :: Doc -> Doc
 nest' = nest 2
@@ -136,6 +137,7 @@ instance Pretty TyCheckError where
                       "of type" <$> pretty ty))
     pretty (UntypedTerm ty) =
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
+    pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
 
 instance Pretty Output where
     pretty (OTyCheck ty holes) = prettyList holes <$$> pretty ty
