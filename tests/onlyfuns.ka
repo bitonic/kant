@@ -1,17 +1,13 @@
-id [A : Type] [x : A] : A => x
-const [A B : Type] [x : A] B : A => x
+id [A : *] [x : A] : A => x
+const [A B : *] [x : A] [y : B] : A => x
 
-comp [A B C : Type] [f : A -> B] [g : B -> C] [x : A] : C => (
+comp [A B C : *] [f : A -> B] [g : B -> C] [x : A] : C => (
   g (f x)
 )
 
-depcomp [A : Type][B : A -> Type][C : (x : A) -> B x -> Type]
-        [f : (x : A) -> (y : B x) -> C x y]
-        [g : (x : A) -> B x]
+depcomp [A : *] [B : A -> *] [C : [x : A] -> B x -> *]
+        [f : [x : A] [y : B x] -> C x y]
+        [g : [x : A] -> B x]
         [x : A]
         : C x (g x) =>
   (f x (g x))
-
-notnice [A : Type] : A => (notnice A)
-
-foo : Bar => baz
