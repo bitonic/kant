@@ -25,11 +25,11 @@ import           Kant.Term
 
 type FreshMonad v = State (Map v Id, Map Id Integer)
 
-collectFree :: (Ord v) => Env v -> Term v -> FreshMonad v ()
+collectFree :: (Ord v, Show v) => Env v -> Term v -> FreshMonad v ()
 collectFree env t = void (mapM go t)
   where go v = when (envFree env v) (addVar env v)
 
-addVar :: Ord v => Env v -> v -> FreshMonad v ()
+addVar :: (Ord v, Show v) => Env v -> v -> FreshMonad v ()
 addVar env v =
     do (names, ixs) <- get
        case Map.lookup v names of
@@ -43,16 +43,17 @@ addVar' n ixs = (n', Map.insert n (ix+1) ixs)
     ix = fromMaybe 0 (Map.lookup n ixs)
     n' = n ++ show ix
 
-freshVar :: Ord v => Env v -> v -> Map v Id -> v
+freshVar :: (Ord v, Show v) => Env v -> v -> Map v Id -> v
 freshVar env v names = envRename env v (const (names Map.! v))
 
 uniquify :: (Ord v, Show v) => Env v -> Term v -> FreshMonad v (Term v)
 uniquify env t =
     do collectFree env t
-       mapM (addVar env) t
+--       mapM (addVar env) t
        (names, ixs) <- get
        let t' = t >>= \v -> V (freshVar env v names)
-       return (evalState (go t') ixs)
+       return t'
+--       return (evalState (go t') ixs)
   where
     go t'@(V _) = return t'
     go Ty = return Ty
@@ -103,7 +104,7 @@ formHole env hn ty =
 
     prune []       _  = []
     prune (v : vs) ns = let vn = envPull env v
-                        in if Set.member vn ns
+                        in if Set.member vn ns || envFree env v
                            then prune vs ns
                            else v : prune vs (Set.insert vn ns)
 

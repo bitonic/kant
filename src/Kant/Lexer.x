@@ -40,7 +40,7 @@ tokens :-
     "data"                                { simpleTok DATA }
     "postulate"                           { simpleTok POSTULATE }
     "*"                                   { simpleTok TYPE }
-    "{!" .* "!}"                          { stringTok (HOLE . trim) }
+    "{!" .+ "!}"                          { stringTok (HOLE . trimHole) }
     $alpha ($alpha | $digit | $syms)*     { stringTok NAME }
 
 {
@@ -96,5 +96,8 @@ alexMonadScan' = do
             alexSetInput inp' >> alexMonadScan'
         AlexToken inp' len action ->
             alexSetInput inp' >> action (ignorePendingBytes inp) len
+
+trimHole :: String -> String
+trimHole = trim . tail . tail . init . init
 
 }

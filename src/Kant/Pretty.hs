@@ -107,7 +107,7 @@ instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
         nest' ("Hole `" <> pretty hn <> "':" <$$>
                vcat (group (nest' ("Goal: " <$> pretty goal)) :
-                     [ pretty (SPostulate n (distill ty))
+                     [ pretty (typed n (distill ty))
                      | (n, ty) <- Map.toList hctx ]))
 
     prettyList = vcat . map pretty
@@ -142,8 +142,10 @@ instance Pretty TyCheckError where
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
 
 instance Pretty Output where
+    pretty (OTyCheck ty [])    = pretty ty
     pretty (OTyCheck ty holes) = prettyList holes <$$> pretty ty
     pretty (OPretty t)         = pretty t
+    pretty (OHoles [])         = "OK"
     pretty (OHoles holes)      = prettyList holes
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
