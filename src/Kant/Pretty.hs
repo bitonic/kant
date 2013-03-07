@@ -42,6 +42,9 @@ instance Pretty STerm where
 nest' :: Doc -> Doc
 nest' = nest 2
 
+gnest :: Doc -> Doc
+gnest = group . nest'
+
 singleTerm :: STerm -> Bool
 singleTerm (SV _)      = True
 singleTerm STy         = True
@@ -124,7 +127,7 @@ instance Pretty Output where
     pretty OSkip               = ""
 
 instance Pretty REPLError where
-    pretty (CmdParse err) = group ("Error parsing command:" <$> pretty (show err))
-    pretty (TermParse s)  = group ("Error parsing code:" <$> pretty s)
-    pretty (TyCheck err)  = group ("Type checking error:" <$> pretty err)
-    pretty (IOError err)  = group ("IO error:" <$> pretty (show err))
+    pretty (CmdParse err) = gnest ("Error parsing command:" <$> pretty (show err))
+    pretty (TermParse s)  = gnest ("Error parsing code:" <$> pretty s)
+    pretty (TyCheck err)  = gnest ("Type checking error:" <$> pretty err)
+    pretty (IOError err)  = gnest ("IO error:" <$> pretty (show err))
