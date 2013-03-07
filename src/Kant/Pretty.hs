@@ -34,7 +34,7 @@ instance Pretty STerm where
       where go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
             go t = singleParens t
     pretty (SLam vs t) =
-        "\\" <> hsep (map prettyBs vs) <+> "=>" <$> pretty t
+        "\\" <> hsep (map prettyBs vs) <+> "=>" <+> pretty t
     pretty (SHole hn ts) = "{!" <> pretty hn <+> hsep (map singleParens ts) <> "!}"
     pretty (SAnn pars ty t) =
         "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
