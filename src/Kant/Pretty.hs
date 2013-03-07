@@ -61,11 +61,10 @@ prettyPis pars' = hsep (go pars')
     go ((mns, ty) : pars) =
         (case mns of
              Nothing -> mapp ty <+> "->"
-             Just ns -> "[" <> pretty ns <+> ":" <+> pretty ty <> "]" <+>
-                        marr pars)
+             Just ns -> marr pars ("[" <> pretty ns <+> ":" <+> pretty ty <> "]"))
         : go pars
-    marr ((Just _, _) : _)  = ""
-    marr _                  = "->"
+    marr ((Just _, _) : _)  = id
+    marr _                  = (<+> "->")
     mapp t@(SApp _ _) = pretty t
     mapp t            = singleParens t
 

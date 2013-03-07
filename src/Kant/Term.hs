@@ -136,4 +136,3 @@ data HoleCtx = HoleCtx
     , holeGoal :: TermId
     , holeCtx  :: [(TermId, TermId)]
     }
-
