@@ -26,6 +26,7 @@ module Kant.Term
     , arrLen
     , annV
       -- * Holes
+    , isHole
     , HoleCtx(..)
     ) where
 
@@ -125,6 +126,10 @@ arrLen _         = 0
 annV :: Term t -> Term t
 annV (Ann _ t) = t
 annV t         = t
+
+isHole :: Term v -> Bool
+isHole (Hole _ _) = True
+isHole _          = False
 
 data HoleCtx = HoleCtx
     { holeName :: HoleId

@@ -116,7 +116,23 @@ data Fin : Nat -> *
     | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
     }
 
+fzero-absurd [fz : Fin zero] [A : *] : A => (
+    Fin-Elim zero fz
+        (\n _ => ite' * (isZero n) A Unit)
+        (\_ => tt)
+        (\_ _ _ => tt)
+)
 
--- ix : [A : Type] [xs : List A] [n : Fin (length n)] : A => (
+Fin-case [n : Nat] [m : Fin (suc n)] : [A : *] -> A -> (Fin n -> A) -> A => (
+    Fin-Elim (suc n) m
+        (\_ _ => [A : *] -> A -> (Fin n -> A) -> A)
+        {!hfc1!}
+        {!hfc2!}
+)
 
--- )
+ix [A : *] [xs : List A] : Fin (length A xs) -> A => (
+    List-Elim A xs
+        (\A ys => Fin (length A ys) -> A)
+        (\A fz => fzero-absurd fz A)
+        (\A x ys f m => Fin-case (length A ys) m A x f)
+)

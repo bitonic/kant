@@ -1,3 +1,13 @@
+* TODO Generated -Elim are broken
+  Specifically, for Fin, I get
+  
+  Fin-Elim : (n : ℕ) (f : Fin n)  -- Pars
+           (P : (n : ℕ) -> Fin n -> Set) -> -- Motive
+           ((n : ℕ) → P (suc n) zero) ->    -- Base case
+           ((n : ℕ) (f : Fin n) -> P (suc n) f -> P (Nat.suc n) (suc f)) -> -- Induct
+           P n f
+
+  While the `P (suc n) f' in the inductive case should be `P n f'
 * TODO Local type inference
 * TODO Check that the Type hierarchy is respected
 * TODO Add Prop
