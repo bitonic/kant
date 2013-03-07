@@ -64,7 +64,7 @@ prettyPis pars' = hsep (go pars')
              Just ns -> "[" <> pretty ns <+> ":" <+> pretty ty <> "]" <+>
                         marr pars)
         : go pars
-    marr []                 = ""
+    marr []                 = "->"
     marr ((Nothing, _) : _) = "->"
     marr ((Just _, _) : _)  = ""
     mapp t@(SApp _ _) = pretty t
