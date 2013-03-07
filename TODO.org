@@ -5,6 +5,7 @@
 * TODO Show all values in context
 
 * TODO Extract parameters (non-indices) from eliminators methods
+  Or maybe have explicit parameters like Agda?
 * TODO Modules
 * TODO Line numbers in errors
 * TODO Have a type to distinguish names and eliminators
