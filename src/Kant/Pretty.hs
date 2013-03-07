@@ -35,7 +35,7 @@ instance Pretty STerm where
             go t = singleParens t
     pretty (SLam vs t) =
         "\\" <> hsep (map prettyBs vs) <+> "=>" <$> pretty t
-    pretty (SHole hn ts) = "{!" <+> pretty hn <+> hsep (map singleParens ts) <+> "!}"
+    pretty (SHole hn ts) = "{!" <> pretty hn <+> hsep (map singleParens ts) <> "!}"
     pretty (SAnn pars ty t) =
         "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
 
@@ -43,9 +43,10 @@ nest' :: Doc -> Doc
 nest' = nest 2
 
 singleTerm :: STerm -> Bool
-singleTerm (SV _) = True
-singleTerm STy    = True
-singleTerm _      = False
+singleTerm (SV _)      = True
+singleTerm STy         = True
+singleTerm (SHole _ _) = True
+singleTerm _           = False
 
 singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
@@ -81,9 +82,8 @@ prettyBs (Just n) = pretty n
 
 instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
-        nest' ("Hole `" <> pretty hn <> "':" <$$>
-               vcat ("Goal:" <+> pretty goal :
-                     [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx]))
+        nest' ("Hole" <+> pretty hn <+> ":" <+> pretty goal <$$>
+               vcat [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx])
 
     prettyList = vcat . map pretty
 
