@@ -25,9 +25,7 @@ data List : * -> *
     }
 
 app [A : *] [xs : List A] : List A -> List A => (
-    List-Elim
-        A
-        xs
+    List-Elim A xs
         (\A _ => List A -> List A)
         (\_ ys => ys)
         (\A x _ f ys => cons A x (f ys))
@@ -71,9 +69,7 @@ ite [P : Bool -> *] [b : Bool] : P true -> P false -> P b => (
     Bool-Elim b P
 )
 
-ite' [A : *] : Bool -> A -> A -> A => (
-  ite (\_ => A)
-)
+ite' [A : *] : Bool -> A -> A -> A => (ite (\_ => A))
 
 data Empty : * { }
 
