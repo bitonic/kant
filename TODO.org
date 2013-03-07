@@ -3,7 +3,6 @@
 * TODO Add Prop
 * TODO Better pretty printing
 * TODO Show all values in context
-* TODO Reloading a module
 
 * TODO Modules
 * TODO Line numbers in errors
