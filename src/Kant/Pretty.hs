@@ -117,12 +117,12 @@ instance Pretty TyCheckError where
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
 
 instance Pretty Output where
-    pretty (OTyCheck ty [])    = pretty ty
+    pretty (OTyCheck ty [])    = gnest ("Type:" <$$> pretty ty)
     pretty (OTyCheck ty holes) = group (nest' ("Holes:" <$$> prettyList holes) <$$>
                                         nest' ("Type:" <$$> pretty ty))
     pretty (OPretty t)         = pretty t
     pretty (OHoles [])         = "OK"
-    pretty (OHoles holes)      = group (nest' ("Holes:" <$$> prettyList holes))
+    pretty (OHoles holes)      = gnest ("Holes:" <$$> prettyList holes)
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
