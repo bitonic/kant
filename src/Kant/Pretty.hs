@@ -85,7 +85,7 @@ instance Pretty HoleCtx where
         rest = if null hctx then id
                else (<$$> vcat [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx])
 
-    prettyList holes = nest' ("Holes:" <$$> (vcat (map pretty holes)))
+    prettyList = vcat . map pretty
 
 instance Pretty TyCheckError where
     pretty TyCheckError = "fixme"
@@ -118,10 +118,11 @@ instance Pretty TyCheckError where
 
 instance Pretty Output where
     pretty (OTyCheck ty [])    = pretty ty
-    pretty (OTyCheck ty holes) = prettyList holes <$$> pretty ty
+    pretty (OTyCheck ty holes) = group (nest' ("Holes:" <$$> prettyList holes) <$$>
+                                        nest' ("Type:" <$$> pretty ty))
     pretty (OPretty t)         = pretty t
     pretty (OHoles [])         = "OK"
-    pretty (OHoles holes)      = prettyList holes
+    pretty (OHoles holes)      = group (nest' ("Holes:" <$$> prettyList holes))
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
