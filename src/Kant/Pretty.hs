@@ -57,12 +57,9 @@ singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
 prettyPis :: [SParam] -> Doc
 prettyPis pars' = hsep (go pars')
   where
-    go [] = []
-    go ((mns, ty) : pars) =
-        (case mns of
-             Nothing -> mapp ty <+> "->"
-             Just ns -> marr pars ("[" <> pretty ns <+> ":" <+> pretty ty <> "]"))
-        : go pars
+    go []                       = []
+    go ((Nothing, ty)   : pars) = (mapp ty <+> "->") : go pars
+    go (par@(Just _, _) : pars) = marr pars (prettyPar par) : go pars
     marr ((Just _, _) : _)  = id
     marr _                  = (<+> "->")
     mapp t@(SApp _ _) = pretty t
