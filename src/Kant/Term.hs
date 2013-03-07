@@ -33,8 +33,6 @@ import           Control.Applicative ((<$>))
 import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
 
-import           Data.Map (Map)
-
 import           Bound
 import           Bound.Name
 import           Bound.Scope
@@ -56,7 +54,7 @@ data Term v
     | Ann (Term v) (Term v)
     | Canon ConId [Term v]
     | Elim ConId [Term v]
-    | Hole HoleId
+    | Hole HoleId [Term v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type TermId = Term Id
@@ -77,7 +75,7 @@ instance Monad Term where
     Canon c ts >>= f = Canon c (map (>>= f) ts)
     Elim c ts  >>= f = Elim c (map (>>= f) ts)
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
-    Hole hn    >>= _ = Hole hn
+    Hole hn ts >>= f = Hole hn (map (>>= f) ts)
 
 lam :: Maybe Id -> TermId -> TermId
 lam Nothing  t = Lam (toScope (F <$> t))
@@ -131,5 +129,6 @@ annV t         = t
 data HoleCtx = HoleCtx
     { holeName :: HoleId
     , holeGoal :: TermId
-    , holeCtx  :: Map Id TermId
+    , holeCtx  :: [(TermId, TermId)]
     }
+

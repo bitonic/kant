@@ -24,7 +24,7 @@ instance Desugar STerm where
     desugar (SApp t₁ t₂) = App (desugar t₁) (desugar t₂)
     desugar (SAnn pars ty t) =
         Ann (desugar (SArr pars ty)) (desugar (SLam (map fst pars) t))
-    desugar (SHole hn) = Hole hn
+    desugar (SHole hn ts) = Hole hn (map desugar ts)
 
 instance Desugar SDecl where
     type Core SDecl = Decl

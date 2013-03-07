@@ -6,7 +6,7 @@ module Kant.Uniquify
     , formHole
     ) where
 
-import           Control.Applicative ((<$>), (<*>))
+import           Control.Applicative ((<$>), (<*>), (<*), (*>))
 import           Control.Monad (when, void)
 import           Data.Maybe (fromMaybe)
 import           Data.Traversable (mapM)
@@ -22,6 +22,8 @@ import           Bound.Name
 
 import           Kant.Env
 import           Kant.Term
+
+import Debug.Trace
 
 type FreshMonad v = State (Map v Id, Map Id Integer)
 
@@ -49,11 +51,10 @@ freshVar env v names = envRename env v (const (names Map.! v))
 uniquify :: (Ord v, Show v) => Env v -> Term v -> FreshMonad v (Term v)
 uniquify env t =
     do collectFree env t
---       mapM (addVar env) t
+       mapM (addVar env) t
        (names, ixs) <- get
        let t' = t >>= \v -> V (freshVar env v names)
-       return t'
---       return (evalState (go t') ixs)
+       return (evalState (go t') ixs)
   where
     go t'@(V _) = return t'
     go Ty = return Ty
@@ -63,7 +64,7 @@ uniquify env t =
     go (Canon c ts') = Canon c <$> mapM go ts'
     go (Elim ce ts') = Elim ce <$> mapM go ts'
     go (Ann ty t') = Ann <$> go ty <*> go t'
-    go t'@(Hole _) = return t'
+    go (Hole hn ts) = Hole hn <$> mapM go ts
 
     goScope :: (Ord v, Show v)
             => TermScope v -> State (Map Id Integer) (TermScope v)
@@ -74,8 +75,8 @@ uniquify env t =
                 do ixs <- get
                    let (n', ixs') = addVar' n ixs
                        v' = B (Name n' ())
-                   put ixs'
-                   toScope <$> go (substitute v' (V v') (fromScope s))
+                   put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
+                            <* put ixs
 
 slam :: (Ord v, Show v) => Env v -> Term v -> FreshMonad v TermId
 slam env t = (envPull env <$>) <$> uniquify env t
@@ -91,22 +92,10 @@ runFresh s = evalState s (Map.empty, Map.empty)
 slam' :: (Ord v, Show v) => Env v -> Term v -> TermId
 slam' env t = runFresh (slam env t)
 
-formHole :: (Show v, Ord v) => Env v -> HoleId -> Term v -> FreshMonad v HoleCtx
-formHole env hn ty =
-    do mapM (addVar env) pruned
-       hctx <- Map.fromList <$>
-               sequence [ (,) <$> slamVar env v <*> slam env (getTy (envType env v))
-                        | v <- pruned]
-       ty' <- slam env ty
-       return HoleCtx{holeName = hn, holeGoal = ty', holeCtx = hctx}
-  where
-    pruned = prune (envVars env) Set.empty
+formHole :: (Show v, Ord v)
+         => Env v -> HoleId -> Term v -> [(Term v, Term v)] -> FreshMonad v HoleCtx
+formHole env hn goal ts =
+    do hctx <- sequence [(,) <$> slam env t <*> slam env ty | (t, ty) <- ts]
+       goal' <- slam env goal
+       return HoleCtx{holeName = hn, holeGoal = goal', holeCtx = hctx}
 
-    prune []       _  = []
-    prune (v : vs) ns = let vn = envPull env v
-                        in if Set.member vn ns || envFree env v
-                           then prune vs ns
-                           else v : prune vs (Set.insert vn ns)
-
-    getTy (Just ty') = ty'
-    getTy _          = error "formHole: var with no type in context"

@@ -27,10 +27,10 @@ reduce r env (Elim c ts) =
     case envElim env c ts' of Nothing -> Elim c ts'; Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
 reduce r env (Ann _ t) = reduce r env t
-reduce _ _   t@(Hole _) = t
+reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
 reduceScope :: forall v. Show v => Reducer -> Env v -> TermScope v -> TermScope v
-reduceScope r env s = (toScope (r (nestEnv env s Nothing Nothing) (fromScope s)))
+reduceScope r env s = (toScope (r (nestEnv env Nothing Nothing) (fromScope s)))
 
 whnf :: Reducer
 whnf = reduce (\_ t -> t)

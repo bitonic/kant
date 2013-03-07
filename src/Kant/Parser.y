@@ -48,7 +48,8 @@ import           Kant.Desugar
     'data'              { DATA }
     'postulate'         { POSTULATE }
     'Type'              { TYPE }
-    hole                { HOLE $$ }
+    '{!'                { LHOLE }
+    '!}'                { RHOLE }
     name                { NAME $$ }
 
 %%
@@ -94,7 +95,7 @@ SingleTerm :: { STerm }
 SingleTerm
     : name                                   { SV $1 }
     | Type                                   { $1 }
-    | hole                                   { SHole $1 }
+    | Hole                                   { $1 }
     | '(' Term ')'                           { $2 }
 
 Type :: { STerm }
@@ -122,6 +123,9 @@ Binder
 LamParam :: { SParam }
 LamParam
     : '[' Binder ':' Term ']'                { ($2, $4) }
+
+Hole :: { STerm }
+Hole : '{!' name Seq0(SingleTerm) '!}'       { SHole $2 $3 }
 
 {
 

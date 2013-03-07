@@ -99,7 +99,7 @@ tyInfer' env t@(Lam _) = untypedTerm env t
 tyInfer' env₁ (Arr ty₁ s) =
     do tyty₁ <- tyInfer' env₁ ty₁
        case whnf env₁ tyty₁ of
-           Ty -> do let env₂ = nestEnvTy env₁ s ty₁; ty₂ = fromScope s
+           Ty -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
                     tyty₂ <- tyInfer' env₂ ty₂
                     case nf env₂ tyty₂ of
                         Ty -> return Ty
@@ -113,7 +113,7 @@ tyInfer' env (App t₁ t₂) =
 tyInfer' env (Canon dc ts) = tyInfer' env (app (V (envNest env dc) : ts))
 tyInfer' env (Elim en ts) = tyInfer' env (app (V (envNest env en) : ts))
 tyInfer' env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
-tyInfer' env t@(Hole _) = untypedTerm env t
+tyInfer' env t@(Hole _ _) = untypedTerm env t
 
 tyCheck :: (Ord v, Show v, MonadTyCheck m)
          => Env v -> Term v -> Term v -> TyMonad m ()
@@ -122,7 +122,9 @@ tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
     go :: (Ord v, Show v, MonadTyCheck m)
        => Env v -> Term v -> Term v -> TyMonad m ()
     go env (Lam s₁) (Arr ty s₂) =
-        go (nestEnvTy env s₂ ty) (fromScope s₁) (fromScope s₂)
-    go env (Hole hn) ty = tell [runFresh (formHole env hn ty)]
+        go (nestEnvTy env ty) (fromScope s₁) (fromScope s₂)
+    go env (Hole hn ts) ty =
+        do tys <- mapM (tyInfer' env) ts
+           tell [runFresh (formHole env hn ty (zip ts tys))]
     go env t ty = do tyt <- nf env <$> tyInfer' env t
                      unless (ty == tyt) (mismatch env ty t tyt)

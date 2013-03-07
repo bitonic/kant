@@ -24,7 +24,7 @@ distill' (Canon c ts) = distill' (app (V c : ts))
 distill' (Elim ce ts) = distill' (app (V (ce) : ts))
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
-distill' (Hole hn) = SHole hn
+distill' (Hole hn ts) = SHole hn (map distill ts)
 
 unrollArr :: TermId -> ([(Maybe Id, TermId)], TermId)
 unrollArr (Arr ty s) = ((n, ty) : pars, t₂)

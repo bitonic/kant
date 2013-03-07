@@ -42,7 +42,7 @@ instance Pretty STerm where
             go t = singleParens t
     pretty (SLam vs t) =
         "\\" <> group (nest' (hsep (map prettyBs vs) <+> "=>" <$> align (pretty t)))
-    pretty (SHole hn) = "{!" <+> pretty hn <+> "!}"
+    pretty (SHole hn ts) = "{!" <+> pretty hn <+> hsep (map singleParens ts) <+> "!}"
 
 nest' :: Doc -> Doc
 nest' = nest 2
@@ -107,8 +107,7 @@ instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
         nest' ("Hole `" <> pretty hn <> "':" <$$>
                vcat (group (nest' ("Goal: " <$> pretty goal)) :
-                     [ pretty (typed n (distill ty))
-                     | (n, ty) <- Map.toList hctx ]))
+                     [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx]))
 
     prettyList = vcat . map pretty
 

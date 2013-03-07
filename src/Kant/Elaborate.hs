@@ -165,7 +165,7 @@ checkDup env v = when (isJust (envType env v) || isJust (envValue env v))
                       (throwError (DuplicateName (envPull env v)))
 
 neste₁ :: Env v -> Env (Var (NameId ()) v)
-neste₁ env = nestEnv' env Nothing Nothing Nothing
+neste₁ env = nestEnv env Nothing Nothing
 
 neste₂ :: Env v -> Env (Var (NameId ()) (Var (NameId ()) v))
 neste₂ = neste₁ . neste₁
