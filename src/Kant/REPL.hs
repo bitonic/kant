@@ -5,7 +5,6 @@ import           Control.Applicative ((*>), (<$>), (<|>), (<$))
 import           Control.Arrow (left)
 import           Control.Exception (catch)
 import           Control.Monad (msum)
-import           Data.Char (isSpace)
 import           Prelude hiding (catch)
 
 import           Control.Monad.Error (ErrorT(..), throwError, mapErrorT)
@@ -17,6 +16,7 @@ import           System.Console.Haskeline
                  (InputT, getInputLine, runInputT, defaultSettings)
 import           System.Console.Haskeline.MonadException ()
 
+import           Kant.Common
 import           Kant.Parser
 import           Kant.Env
 import           Kant.Reduce
@@ -31,13 +31,10 @@ data Input
     = ITyCheck String
     | IEval String
     | IDecl String
-    | ILoad FilePath
+    | ILoad Bool FilePath
     | IPretty String
     | IQuit
     | ISkip
-
-trim :: String -> String
-trim = reverse . f . reverse . f where f = dropWhile isSpace
 
 type REPLM = ErrorT REPLError IO
 
@@ -52,7 +49,8 @@ parseInput =
     commands = [ ('e', IEval <$> rest)
                , ('t', ITyCheck <$> rest)
                , ('p', IPretty <$> rest)
-               , ('l', ILoad . trim <$> rest)
+               , ('l', ILoad False . trim <$> rest)
+               , ('r', ILoad True . trim <$> rest)
                , ('q', IQuit <$ Parsec.eof)
                ]
 
@@ -73,10 +71,11 @@ replOutput env₁ s₁ =
            IDecl s₂    -> do d <- parseE (parseDecl s₂)
                              (env₂, holes) <- elab env₁ d
                              return (OHoles holes, env₂)
-           ILoad fp    -> do s₂ <- readSafe fp
+           ILoad r fp  -> do s₂ <- readSafe fp
                              m <- parseE (parseModule s₂)
-                             (env₂, holes) <- elab env₁ m
-                             return (OHoles holes, env₂)
+                             let env₂ = if r then newEnv else env₁
+                             (env₃, holes) <- elab env₂ m
+                             return (OHoles holes, env₃)
            IPretty s₂  -> do t <- whnf env₁ <$> parse s₂
                              return (OPretty t, env₁)
            IQuit       -> return (OQuit, env₁)
