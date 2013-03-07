@@ -36,22 +36,23 @@ instance Elaborate Decl where
            (tyty, holes) <- tyInfer env ty
            return (addFree env n Nothing (Just tyty), holes)
     elaborate env₁ (Data tyc tycty dcs) =
-        do tyInferNH env₁ tycty
-           if returnsTy tycty
-              then do let env₂ = addFree env₁ tyc Nothing (Just tycty)
+        do checkDup env₁ tyc
+           tyInferNH env₁ tycty -- Check that the type of the tycon is well typed
+           if returnsTy tycty   -- Check that the type constructor returns a type
+              then do let -- Add the type of the tycon to scope
+                          env₂ = addFree env₁ tyc Nothing (Just tycty)
                       -- Create the functions that will form 'Canon's
                       env₃ <- foldrM (\(dc, dcty) env₃ ->
-                                       elaborateCon env₃ tyc dc dcty)
-                                     env₂ dcs
-                      let elty = elimTy tyc tycty dcs -- D-elim type
-                          eln  = elimName tyc         -- D-elim name
+                                       elaborateCon env₃ tyc dc dcty) env₂ dcs
+                      let elty  = elimTy tyc tycty dcs -- D-elim type
+                          eln   = elimName tyc         -- D-elim name
                           -- Function that will form the 'Elim's
-                          elt  = typedLam (Elim eln) elty
-                          env₄ = addFree env₃ eln (Just elt)  (Just elty)
+                          elfun = typedLam (Elim eln) elty
+                          env₄  = addFree env₃ eln (Just elfun)  (Just elty)
+                      -- Add the actual eliminator
                       return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs), [])
               else throwError (ExpectingTypeCon tyc tycty)
       where
-        -- Check that the type constructor returns a type
         returnsTy :: Term v -> Bool
         returnsTy (Arr  _ s) = returnsTy (fromScope s)
         returnsTy Ty         = True
@@ -59,15 +60,15 @@ instance Elaborate Decl where
 
 elaborateCon :: MonadTyCheck m
              => EnvId
-             -> ConId           -- ^ Type constructor name
+             -> ConId           -- ^ Tycon name
              -> ConId           -- ^ Name of the datacon
              -> TermId          -- ^ Type of the datacon
              -> m EnvId
 elaborateCon env tyc dc ty =
     do checkDup env dc
-       tyInferNH env ty
-       goodTy env ty
-       let t = typedLam (Canon dc) ty
+       tyInferNH env ty         -- The type of the datacon is well typed
+       goodTy env ty            -- ...and well formed
+       let t = typedLam (Canon dc) ty -- Function that forms the 'Canon'
        return (addFree env dc (Just t) (Just ty))
   where
     goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
@@ -79,6 +80,7 @@ elaborateCon env tyc dc ty =
                   (wrongRecTypePos env dc tyc ty)
            goodTy (neste₁ env') (fromScope s)
     goodTy env' (appV -> (arg, _)) =
+        -- The type must return something of the type we are defininng
         unless (arg == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
 
 elimTy :: ConId                 -- ^ Tycon
@@ -203,6 +205,8 @@ mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 instDummy :: Scope n Term String -> TermId
 instDummy s = instantiate1 (V "dummy") s
 
+-- | Provided with a @(x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
+--   @(x1 : S1) -> ... -> (xn : Sn) -> f [x1..xn]@.
 telescope :: Eq v
           => (forall a. Eq a => Env a -> [Term a] -> Term a)
           -> Env v -> Term v -> Term v
@@ -213,6 +217,8 @@ telescope f env' = go env' []
         Arr ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
     go env vs _ = f env (map V (reverse vs))
 
+-- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
+--   @(\x1 .. xn  => f [x1..xn]) : A@.
 typedLam :: (forall a. [Term a] -> Term a) -> TermId -> TermId
 typedLam f ty = Ann ty (go newEnv [] ty)
   where
