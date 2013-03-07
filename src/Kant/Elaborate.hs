@@ -6,6 +6,7 @@
 module Kant.Elaborate (Elaborate(..)) where
 
 import           Control.Applicative ((<$>))
+import           Control.Arrow ((***))
 import           Control.Monad (when, unless)
 import           Data.Foldable (foldrM)
 import           Data.List (elemIndex)
@@ -104,32 +105,52 @@ elimTy tyc tycty cons = targets tycty
                  (mkArr motive (methods env₂ motiveV motiveArgs cons))
     motivef env args = mkArr (app (V (envNest env tyc) : args)) Ty
 
-    methods :: Eq v => Env v -> Term v -> [Term v] -> [(ConId, TermId)] -> Term v
+    methods :: Eq v => Env v
+            -> Term v            -- Quantified motive `P'
+            -> [Term v]          -- Quantified arguments of the type constructor
+            -> [(ConId, TermId)] -- Constructors
+            -> Term v
     methods _ motiveV args [] = app (motiveV : args)
     methods env motiveV args ((dc, dcty) : dcs) =
-        mkArr (method env dc motiveV [] dcty)
+        mkArr (method env dc dcty motiveV)
               (methods (neste₁ env) (nestt₁ motiveV) (map nestt₁ args) dcs)
 
     -- I can't use `telescope' because I need to bump the motiveV each time
-    method :: Eq v => Env v -> ConId -> Term v -> [v] -> TermId -> Term v
-    method env₀ dc motiveV₀ vs₀ dcty =
-        let go :: Eq v => Env v -> Term v -> [v] -> Term v -> Term v
-            go env motiveV vs (Arr arg s) =
-                mkArr arg (go (neste₁ env) (nestt₁ motiveV)
-                              (map F vs ++ [B (bindingN s)]) (fromScope s))
-            go env motiveV vs (appV -> (_, args)) =
-                hyps 0 env (app (motiveV : args)) dc (map V vs) dcty
-        in go env₀ motiveV₀ vs₀ (envNest env₀ <$> dcty)
+    method :: Eq v => Env v
+           -> ConId             -- Data con
+           -> TermId            -- Data con type
+           -> Term v            -- Quantifiend motive `P'
+           -> Term v
+    method env₀ dc dcty motiveV₀ =
+        let go :: Eq v => Env v
+               -> Term v        -- Quantified motive `P'
+               -> [(v, Term v)] -- Args to the datacon, var and type
+               -> Term v        -- Type of the datacon
+               -> Term v
+            go env motiveV args (Arr arg s) =
+                mkArr arg
+                      (go (neste₁ env) (nestt₁ motiveV)
+                          (map (F *** fmap F) args ++ [(B (bindingN s), F <$> arg)])
+                          (fromScope s))
+            go env motiveV args (appV -> (_, motiveArgs)) =
+                hyps env dc motiveV
+                     (motiveArgs ++
+                      [app (V (envNest env dc) : map (V . fst) args)]) args
+        in go env₀ motiveV₀ [] (envNest env₀ <$> dcty)
 
-    hyps :: Eq v => Int -> Env v -> Term v -> ConId -> [Term v] -> TermId -> Term v
-    hyps i env motive dcty args (Arr (appV -> (ty, _)) s) =
-        let rest = instDummy s
-        in if ty == V tyc
-           then mkArr (app [motive, args !! i])
-                      (hyps (i+1) (neste₁ env) (nestt₁ motive) dcty (map nestt₁ args)
-                            rest)
-           else hyps (i+1) env motive dcty args rest
-    hyps _ env motive dcty args _ = app [motive, app (V (envNest env dcty) : args)]
+    hyps :: Eq v => Env v
+         -> ConId
+         -> Term v              -- Quantified motive `P'
+         -> [Term v]            -- Final arguments for the motive
+         -> [(v, Term v)]       -- Quantified args of the constructors, with types
+         -> Term v
+    hyps _ _ motiveV motiveArgs [] = app (motiveV : motiveArgs)
+    hyps env dc motiveV motiveArgs ((argv, (appV -> (tyh, tyargs))) : args) =
+        if tyh == V (envNest env tyc)
+        then mkArr (app (motiveV : tyargs ++ [V argv]))
+                   (hyps (neste₁ env) dc (F <$> motiveV) (map (fmap F) motiveArgs)
+                         (map (F *** fmap F) args))
+        else hyps env dc motiveV motiveArgs args
 
 buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
