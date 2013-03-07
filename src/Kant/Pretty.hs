@@ -82,8 +82,10 @@ prettyBs (Just n) = pretty n
 
 instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
-        nest' ("Hole" <+> pretty hn <+> ":" <+> pretty goal <$$>
-               vcat [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx])
+        nest' (rest ("Hole" <+> pretty hn <+> ":" <+> pretty goal))
+      where
+        rest = if null hctx then id
+               else (<$$> vcat [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx])
 
     prettyList = vcat . map pretty
 
