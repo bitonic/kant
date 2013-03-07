@@ -1,10 +1,9 @@
-* TODO The parsing for holes is broken
-  `Nat-Elim {!foo!} (\n => {!bar!})' doesn’t work
 * TODO Uniquify is broken
 * TODO Better pretty printing
 * TODO Show all values in context
 * TODO Add Prop
 * TODO Local type inference
+* TODO Reloading a module
 
 * TODO Modules
 * TODO Line numbers in errors

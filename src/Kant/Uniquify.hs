@@ -15,15 +15,12 @@ import           Prelude hiding (mapM)
 import           Control.Monad.State (MonadState(..), evalState, State)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import           Bound
 import           Bound.Name
 
 import           Kant.Env
 import           Kant.Term
-
-import Debug.Trace
 
 type FreshMonad v = State (Map v Id, Map Id Integer)
 
@@ -43,7 +40,7 @@ addVar' :: Id -> Map Id Integer -> (Id, Map Id Integer)
 addVar' n ixs = (n', Map.insert n (ix+1) ixs)
   where
     ix = fromMaybe 0 (Map.lookup n ixs)
-    n' = n ++ show ix
+    n' = n ++ if ix /= 0 then show ix else ""
 
 freshVar :: (Ord v, Show v) => Env v -> v -> Map v Id -> v
 freshVar env v names = envRename env v (const (names Map.! v))
