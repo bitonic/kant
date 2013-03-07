@@ -6,10 +6,7 @@
 --   functions.
 module Kant.Pretty (Pretty(..), putPretty) where
 
-import           Data.List (intersperse)
 import           Data.String (IsString(..))
-
-import qualified Data.Map as Map
 
 import           Text.PrettyPrint.Leijen
 
@@ -23,10 +20,6 @@ import           Kant.REPL.Types
 putPretty :: Pretty a => a -> IO ()
 putPretty = putStrLn . show . pretty
 
-spaceIfCons :: [a] -> Doc
-spaceIfCons [] = ""
-spaceIfCons _  = " "
-
 instance IsString Doc where
     fromString = pretty
 
@@ -35,14 +28,16 @@ instance (v ~ Id) => Pretty (Term v) where
 
 instance Pretty STerm where
     pretty (SV v) = pretty v
-    pretty STy = "Type"
-    pretty (SArr pars ty) = prettyPars pars <+> "->" <+> pretty ty
+    pretty STy = "*"
+    pretty (SArr pars ty) = prettyPis pars <+> pretty ty
     pretty to@(SApp _ _) = go to
       where go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
             go t = singleParens t
     pretty (SLam vs t) =
-        "\\" <> group (nest' (hsep (map prettyBs vs) <+> "=>" <$> align (pretty t)))
+        "\\" <> hsep (map prettyBs vs) <+> "=>" <$> pretty t
     pretty (SHole hn ts) = "{!" <+> pretty hn <+> hsep (map singleParens ts) <+> "!}"
+    pretty (SAnn pars ty t) =
+        "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
 
 nest' :: Doc -> Doc
 nest' = nest 2
@@ -56,57 +51,38 @@ singleParens :: STerm -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
-prettyPars :: [SParam] -> Doc
-prettyPars pars' = hcat (go pars')
+-- TODO Group equal types in `prettyPis' and `prettyPar'
+
+prettyPis :: [SParam] -> Doc
+prettyPis pars' = hsep (go pars')
   where
     go [] = []
     go ((mns, ty) : pars) =
         (case mns of
-             Nothing -> mapp ty <+> "-> "
-             Just ns -> "[" <> pretty ns <+> ":" <+> align (pretty ty) <> "]" <+>
+             Nothing -> mapp ty <+> "->"
+             Just ns -> "[" <> pretty ns <+> ":" <+> pretty ty <> "]" <+>
                         marr pars)
         : go pars
     marr []                 = ""
-    marr ((Nothing, _) : _) = "-> "
+    marr ((Nothing, _) : _) = "->"
     marr ((Just _, _) : _)  = ""
     mapp t@(SApp _ _) = pretty t
     mapp t            = singleParens t
 
-prettyPars' :: [SParam] -> Doc
-prettyPars' pars = prettyPars pars <> spaceIfCons pars
+prettyPar :: SParam -> Doc
+prettyPar (mn, ty) = "[" <> n <+> ":" <+> pretty ty <> "]"
+  where n = case mn of
+                Nothing -> "_"
+                Just n' -> pretty n'
 
 prettyBs :: Maybe Id -> Doc
 prettyBs Nothing  = "_"
 prettyBs (Just n) = pretty n
 
-prettyBarred :: (a -> Doc) -> [a] -> Doc
-prettyBarred _ [] = "{ }"
-prettyBarred f (x : xs) = vsep ("{" <+> f x : map (("|" <+>) . f) xs ++ ["}"])
-
-typed :: Id -> STerm -> Doc
-typed n ty = pretty n <+> ":" <+> pretty ty
-
-instance Pretty SDecl where
-    pretty (SVal n pars ty t) =
-        group (end (nest' (pretty n <+> prettyPars' pars <> ":" <+> pretty ty <+>
-                           "=>" <+> if single then pt else "(" <$$> pt)))
-      where
-        single = singleTerm t
-        pt     = pretty t
-        end    = if single then (<> "") else (<$$> ")")
-    pretty (SData c pars cons) =
-        group (nest' ("data" <+> pretty c <+> prettyPars' pars <+>
-                      group (prettyBarred (uncurry typed) cons)))
-    pretty (SPostulate n ty) = "postulate" <+> typed n ty
-
-    prettyList = vcat . intersperse "" . map pretty
-instance Pretty SModule where
-    pretty = prettyList . unSModule
-
 instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
         nest' ("Hole `" <> pretty hn <> "':" <$$>
-               vcat (group (nest' ("Goal: " <$> pretty goal)) :
+               vcat ("Goal:" <+> pretty goal :
                      [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx]))
 
     prettyList = vcat . map pretty
