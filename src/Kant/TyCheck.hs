@@ -25,8 +25,7 @@ import           Kant.Term
 import           Kant.Uniquify
 
 data TyCheckError
-    = TyCheckError
-    | OutOfBounds Id
+    = OutOfBounds Id
     | DuplicateName Id
     | Mismatch TermId TermId TermId
     | ExpectingFunction TermId TermId

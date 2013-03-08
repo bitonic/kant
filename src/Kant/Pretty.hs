@@ -88,7 +88,6 @@ instance Pretty HoleCtx where
     prettyList = vcat . map pretty
 
 instance Pretty TyCheckError where
-    pretty TyCheckError = "fixme"
     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
     pretty (Mismatch ty₁ t ty₂) =
