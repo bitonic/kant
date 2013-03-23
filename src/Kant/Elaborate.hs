@@ -38,20 +38,19 @@ instance Elaborate Decl where
     elaborate env₁ (Data tyc tycty dcs) =
         do checkDup env₁ tyc
            tyInferNH env₁ tycty -- Check that the type of the tycon is well typed
-           if returnsTy tycty   -- Check that the type constructor returns a type
-              then do let -- Add the type of the tycon to scope
-                          env₂ = addFree env₁ tyc Nothing (Just tycty)
-                      -- Create the functions that will form 'Canon's
-                      env₃ <- foldrM (\(dc, dcty) env₃ ->
-                                       elaborateCon env₃ tyc dc dcty) env₂ dcs
-                      let elty  = elimTy tyc tycty dcs -- D-elim type
-                          eln   = elimName tyc         -- D-elim name
-                          -- Function that will form the 'Elim's
-                          elfun = typedLam (Elim eln) elty
-                          env₄  = addFree env₃ eln (Just elfun)  (Just elty)
-                      -- Add the actual eliminator
-                      return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs), [])
-              else throwError (ExpectingTypeCon tyc tycty)
+           -- Check that the type constructor returns a type
+           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc tycty))
+           let -- Add the type of the tycon to scope
+               env₂ = addFree env₁ tyc Nothing (Just tycty)
+               -- Create the functions that will form 'Canon's
+           env₃ <- foldrM (\(dc, dcty) env₃ -> elaborateCon env₃ tyc dc dcty) env₂ dcs
+           let elty  = elimTy tyc tycty dcs -- D-elim type
+               eln   = elimName tyc         -- D-elim name
+               -- Function that will form the 'Elim's
+               elfun = typedLam (Elim eln) elty
+               env₄  = addFree env₃ eln (Just elfun)  (Just elty)
+               -- Add the actual eliminator
+           return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs), [])
       where
         returnsTy :: Term v -> Bool
         returnsTy (Arr  _ s) = returnsTy (fromScope s)
@@ -67,21 +66,24 @@ elaborateCon :: MonadTyCheck m
 elaborateCon env tyc dc ty =
     do checkDup env dc
        tyInferNH env ty         -- The type of the datacon is well typed
-       goodTy env ty            -- ...and well formed
+       goodTy env [] ty         -- ...and well formed
        let t = typedLam (Canon dc) ty -- Function that forms the 'Canon'
        return (addFree env dc (Just t) (Just ty))
   where
-    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m ()
-    goodTy env' (Arr arg s) =
+    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> [v] -> Term v -> m ()
+    goodTy env' vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
            let fvs  = envFreeVs env' arg
            unless (not (Set.member tyc fvs) || appHead arg == V (envNest env' tyc))
                   (wrongRecTypePos env dc tyc ty)
-           goodTy (neste₁ env') (fromScope s)
-    goodTy env' (appV -> (arg, _)) =
-        -- The type must return something of the type we are defininng
-        unless (arg == V (envNest env' tyc)) (expectingTypeData env dc tyc ty)
+           goodTy (neste₁ env') (B dummyN : map F vs) (fromScope s)
+    goodTy env' vs (appV -> (arg, pars)) =
+        -- The type must return something of the type we are defininng, and the
+        -- tycon must be applied to the parameters, in order.
+        unless (arg == V (envNest env' tyc) &&
+                and (zipWith (==) pars (map V (reverse vs))))
+               (expectingTypeData env dc tyc ty)
 
 elimTy :: ConId                 -- ^ Tycon
        -> TermId                -- ^ Tycon type

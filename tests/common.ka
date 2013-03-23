@@ -23,9 +23,9 @@ fac [x : Nat] : Nat => (
     Nat-Elim x (\_ => Nat) one (\ n rec => times (suc n) rec)
 )
 
-data List : * -> *
-    { nil  : [A : *]                -> List A
-    | cons : [A : *] -> A -> List A -> List A
+data List : [A : *] -> *
+    { nil  : List A
+    | cons : A -> List A -> List A
     }
 
 app [A : *] [xs : List A] : List A -> List A => (
@@ -54,7 +54,7 @@ upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
 upto4 : List Nat => (cons Nat zero (map Nat upto3 Nat (plus one)))
 
 data Sigma : [A : *] [B : A -> *] -> *
-     { si : [A : *] [B : A -> *] [x : A] -> B x -> Sigma A B }
+     { si : [x : A] -> B x -> Sigma A B }
 
 fst [A : *] [B : A -> *] [x : Sigma A B] : A => (
     Sigma-Elim A B x (\A _ _ => A) (\_ _ x _ => x)
@@ -111,37 +111,37 @@ pred [n : Nat] : T (isSuc n) -> Nat => (
     Nat-Elim n (\m => T (isSuc m) -> Nat) (\p => absurd p Nat) (\m _ _ => m)
 )
 
-data Fin : Nat -> *
-    { fzero : [n : Nat]          -> Fin (suc n)
-    | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
-    }
+-- data Fin : Nat -> *
+--     { fzero : [n : Nat]          -> Fin (suc n)
+--     | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
+--     }
 
-fzero-absurd [fz : Fin zero] [A : *] : A => (
-    Fin-Elim zero fz
-        (\n _ => ite' * (isZero n) A Unit)
-        (\_ => tt)
-        (\_ _ _ => tt)
-)
+-- fzero-absurd [fz : Fin zero] [A : *] : A => (
+--     Fin-Elim zero fz
+--         (\n _ => ite' * (isZero n) A Unit)
+--         (\_ => tt)
+--         (\_ _ _ => tt)
+-- )
 
-Fin-case [n : Nat] [m : Fin (suc n)] : [A : *] -> A -> (Fin n -> A) -> A => (
-    Fin-Elim (suc n) m
-        (\_ _ => [A : *] -> A -> (Fin n -> A) -> A)
-        {!hfc1!}
-        {!hfc2!}
-)
+-- Fin-case [n : Nat] [m : Fin (suc n)] : [A : *] -> A -> (Fin n -> A) -> A => (
+--     Fin-Elim (suc n) m
+--         (\_ _ => [A : *] -> A -> (Fin n -> A) -> A)
+--         {!hfc1!}
+--         {!hfc2!}
+-- )
 
-ix [A : *] [xs : List A] : Fin (length A xs) -> A => (
-    List-Elim A xs
-        (\A ys => Fin (length A ys) -> A)
-        (\A fz => fzero-absurd fz A)
-        (\A x ys f m => Fin-case (length A ys) m A x f)
-)
+-- ix [A : *] [xs : List A] : Fin (length A xs) -> A => (
+--     List-Elim A xs
+--         (\A ys => Fin (length A ys) -> A)
+--         (\A fz => fzero-absurd fz A)
+--         (\A x ys f m => Fin-case (length A ys) m A x f)
+-- )
 
-data Eq : [A : *] -> A -> A -> *
-  { refl : [A : *] [x : A] -> Eq A x x }
+-- data Eq : [A : *] -> A -> A -> *
+--   { refl : [A : *] [x : A] -> Eq A x x }
 
-subst [A : *] [x y : A] [p : Eq A x y] : [P : A -> *] -> P x -> P y => (
-    Eq-Elim A x y p
-        (\A x y p => [P : A -> *] -> P x -> P y)
-        (\A _ _ p => p)
-)
+-- subst [A : *] [x y : A] [p : Eq A x y] : [P : A -> *] -> P x -> P y => (
+--     Eq-Elim A x y p
+--         (\A x y p => [P : A -> *] -> P x -> P y)
+--         (\A _ _ p => p)
+-- )
