@@ -33,7 +33,9 @@ instance Desugar SDecl where
         Val n (desugar (SAnn pars ty t))
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
-        Data c (desugar (SArr (map (first Just) pars) STy)) (map (second desugar) cons)
+        -- Add the parameters to each constructor
+        Data c (desugar (SArr pars' STy)) (map (second (desugar . SArr pars')) cons)
+      where pars' = (map (first Just) pars)
 
 instance Desugar SModule where
     type Core SModule = Module
