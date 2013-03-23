@@ -19,6 +19,10 @@ times [x : Nat] : Nat -> Nat => (
         (\_ f y => plus y (f y))
 )
 
+fac [x : Nat] : Nat => (
+    Nat-Elim x (\_ => Nat) one (\ n rec => times (suc n) rec)
+)
+
 data List : * -> *
     { nil  : [A : *]                -> List A
     | cons : [A : *] -> A -> List A -> List A
@@ -131,4 +135,13 @@ ix [A : *] [xs : List A] : Fin (length A xs) -> A => (
         (\A ys => Fin (length A ys) -> A)
         (\A fz => fzero-absurd fz A)
         (\A x ys f m => Fin-case (length A ys) m A x f)
+)
+
+data Eq : [A : *] -> A -> A -> *
+  { refl : [A : *] [x : A] -> Eq A x x }
+
+subst [A : *] [x y : A] [p : Eq A x y] : [P : A -> *] -> P x -> P y => (
+    Eq-Elim A x y p
+        (\A x y p => [P : A -> *] -> P x -> P y)
+        (\A _ _ p => p)
 )
