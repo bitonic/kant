@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Kant.Desugar (Desugar(..)) where
 
-import           Control.Arrow (second)
+import           Control.Arrow (first, second)
 
 import           Kant.Term
 import           Kant.Decl
@@ -33,7 +33,7 @@ instance Desugar SDecl where
         Val n (desugar (SAnn pars ty t))
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
-        Data c (desugar (SArr pars STy)) (map (second desugar) cons)
+        Data c (desugar (SArr (map (first Just) pars) STy)) (map (second desugar) cons)
 
 instance Desugar SModule where
     type Core SModule = Module

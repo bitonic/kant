@@ -77,7 +77,8 @@ Decl : Val                                   { $1 }
 
 Data :: { SDecl }
 Data : 'data' name ':' Arr1(Type) '{' Bar(DataCon) '}'
-       { SData $2 (fst $4) $6 }
+       {% do pars <- dataConPars (fst $4)
+             return (SData $2 pars $6) }
 
 Val :: { SDecl }
 Val : name Seq0(Pi) ':' Term '=>' SingleTerm { SVal $1 (concat $2) $4 $6 }
@@ -141,6 +142,11 @@ parseErr err =
 -- like this.
 happyError :: Alex a
 happyError = parseErr "."
+
+dataConPars :: [SParam] -> Alex [(Id, STerm)]
+dataConPars pars =
+    maybe happyError return
+          (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
 
 type ParseError = String
 

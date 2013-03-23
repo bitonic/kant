@@ -16,7 +16,7 @@ newtype SModule = SModule {unSModule :: [SDecl]}
 data SDecl
     = SVal Id [SParam] STerm STerm
     | SPostulate Id STerm
-    | SData ConId [SParam] [SConstr]
+    | SData ConId [(Id, STerm)] [SConstr]
     deriving (Show)
 
 type SParam = (Maybe Id, STerm)
