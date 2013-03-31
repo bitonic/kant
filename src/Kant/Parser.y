@@ -47,7 +47,7 @@ import           Kant.Desugar
     '_'                 { UNDERSCORE }
     'data'              { DATA }
     'postulate'         { POSTULATE }
-    'Type'              { TYPE }
+    '*'                 { TYPE }
     '{!'                { LHOLE }
     '!}'                { RHOLE }
     name                { NAME $$ }
@@ -100,7 +100,7 @@ SingleTerm
     | '(' Term ')'                           { $2 }
 
 Type :: { STerm }
-Type : 'Type'                                { STy }
+Type : '*'                                   { STy }
 
 Arr :: { ([SParam], STerm) }
 Arr : Arr1(App)                              { $1 }
