@@ -30,23 +30,23 @@ data List : [A : *] -> *
 
 app [A : *] [xs : List A] : List A -> List A => (
     List-Elim A xs
-        (\A _ => List A -> List A)
-        (\_ ys => ys)
-        (\A x _ f ys => cons A x (f ys))
+        (\_ => List A -> List A)
+        (\ys => ys)
+        (\x _ f ys => cons A x (f ys))
 )
 
 map [A : *] [xs : List A] : [B : *] -> (A -> B) -> List B => (
     List-Elim A xs
-        (\A _ => [B : *] -> (A -> B) -> List B)
-        (\_ B _ => nil B)
-        (\_ x xs rec B f => cons B (f x) (rec B f))
+        (\_ => [B : *] -> (A -> B) -> List B)
+        (\B _ => nil B)
+        (\x xs rec B f => cons B (f x) (rec B f))
 )
 
 length [A : *] [xs : List A] : Nat => (
     List-Elim A xs
-        (\A _ => Nat)
-        (\_ => zero)
-        (\_ _ _ n => suc n)
+        (\_ => Nat)
+        zero
+        (\_ _ n => suc n)
 )
 
 upto3 : List Nat => (cons Nat one (cons Nat two (cons Nat three (nil Nat))))
@@ -57,11 +57,15 @@ data Sigma : [A : *] [B : A -> *] -> *
      { si : [x : A] -> B x -> Sigma A B }
 
 fst [A : *] [B : A -> *] [x : Sigma A B] : A => (
-    Sigma-Elim A B x (\A _ _ => A) (\_ _ x _ => x)
+    Sigma-Elim A B x (\_ => A) (\x _ => x)
 )
 
 snd [A : *] [B : A -> *] [x : Sigma A B] : B (fst A B x) => (
-    Sigma-Elim A B x (\A B x => B (fst A B x)) (\_ _ _ x => x)
+    Sigma-Elim A B x (\x => B (fst A B x)) (\_ x => x)
+)
+
+pair [A B : *] [x : A] [y : B] : Sigma A (\_ => B) => (
+    si A (\_ => B) x y
 )
 
 id [A : *] [x : A] : A => x
@@ -110,38 +114,3 @@ not [b : Bool] : Bool => (
 pred [n : Nat] : T (isSuc n) -> Nat => (
     Nat-Elim n (\m => T (isSuc m) -> Nat) (\p => absurd p Nat) (\m _ _ => m)
 )
-
--- data Fin : Nat -> *
---     { fzero : [n : Nat]          -> Fin (suc n)
---     | fsuc  : [n : Nat] -> Fin n -> Fin (suc n)
---     }
-
--- fzero-absurd [fz : Fin zero] [A : *] : A => (
---     Fin-Elim zero fz
---         (\n _ => ite' * (isZero n) A Unit)
---         (\_ => tt)
---         (\_ _ _ => tt)
--- )
-
--- Fin-case [n : Nat] [m : Fin (suc n)] : [A : *] -> A -> (Fin n -> A) -> A => (
---     Fin-Elim (suc n) m
---         (\_ _ => [A : *] -> A -> (Fin n -> A) -> A)
---         {!hfc1!}
---         {!hfc2!}
--- )
-
--- ix [A : *] [xs : List A] : Fin (length A xs) -> A => (
---     List-Elim A xs
---         (\A ys => Fin (length A ys) -> A)
---         (\A fz => fzero-absurd fz A)
---         (\A x ys f m => Fin-case (length A ys) m A x f)
--- )
-
--- data Eq : [A : *] -> A -> A -> *
---   { refl : [A : *] [x : A] -> Eq A x x }
-
--- subst [A : *] [x y : A] [p : Eq A x y] : [P : A -> *] -> P x -> P y => (
---     Eq-Elim A x y p
---         (\A x y p => [P : A -> *] -> P x -> P y)
---         (\A _ _ p => p)
--- )
