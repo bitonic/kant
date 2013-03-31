@@ -35,6 +35,7 @@ instance Elaborate Decl where
         do checkDup env n
            (tyty, holes) <- tyInfer env ty
            return (addFree env n Nothing (Just tyty), holes)
+    -- TODO normalise all types before elaborating
     elaborate env₁ (Data tyc tycty dcs) =
         do checkDup env₁ tyc
            tyInferNH env₁ tycty -- Check that the type of the tycon is well typed
@@ -159,9 +160,9 @@ elimTy tyc tycty cons = targets tycty
          -> [(v, Term v)]       -- Quantified args of the constructors, with types
          -> Term v
     hyps _ _ motiveV motiveArg [] = app [motiveV, motiveArg]
-    hyps env dc motiveV motiveArg ((argv, (appV -> (tyh, tyargs))) : args) =
+    hyps env dc motiveV motiveArg ((argv, (appV -> (tyh, _))) : args) =
         if tyh == V (envNest env tyc)
-        then mkArr (app (motiveV : tyargs ++ [V argv]))
+        then mkArr (app [motiveV, V argv])
                    (hyps (neste₁ env) dc (nestt₁ motiveV) (nestt₁ motiveArg)
                          (map (F *** nestt₁) args))
         else hyps env dc motiveV motiveArg args
@@ -174,7 +175,8 @@ buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
     error "buildElim: got wrong number of arguments in eliminator"
 buildElim i tyc dcs (ts :: [Term v]) =
     case t of
-        Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
+        -- TODO should we assert that the arguments are of the right number?
+        Canon dc (drop i -> args) | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
             -- newEnv, since we only need to pull out the type constructor
             in Just (app (method : args ++ recs 0 args dcty))
