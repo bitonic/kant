@@ -15,7 +15,7 @@ Description:
 
 Source-Repository head
     Type:             git
-    Location:         git://github.com/kant/kant.git
+    Location:         git://github.com/bitonic/kant.git
 
 Library
     Hs-Source-Dirs:   src
