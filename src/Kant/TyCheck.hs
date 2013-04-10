@@ -84,7 +84,7 @@ lookupTy env v = case envType env v of
 type TyMonad m = WriterT [HoleCtx] m
 
 tyInfer :: (Ord v, Show v, MonadTyCheck m)
-        => Env v -> TermRef v -> m (TermRef v, [HoleCtx])
+        => Env v -> TermRef v -> m [HoleCtx]
 tyInfer env = runWriterT . tyInfer' env
 
 -- TODO this should be never necessary, I should allow holes in data decls

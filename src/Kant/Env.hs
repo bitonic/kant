@@ -24,6 +24,7 @@ import           Bound
 import           Bound.Name
 
 import           Kant.Term
+import           Kant.Constraint
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
@@ -31,13 +32,14 @@ type Elim = forall v. Show v => [TermRef v] -> Maybe (TermRef v)
 
 -- | Bringing it all together
 data Env v = Env
-    { envValue  :: Ctx v
-    , envType   :: Ctx v
-    , envElim   :: ConId -> Elim
-    , envPull   :: v -> Id
-    , envNest   :: Id -> v
-    , envRename :: v -> (Id -> Id) -> v
-    , envRef    :: Ref
+    { envValue   :: Ctx v
+    , envType    :: Ctx v
+    , envElim    :: ConId -> Elim
+    , envPull    :: v -> Id
+    , envNest    :: Id -> v
+    , envRename  :: v -> (Id -> Id) -> v
+    , envRef     :: Ref
+    , envConstrs :: Constrs Ref
     }
 
 type EnvId = Env Id
@@ -63,13 +65,14 @@ nestEnv env@Env{ envValue = value
        }
 
 newEnv :: EnvId
-newEnv = Env{ envValue  = const Nothing
-            , envType   = const Nothing
-            , envElim   = error "newEnv: looking up a non-existant elim"
-            , envPull   = id
-            , envNest   = id
-            , envRename = \v f -> f v
-            , envRef    = 0
+newEnv = Env{ envValue   = const Nothing
+            , envType    = const Nothing
+            , envElim    = error "newEnv: looking up a non-existant elim"
+            , envPull    = id
+            , envNest    = id
+            , envRename  = \v f -> f v
+            , envRef     = 0
+            , envConstrs = emptyConstrs
             }
 
 nestEnvTy :: Env v -> TermRef v -> Env (Var (NameId ()) v)
