@@ -83,7 +83,7 @@ replOutput env₁ s₁ =
            ISkip       -> return (OSkip, env₁)
   where
     parseE _   (Left pe) = throwError (TermParse pe)
-    parseE env (Right x) = mapTyCheckM (putRef env x)
+    parseE env (Right x) = return (putRef env x)
     parse env = parseE env . parseTerm
     tyct env = mapTyCheckM . tyInfer env
     elab env = mapTyCheckM . elaborate env

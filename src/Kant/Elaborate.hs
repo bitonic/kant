@@ -103,7 +103,8 @@ elimTy tyc tycty cons ref = targets tycty
         -- Then scope a "motive", which is a predicate on D, so we need to scope
         -- again all the parameters plus an instance of D with those parameters.
         let targs      = map V args
-            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs)) (Ty (Forget ref)))
+            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs))
+                                       (Ty (Forget ref)))
             -- The variable that will refer to the motive
             motiveV    = V (B (Name "P" ()))
             env₂       = neste₂ env₁
