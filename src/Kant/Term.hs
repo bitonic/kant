@@ -10,7 +10,9 @@ module Kant.Term
     , NameId
     , Forget(..)
     , Ref
+    , FRef
     , TermScope
+    , TermScopeRef
     , Term(..)
     , TermRef
     , TermId
@@ -31,15 +33,18 @@ module Kant.Term
     , arrLen
     , annV
       -- * Utils
+    , mapRef
     , unRef
       -- * Holes
     , isHole
     , HoleCtx(..)
     ) where
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative (Applicative, (<$>), (<*>))
 import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
+
+import           Control.Monad.Identity (runIdentity)
 
 import           Bound
 import           Bound.Name
@@ -53,9 +58,11 @@ type ConId = Id
 type HoleId = String
 type NameId = Name Id
 
-type Ref = Forget Integer
+type Ref = Integer
+type FRef = Forget Ref
 
 type TermScope r = Scope (NameId ()) (Term r)
+type TermScopeRef = TermScope FRef
 
 data Term r v
     = V v
@@ -69,7 +76,7 @@ data Term r v
     | Hole HoleId [Term r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-type TermRef = Term Ref
+type TermRef = Term FRef
 type TermId r = Term r Id
 type TermRefId = TermRef Id
 type TermSyn = Term () Id
@@ -140,8 +147,20 @@ annV :: Term r t -> Term r t
 annV (Ann _ t) = t
 annV t         = t
 
+mapRef :: (Functor m, Applicative m, Monad m)
+       => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
+mapRef _ (V v)         = return (V v)
+mapRef f (Ty r)        = Ty <$> f r
+mapRef f (Lam s)       = Lam . toScope <$> mapRef f (fromScope s)
+mapRef f (Arr t s)     = Arr <$> mapRef f t <*> (toScope <$> mapRef f (fromScope s))
+mapRef f (App t₁ t₂)   = App <$> mapRef f t₁ <*> mapRef f t₂
+mapRef f (Ann ty t)    = Ann <$> mapRef f ty <*> mapRef f t
+mapRef f (Canon dc ts) = Canon dc <$> mapM (mapRef f) ts
+mapRef f (Elim dc ts)  = Elim dc <$> mapM (mapRef f) ts
+mapRef f (Hole h ts)   = Hole h <$> mapM (mapRef f) ts
+
 unRef :: Term r v -> Term () v
-unRef t = undefined
+unRef = runIdentity . mapRef (const (return ()))
 
 isHole :: Term r v -> Bool
 isHole (Hole _ _) = True

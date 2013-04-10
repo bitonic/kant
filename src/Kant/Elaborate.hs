@@ -27,7 +27,7 @@ import           Kant.TyCheck
 class Elaborate a where
     elaborate :: MonadTyCheck m => EnvId -> a -> m (EnvId, [HoleCtx])
 
-instance r ~ Ref => Elaborate (Decl r) where
+instance r ~ FRef => Elaborate (Decl r) where
     elaborate env (Val n t) =
         do checkDup env n
            (ty, holes) <- tyInfer env t;
@@ -103,7 +103,7 @@ elimTy tyc tycty cons ref = targets tycty
         -- Then scope a "motive", which is a predicate on D, so we need to scope
         -- again all the parameters plus an instance of D with those parameters.
         let targs      = map V args
-            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs)) (Ty ref))
+            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs)) (Ty (Forget ref)))
             -- The variable that will refer to the motive
             motiveV    = V (B (Name "P" ()))
             env₂       = neste₂ env₁
@@ -217,7 +217,7 @@ nestt₁ = fmap F
 mkArr :: TermRef v -> TermRef (Var (NameId ()) v) -> TermRef v
 mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 
-instDummy :: TermScope Ref Id -> TermRefId
+instDummy :: TermScopeRef Id -> TermRefId
 instDummy s = instantiate1 (V "dummy") s
 
 -- | Provided with a @(x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
@@ -242,7 +242,7 @@ typedLam f ty = Ann ty (go newEnv [] ty)
         Lam (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
     go _ vs _ = f (map V (reverse vs))
 
-instance r ~ Ref => Elaborate (Module r) where
+instance r ~ FRef => Elaborate (Module r) where
     elaborate e = go e [] . unModule
       where
         go env holes []             = return (env, holes)

@@ -30,7 +30,7 @@ reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
 reduceScope :: forall v. Show v
-            => Reducer -> Env v -> TermScope Ref v -> TermScope Ref v
+            => Reducer -> Env v -> TermScopeRef v -> TermScopeRef v
 reduceScope r env s = (toScope (r (nestEnv env Nothing Nothing) (fromScope s)))
 
 whnf :: Reducer
