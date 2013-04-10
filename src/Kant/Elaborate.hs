@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 -- | This is largely ripped off fig. 9 of 'The View from the Left'.
 module Kant.Elaborate (Elaborate(..)) where
@@ -26,7 +27,7 @@ import           Kant.TyCheck
 class Elaborate a where
     elaborate :: MonadTyCheck m => EnvId -> a -> m (EnvId, [HoleCtx])
 
-instance Elaborate Decl where
+instance r ~ Ref => Elaborate (Decl r) where
     elaborate env (Val n t) =
         do checkDup env n
            (ty, holes) <- tyInfer env t;
@@ -40,29 +41,29 @@ instance Elaborate Decl where
         do checkDup env₁ tyc
            tyInferNH env₁ tycty -- Check that the type of the tycon is well typed
            -- Check that the type constructor returns a type
-           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc tycty))
+           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc (unRef tycty)))
            let -- Add the type of the tycon to scope
                env₂ = addFree env₁ tyc Nothing (Just tycty)
                -- Create the functions that will form 'Canon's
            env₃ <- foldrM (\(dc, dcty) env₃ -> elaborateCon env₃ tyc dc dcty) env₂ dcs
-           let elty  = elimTy tyc tycty dcs -- D-elim type
-               eln   = elimName tyc         -- D-elim name
+           let elty  = elimTy tyc tycty dcs undefined -- D-elim type
+               eln   = elimName tyc                   -- D-elim name
                -- Function that will form the 'Elim's
                elfun = typedLam (Elim eln) elty
                env₄  = addFree env₃ eln (Just elfun)  (Just elty)
                -- Add the actual eliminator
            return (addElim env₄ eln (buildElim (arrLen tycty) tyc dcs), [])
       where
-        returnsTy :: Term v -> Bool
+        returnsTy :: TermRef v -> Bool
         returnsTy (Arr  _ s) = returnsTy (fromScope s)
-        returnsTy Ty         = True
+        returnsTy (Ty _)     = True
         returnsTy _          = False
 
 elaborateCon :: MonadTyCheck m
              => EnvId
              -> ConId           -- ^ Tycon name
              -> ConId           -- ^ Name of the datacon
-             -> TermId          -- ^ Type of the datacon
+             -> TermRefId       -- ^ Type of the datacon
              -> m EnvId
 elaborateCon env tyc dc ty =
     do checkDup env dc
@@ -72,7 +73,7 @@ elaborateCon env tyc dc ty =
        return (addFree env dc (Just t) (Just ty))
   where
     -- TODO Check that we return the D with the right arguments.
-    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> [v] -> Term v -> m ()
+    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
     goodTy env' vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
@@ -88,18 +89,21 @@ elaborateCon env tyc dc ty =
                (expectingTypeData env dc tyc ty)
 
 elimTy :: ConId                 -- ^ Tycon
-       -> TermId                -- ^ Tycon type
-       -> [(ConId, TermId)]     -- ^ Constructors
-       -> TermId
-elimTy tyc tycty cons = targets tycty
+       -> TermRefId             -- ^ Tycon type
+       -> [(ConId, TermRefId)]  -- ^ Constructors
+       -> Ref                   -- ^ Reference for the returned Ty
+       -> TermRefId
+elimTy tyc tycty cons ref = targets tycty
   where
     -- First scope the arguments of the type constructor
     targets = telescope targetsf newEnv
+
+    targetsf :: Eq v => Env v -> [v] -> TermRef v
     targetsf env₁ args =
         -- Then scope a "motive", which is a predicate on D, so we need to scope
         -- again all the parameters plus an instance of D with those parameters.
         let targs      = map V args
-            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs)) Ty)
+            motive     = nestt₁ (mkArr (app (V (envNest env₁ tyc) : targs)) (Ty ref))
             -- The variable that will refer to the motive
             motiveV    = V (B (Name "P" ()))
             env₂       = neste₂ env₁
@@ -113,11 +117,11 @@ elimTy tyc tycty cons = targets tycty
 
     methods :: Eq v
             => Env v
-            -> [v]               -- Arguments for the tycon
-            -> Term v            -- Quantified motive `P'
-            -> Term v            -- Target
-            -> [(ConId, TermId)] -- Constructors
-            -> Term v
+            -> [v]                  -- Arguments for the tycon
+            -> TermRef v            -- Quantified motive `P'
+            -> TermRef v            -- Target
+            -> [(ConId, TermRefId)] -- Constructors
+            -> TermRef v
     methods _ _ motiveV target [] = app [motiveV, target]
     methods env args motiveV target ((dc, dcty) : dcs) =
         mkArr (method env args dc dcty motiveV)
@@ -128,16 +132,16 @@ elimTy tyc tycty cons = targets tycty
            => Env v
            -> [v]               -- Arguments to the tycon
            -> ConId             -- Data con
-           -> TermId            -- Data con type
-           -> Term v            -- Quantifiend motive `P'
-           -> Term v
+           -> TermRefId         -- Data con type
+           -> TermRef v         -- Quantifiend motive `P'
+           -> TermRef v
     method env₀ args₀ dc dcty motiveV₀ =
         let go :: Eq v => Env v
-               -> Term v        -- Quantified motive `P'
-               -> [v]           -- Args for the tycon
-               -> [(v, Term v)] -- Args to the datacon, var and type
-               -> Term v        -- Type of the datacon
-               -> Term v
+               -> TermRef v        -- Quantified motive `P'
+               -> [v]              -- Args for the tycon
+               -> [(v, TermRef v)] -- Args to the datacon, var and type
+               -> TermRef v        -- Type of the datacon
+               -> TermRef v
             go env motiveV tyargs args (Arr arg s) =
                 mkArr arg
                       (go (neste₁ env) (nestt₁ motiveV) (map F tyargs)
@@ -155,10 +159,10 @@ elimTy tyc tycty cons = targets tycty
 
     hyps :: Eq v => Env v
          -> ConId
-         -> Term v              -- Quantified motive `P'
-         -> Term v              -- Argument for the motive
-         -> [(v, Term v)]       -- Quantified args of the constructors, with types
-         -> Term v
+         -> TermRef v            -- Quantified motive `P'
+         -> TermRef v            -- Argument for the motive
+         -> [(v, TermRef v)]     -- Quantified args of the constructors, with types
+         -> TermRef v
     hyps _ _ motiveV motiveArg [] = app [motiveV, motiveArg]
     hyps env dc motiveV motiveArg ((argv, (appV -> (tyh, _))) : args) =
         if tyh == V (envNest env tyc)
@@ -167,13 +171,13 @@ elimTy tyc tycty cons = targets tycty
                          (map (F *** nestt₁) args))
         else hyps env dc motiveV motiveArg args
 
-buildElim :: Int -> ConId -> [(ConId, TermId)] -> Elim
+buildElim :: Int -> ConId -> [(ConId, TermRefId)] -> Elim
 -- The `i' is the number of parameters for the tycon, the first 1 for the
 -- motive, the second for the target, the third for the number of
 -- constructors.
 buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
     error "buildElim: got wrong number of arguments in eliminator"
-buildElim i tyc dcs (ts :: [Term v]) =
+buildElim i tyc dcs (ts :: [TermRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
         Canon dc (drop i -> args) | Just j <- elemIndex dc (map fst dcs) ->
@@ -185,7 +189,7 @@ buildElim i tyc dcs (ts :: [Term v]) =
   where
     (pars, (t : motive : methods)) = splitAt i ts
 
-    recs :: Int -> [Term v] -> TermId -> [Term v]
+    recs :: Int -> [TermRef v] -> TermRefId -> [TermRef v]
     recs n args (Arr (appV -> (tyHead, _)) s) =
         (if tyHead == V tyc then [recElim (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
@@ -210,35 +214,35 @@ neste₂ = neste₁ . neste₁
 nestt₁ :: Functor f => f a -> f (Var b a)
 nestt₁ = fmap F
 
-mkArr :: Term v -> Term (Var (NameId ()) v) -> Term v
+mkArr :: TermRef v -> TermRef (Var (NameId ()) v) -> TermRef v
 mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 
-instDummy :: Scope n Term String -> TermId
+instDummy :: TermScope Ref Id -> TermRefId
 instDummy s = instantiate1 (V "dummy") s
 
 -- | Provided with a @(x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(x1 : S1) -> ... -> (xn : Sn) -> f [x1..xn]@.
 telescope :: Eq v
-          => (forall a. Eq a => Env a -> [a] -> Term a)
-          -> Env v -> Term v -> Term v
+          => (forall a. Eq a => Env a -> [a] -> TermRef a)
+          -> Env v -> TermRef v -> TermRef v
 telescope f env' = go env' []
   where
-    go :: Eq v => Env v -> [v] -> Term v -> Term v
+    go :: Eq v => Env v -> [v] -> TermRef v -> TermRef v
     go env vs (Arr ty s) =
         Arr ty (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
     go env vs _ = f env (reverse vs)
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(\x1 .. xn  => f [x1..xn]) : A@.
-typedLam :: (forall a. [Term a] -> Term a) -> TermId -> TermId
+typedLam :: (forall a. [TermRef a] -> TermRef a) -> TermRefId -> TermRefId
 typedLam f ty = Ann ty (go newEnv [] ty)
   where
-    go :: Eq v => Env v -> [v] -> Term v -> Term v
+    go :: Eq v => Env v -> [v] -> TermRef v -> TermRef v
     go env vs (Arr _ s) =
         Lam (toScope (go (neste₁ env) (B (bindingN s) : map F vs) (fromScope s)))
     go _ vs _ = f (map V (reverse vs))
 
-instance Elaborate Module where
+instance r ~ Ref => Elaborate (Module r) where
     elaborate e = go e [] . unModule
       where
         go env holes []             = return (env, holes)

@@ -8,9 +8,14 @@ module Kant.Term
     , ConId
     , HoleId
     , NameId
+    , Forget(..)
+    , Ref
     , TermScope
     , Term(..)
+    , TermRef
     , TermId
+    , TermRefId
+    , TermSyn
       -- * Smart constructors
     , lam
     , arr
@@ -25,6 +30,8 @@ module Kant.Term
     , scopeN
     , arrLen
     , annV
+      -- * Utils
+    , unRef
       -- * Holes
     , isHole
     , HoleCtx(..)
@@ -39,37 +46,44 @@ import           Bound.Name
 import           Bound.Scope
 import           Prelude.Extras
 
+import           Kant.Forget
+
 type Id = String
 type ConId = Id
 type HoleId = String
 type NameId = Name Id
 
-type TermScope = Scope (NameId ()) Term
+type Ref = Forget Integer
 
-data Term v
+type TermScope r = Scope (NameId ()) (Term r)
+
+data Term r v
     = V v
-    | Ty
-    | Lam (TermScope v)
-    | Arr (Term v) (TermScope v)
-    | App (Term v) (Term v)
-    | Ann (Term v) (Term v)
-    | Canon ConId [Term v]
-    | Elim ConId [Term v]
-    | Hole HoleId [Term v]
+    | Ty r
+    | Lam (TermScope r v)
+    | Arr (Term r v) (TermScope r v)
+    | App (Term r v) (Term r v)
+    | Ann (Term r v) (Term r v)
+    | Canon ConId [Term r v]
+    | Elim ConId [Term r v]
+    | Hole HoleId [Term r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-type TermId = Term Id
+type TermRef = Term Ref
+type TermId r = Term r Id
+type TermRefId = TermRef Id
+type TermSyn = Term () Id
 
-instance Eq1 Term   where (==#)      = (==)
-instance Ord1 Term  where compare1   = compare
-instance Show1 Term where showsPrec1 = showsPrec
-instance Read1 Term where readsPrec1 = readsPrec
+instance (Eq r)   => Eq1 (Term r)   where (==#)      = (==)
+instance (Ord r)  => Ord1 (Term r)  where compare1   = compare
+instance (Show r) => Show1 (Term r) where showsPrec1 = showsPrec
+instance (Read r) => Read1 (Term r) where readsPrec1 = readsPrec
 
-instance Monad Term where
+instance Monad (Term r) where
     return = V
 
     V v        >>= f = f v
-    Ty         >>= _ = Ty
+    Ty r       >>= _ = Ty r
     Lam s      >>= f = Lam (s >>>= f)
     Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
     App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
@@ -78,30 +92,30 @@ instance Monad Term where
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
     Hole hn ts >>= f = Hole hn (map (>>= f) ts)
 
-lam :: Maybe Id -> TermId -> TermId
+lam :: Maybe Id -> TermId r -> TermId r
 lam Nothing  t = Lam (toScope (F <$> t))
 lam (Just v) t = Lam (abstract1Name v t)
 
-arr :: Maybe Id -> TermId -> TermId -> TermId
+arr :: Maybe Id -> TermId r -> TermId r -> TermId r
 arr Nothing  ty t = Arr ty (toScope (F <$> t))
 arr (Just v) ty t = Arr ty (abstract1Name v t)
 
-app :: [Term v] -> Term v
+app :: [Term r v] -> Term r v
 app = foldl1 App
 
-appV :: Term v -> (Term v, [Term v])
+appV :: Term r v -> (Term r v, [Term r v])
 appV (App t₁ t₂) = (t, ts ++ [t₂]) where (t, ts) = appV t₁
 appV t = (t, [])
 
-appHead :: Term v -> Term v
+appHead :: Term r v -> Term r v
 appHead (appV -> (t, _)) = t
 
-binding :: Scope (NameId ()) Term v -> Maybe (NameId ())
+binding :: TermScope r v -> Maybe (NameId ())
 binding s = case bindings s of
                 []      -> Nothing
                 (n : _) -> Just n
 
-bindingN :: Scope (NameId ()) Term v -> NameId ()
+bindingN :: TermScope r v -> NameId ()
 bindingN s = case bindings s of
                  []      -> dummyN
                  (n : _) -> n
@@ -109,30 +123,32 @@ bindingN s = case bindings s of
 dummyN :: NameId ()
 dummyN = Name "$" ()
 
-scopeV :: Scope (NameId ()) Term v -> (NameId () -> Term v)
-       -> (Maybe (NameId ()), Term v)
+scopeV :: TermScope r v -> (NameId () -> Term r v) -> (Maybe (NameId ()), Term r v)
 scopeV s f =
     case bindings s of
         []      -> (Nothing, instantiate1 (error "scopeV: the impossible happened") s)
         (n : _) -> (Just n, instantiate1 (f n) s)
 
-scopeN :: Scope (NameId ()) Term Id -> (Maybe Id, TermId)
+scopeN :: TermScope r Id -> (Maybe Id, TermId r)
 scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
 
-arrLen :: Term v -> Int
+arrLen :: Term r v -> Int
 arrLen (Arr _ s) = 1 + arrLen (fromScope s)
 arrLen _         = 0
 
-annV :: Term t -> Term t
+annV :: Term r t -> Term r t
 annV (Ann _ t) = t
 annV t         = t
 
-isHole :: Term v -> Bool
+unRef :: Term r v -> Term () v
+unRef t = undefined
+
+isHole :: Term r v -> Bool
 isHole (Hole _ _) = True
 isHole _          = False
 
 data HoleCtx = HoleCtx
     { holeName :: HoleId
-    , holeGoal :: TermId
-    , holeCtx  :: [(TermId, TermId)]
+    , holeGoal :: TermRefId
+    , holeCtx  :: [(TermRefId, TermRefId)]
     }

@@ -27,13 +27,13 @@ import           Kant.Uniquify
 data TyCheckError
     = OutOfBounds Id
     | DuplicateName Id
-    | Mismatch TermId TermId TermId
-    | ExpectingFunction TermId TermId
-    | ExpectingType TermId TermId
-    | ExpectingTypeCon ConId TermId
-    | ExpectingTypeData ConId ConId TermId
-    | WrongRecTypePos ConId ConId TermId
-    | UntypedTerm TermId
+    | Mismatch TermSyn TermSyn TermSyn
+    | ExpectingFunction TermSyn TermSyn
+    | ExpectingType TermSyn TermSyn
+    | ExpectingTypeCon ConId TermSyn
+    | ExpectingTypeData ConId ConId TermSyn
+    | WrongRecTypePos ConId ConId TermSyn
+    | UntypedTerm TermSyn
     | UnexpectedHole HoleId
     deriving (Eq, Show)
 
@@ -44,35 +44,38 @@ instance MonadTyCheck (ErrorT TyCheckError IO)
 instance (Monoid w, MonadTyCheck m) => MonadTyCheck (WriterT w m)
 
 mismatch :: (Ord v, Show v, MonadTyCheck m)
-         => Env v -> Term v -> Term v -> Term v -> m a
+         => Env v -> TermRef v -> TermRef v -> TermRef v -> m a
 mismatch env t₁ t₂ t₃ =
-    runFresh $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
+    runFresh $ do [t₁', t₂', t₃'] <- map unRef <$> mapM (slam env) [t₁, t₂, t₃]
                   return (throwError (Mismatch t₁' t₂' t₃'))
 
-expectingType :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> Term v -> m a
+expectingType :: (Ord v, Show v, MonadTyCheck m)
+              => Env v -> TermRef v -> TermRef v -> m a
 expectingType env t ty =
-    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
+    runFresh $ do [t', ty'] <- map unRef <$> mapM (slam env) [t, ty]
                   return (throwError (ExpectingType t' ty'))
 
 expectingFunction :: (Ord v, Show v, MonadTyCheck m)
-                  => Env v -> Term v -> Term v -> m a
+                  => Env v -> TermRef v -> TermRef v -> m a
 expectingFunction env t ty =
-    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
+    runFresh $ do [t', ty'] <- map unRef <$> mapM (slam env) [t, ty]
                   return (throwError (ExpectingFunction t' ty'))
 
 expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
-                  => Env v -> ConId -> ConId -> Term v -> m a
+                  => Env v -> ConId -> ConId -> TermRef v -> m a
 expectingTypeData env dc tyc ty  =
-    throwError (ExpectingTypeData dc tyc (slam' env ty))
+    throwError (ExpectingTypeData dc tyc (slam' env (unRef ty)))
 
 wrongRecTypePos :: (Ord v, Show v, MonadTyCheck m)
-                => Env v -> ConId -> ConId -> Term v -> m a
-wrongRecTypePos env dc tyc ty = throwError (WrongRecTypePos dc tyc (slam' env ty))
+                => Env v -> ConId -> ConId -> TermRef v -> m a
+wrongRecTypePos env dc tyc ty =
+    throwError (WrongRecTypePos dc tyc (slam' env (unRef ty)))
 
-untypedTerm :: (Ord v, Show v, MonadError TyCheckError m) => Env v -> Term v -> m a
-untypedTerm env t = throwError (UntypedTerm (slam' env t))
+untypedTerm :: (Ord v, Show v, MonadError TyCheckError m)
+            => Env v -> TermRef v -> m a
+untypedTerm env t = throwError (UntypedTerm (slam' env (unRef t)))
 
-lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (Term v)
+lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (TermRef v)
 lookupTy env v = case envType env v of
                      Nothing -> throwError (OutOfBounds (envPull env v))
                      Just ty -> return ty
@@ -80,29 +83,31 @@ lookupTy env v = case envType env v of
 
 type TyMonad m = WriterT [HoleCtx] m
 
-tyInfer :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v, [HoleCtx])
+tyInfer :: (Ord v, Show v, MonadTyCheck m)
+        => Env v -> TermRef v -> m (TermRef v, [HoleCtx])
 tyInfer env = runWriterT . tyInfer' env
 
 -- TODO this should be never necessary, I should allow holes in data decls
-tyInferNH :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> m (Term v)
+tyInferNH :: (Ord v, Show v, MonadTyCheck m) => Env v -> TermRef v -> m (TermRef v)
 tyInferNH env t =
     do (ty, holes) <- tyInfer env t
        case holes of
            [] -> return ty
            (HoleCtx{holeName = hn} : _) -> throwError (UnexpectedHole hn)
 
-tyInfer' :: (Ord v, Show v, MonadTyCheck m) => Env v -> Term v -> TyMonad m (Term v)
-tyInfer' _ Ty = return Ty
+tyInfer' :: (Ord v, Show v, MonadTyCheck m)
+         => Env v -> TermRef v -> TyMonad m (TermRef v)
+tyInfer' _ (Ty r) = return (Ty undefined)
 tyInfer' env (V v) = lookupTy env v
 tyInfer' env t@(Lam _) = untypedTerm env t
 tyInfer' env₁ (Arr ty₁ s) =
     do tyty₁ <- tyInfer' env₁ ty₁
        case whnf env₁ tyty₁ of
-           Ty -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
-                    tyty₂ <- tyInfer' env₂ ty₂
-                    case nf env₂ tyty₂ of
-                        Ty -> return Ty
-                        _  -> expectingType env₂ ty₂ tyty₂
+           (Ty r₁) -> do let env₂ = nestEnvTy env₁ ty₁; ty₂ = fromScope s
+                         tyty₂ <- tyInfer' env₂ ty₂
+                         case nf env₂ tyty₂ of
+                             (Ty r₂) -> return (Ty undefined)
+                             _       -> expectingType env₂ ty₂ tyty₂
            _ -> expectingType env₁ ty₁ tyty₁
 tyInfer' env (App t₁ t₂) =
     do tyt₁ <- tyInfer' env t₁
@@ -111,15 +116,15 @@ tyInfer' env (App t₁ t₂) =
            _         -> expectingFunction env t₁ tyt₁
 tyInfer' env (Canon dc ts) = tyInfer' env (app (V (envNest env dc) : ts))
 tyInfer' env (Elim en ts) = tyInfer' env (app (V (envNest env en) : ts))
-tyInfer' env (Ann ty t) = do tyCheck env ty Ty; ty <$ tyCheck env t ty
+tyInfer' env (Ann ty t) = do tyCheck env ty (Ty undefined); ty <$ tyCheck env t ty
 tyInfer' env t@(Hole _ _) = untypedTerm env t
 
 tyCheck :: (Ord v, Show v, MonadTyCheck m)
-         => Env v -> Term v -> Term v -> TyMonad m ()
+         => Env v -> TermRef v -> TermRef v -> TyMonad m ()
 tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
   where
     go :: (Ord v, Show v, MonadTyCheck m)
-       => Env v -> Term v -> Term v -> TyMonad m ()
+       => Env v -> TermRef v -> TermRef v -> TyMonad m ()
     go env (Lam s₁) (Arr ty s₂) =
         go (nestEnvTy env ty) (fromScope s₁) (fromScope s₂)
     go env (Hole hn ts) ty =

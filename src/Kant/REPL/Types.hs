@@ -11,8 +11,8 @@ import           Kant.Parser
 import           Kant.TyCheck
 
 data Output
-    = OTyCheck TermId [HoleCtx] -- Type of term
-    | OPretty TermId            -- PPrinted term
+    = OTyCheck TermRefId [HoleCtx] -- Type of term
+    | OPretty TermRefId            -- PPrinted term
     | OHoles [HoleCtx]
     | OOK
     | OQuit

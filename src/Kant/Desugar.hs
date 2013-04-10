@@ -12,10 +12,10 @@ class Desugar a where
     desugar :: a -> Core a
 
 instance Desugar STerm where
-    type Core STerm = TermId
+    type Core STerm = TermSyn
 
     desugar (SV n) = V n
-    desugar STy = Ty
+    desugar STy = Ty ()
     desugar (SLam [] t) = desugar t
     desugar (SLam (vn : vs) t) = lam vn (desugar (SLam vs t))
     desugar (SArr [] t) = desugar t
@@ -27,7 +27,7 @@ instance Desugar STerm where
     desugar (SHole hn ts) = Hole hn (map desugar ts)
 
 instance Desugar SDecl where
-    type Core SDecl = Decl
+    type Core SDecl = DeclSyn
 
     desugar (SVal n pars ty t) =
         Val n (desugar (SAnn pars ty t))
@@ -38,5 +38,5 @@ instance Desugar SDecl where
       where pars' = (map (first Just) pars)
 
 instance Desugar SModule where
-    type Core SModule = Module
+    type Core SModule = ModuleSyn
     desugar (SModule decls) = Module (map desugar decls)

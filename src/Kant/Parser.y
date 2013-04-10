@@ -153,17 +153,17 @@ type ParseError = String
 -- | 'Left' for an error 'String', 'Right' for a result.
 type ParseResult = Either ParseError
 
-parseModule :: String -> ParseResult Module
+parseModule :: String -> ParseResult ModuleSyn
 parseModule s = desugar <$> runAlex s parseModule_
 
-parseDecl :: String -> ParseResult Decl
+parseDecl :: String -> ParseResult DeclSyn
 parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult TermId
+parseTerm :: String -> ParseResult TermSyn
 parseTerm s = desugar <$> runAlex s parseTerm_
 
 -- | Explodes if things go wrong.
-parseFile :: FilePath -> IO Module
+parseFile :: FilePath -> IO ModuleSyn
 parseFile fp = readFile fp >>= either fail return . parseModule
 
 }

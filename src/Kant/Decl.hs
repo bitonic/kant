@@ -1,11 +1,20 @@
-module Kant.Decl (Decl(..), Module(..)) where
+module Kant.Decl
+    ( Decl(..)
+    , DeclSyn
+    , Module(..)
+    , ModuleSyn
+    ) where
 
 import           Kant.Term
 
-data Decl
-    = Val Id TermId
-    | Postulate Id TermId
-    | Data ConId TermId [(ConId, TermId)]
+data Decl r
+    = Val Id (TermId r)
+    | Postulate Id (TermId r)
+    | Data ConId (TermId r) [(ConId, TermId r)]
     deriving (Eq, Show)
 
-newtype Module = Module {unModule :: [Decl]}
+type DeclSyn = Decl ()
+
+newtype Module r = Module {unModule :: [Decl r]}
+
+type ModuleSyn = Module ()
