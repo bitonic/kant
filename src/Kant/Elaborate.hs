@@ -41,7 +41,7 @@ instance r ~ FRef => Elaborate (Decl r) where
         do checkDup env₁ tyc
            tyInferNH env₁ tycty -- Check that the type of the tycon is well typed
            -- Check that the type constructor returns a type
-           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc (unRef tycty)))
+           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc tycty))
            let -- Add the type of the tycon to scope
                env₂ = addFree env₁ tyc Nothing (Just tycty)
                -- Create the functions that will form 'Canon's

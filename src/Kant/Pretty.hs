@@ -23,7 +23,7 @@ putPretty = putStrLn . show . pretty
 instance IsString Doc where
     fromString = pretty
 
-instance (v ~ Id, r ~ ()) => Pretty (Term r v) where
+instance (v ~ Id) => Pretty (Term r v) where
     pretty = pretty . distill
 
 instance Pretty STerm where
@@ -80,11 +80,10 @@ prettyBs (Just n) = pretty n
 
 instance Pretty HoleCtx where
     pretty HoleCtx{holeName = hn, holeGoal = goal, holeCtx = hctx} =
-        nest' (rest (pretty hn <+> ":" <+> pretty (unRef goal)))
+        nest' (rest (pretty hn <+> ":" <+> pretty goal))
       where
         rest = if null hctx then id
-               else (<$$> vcat [ pretty (unRef t) <+> ":" <+> pretty (unRef ty)
-                               | (t, ty) <- hctx ])
+               else (<$$> vcat [pretty t <+> ":" <+> pretty ty | (t, ty) <- hctx])
 
     prettyList = vcat . map pretty
 
@@ -117,10 +116,10 @@ instance Pretty TyCheckError where
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
 
 instance Pretty Output where
-    pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty (unRef ty))
+    pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty ty)
     pretty (OTyCheck ty holes) = group (nest' ("Holes:" <$> prettyList holes) <$>
-                                        nest' ("Type:" <$> pretty (unRef ty)))
-    pretty (OPretty t)         = pretty (unRef t)
+                                        nest' ("Type:" <$> pretty ty))
+    pretty (OPretty t)         = pretty t
     pretty (OHoles [])         = "OK"
     pretty (OHoles holes)      = gnest ("Holes:" <$> prettyList holes)
     pretty OOK                 = "OK"

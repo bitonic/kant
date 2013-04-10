@@ -27,13 +27,13 @@ import           Kant.Uniquify
 data TyCheckError
     = OutOfBounds Id
     | DuplicateName Id
-    | Mismatch TermSyn TermSyn TermSyn
-    | ExpectingFunction TermSyn TermSyn
-    | ExpectingType TermSyn TermSyn
-    | ExpectingTypeCon ConId TermSyn
-    | ExpectingTypeData ConId ConId TermSyn
-    | WrongRecTypePos ConId ConId TermSyn
-    | UntypedTerm TermSyn
+    | Mismatch TermRefId TermRefId TermRefId
+    | ExpectingFunction TermRefId TermRefId
+    | ExpectingType TermRefId TermRefId
+    | ExpectingTypeCon ConId TermRefId
+    | ExpectingTypeData ConId ConId TermRefId
+    | WrongRecTypePos ConId ConId TermRefId
+    | UntypedTerm TermRefId
     | UnexpectedHole HoleId
     deriving (Eq, Show)
 
@@ -46,34 +46,34 @@ instance (Monoid w, MonadTyCheck m) => MonadTyCheck (WriterT w m)
 mismatch :: (Ord v, Show v, MonadTyCheck m)
          => Env v -> TermRef v -> TermRef v -> TermRef v -> m a
 mismatch env t₁ t₂ t₃ =
-    runFresh $ do [t₁', t₂', t₃'] <- map unRef <$> mapM (slam env) [t₁, t₂, t₃]
+    runFresh $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
                   return (throwError (Mismatch t₁' t₂' t₃'))
 
 expectingType :: (Ord v, Show v, MonadTyCheck m)
               => Env v -> TermRef v -> TermRef v -> m a
 expectingType env t ty =
-    runFresh $ do [t', ty'] <- map unRef <$> mapM (slam env) [t, ty]
+    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
                   return (throwError (ExpectingType t' ty'))
 
 expectingFunction :: (Ord v, Show v, MonadTyCheck m)
                   => Env v -> TermRef v -> TermRef v -> m a
 expectingFunction env t ty =
-    runFresh $ do [t', ty'] <- map unRef <$> mapM (slam env) [t, ty]
+    runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
                   return (throwError (ExpectingFunction t' ty'))
 
 expectingTypeData :: (Ord v, MonadTyCheck m, Show v)
                   => Env v -> ConId -> ConId -> TermRef v -> m a
 expectingTypeData env dc tyc ty  =
-    throwError (ExpectingTypeData dc tyc (slam' env (unRef ty)))
+    throwError (ExpectingTypeData dc tyc (slam' env ty))
 
 wrongRecTypePos :: (Ord v, Show v, MonadTyCheck m)
                 => Env v -> ConId -> ConId -> TermRef v -> m a
 wrongRecTypePos env dc tyc ty =
-    throwError (WrongRecTypePos dc tyc (slam' env (unRef ty)))
+    throwError (WrongRecTypePos dc tyc (slam' env ty))
 
 untypedTerm :: (Ord v, Show v, MonadError TyCheckError m)
             => Env v -> TermRef v -> m a
-untypedTerm env t = throwError (UntypedTerm (slam' env (unRef t)))
+untypedTerm env t = throwError (UntypedTerm (slam' env t))
 
 lookupTy :: (Ord v, MonadTyCheck m) => Env v -> v -> m (TermRef v)
 lookupTy env v = case envType env v of
