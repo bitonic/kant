@@ -21,7 +21,7 @@ freshRef =
        return r
 
 putTerm :: Term () v -> State EnvId (TermRef v)
-putTerm = mapRef (const (Forget <$> freshRef))
+putTerm = mapRef (const freshRef)
 
 runFresh :: EnvId -> State EnvId a -> (EnvId, a)
 runFresh env₁ s = (env₂, t) where (t, env₂) = runState s env₁
@@ -30,7 +30,7 @@ instance r ~ () => PutRef (Term r v) where
     type WithRef (Term r v) = TermRef v
     putRef env = runFresh env . putTerm
 
-putDecl :: Decl () -> State EnvId (Decl FRef)
+putDecl :: Decl () -> State EnvId (Decl Ref)
 putDecl (Val n t)             = Val n <$> putTerm t
 putDecl (Postulate n ty)      = Postulate n <$> putTerm ty
 putDecl (Data tyc tycty cons) =
@@ -38,9 +38,9 @@ putDecl (Data tyc tycty cons) =
              <*> mapM (\(dc, dcty) -> (dc,) <$> putTerm dcty) cons
 
 instance r ~ () => PutRef (Decl r) where
-    type WithRef (Decl r) = Decl FRef
+    type WithRef (Decl r) = Decl Ref
     putRef env = runFresh env . putDecl
 
 instance r ~ () => PutRef (Module r) where
-    type WithRef (Module r) = Module FRef
+    type WithRef (Module r) = Module Ref
     putRef env (Module m) = runFresh env (Module <$> mapM putDecl m)

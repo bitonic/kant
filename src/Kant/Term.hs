@@ -8,9 +8,7 @@ module Kant.Term
     , ConId
     , HoleId
     , NameId
-    , Forget(..)
     , Ref
-    , FRef
     , TermScope
     , TermScopeRef
     , Term(..)
@@ -51,19 +49,18 @@ import           Bound.Name
 import           Bound.Scope
 import           Prelude.Extras
 
-import           Kant.Forget
-
 type Id = String
 type ConId = Id
 type HoleId = String
 type NameId = Name Id
 
 type Ref = Integer
-type FRef = Forget Ref
 
 type TermScope r = Scope (NameId ()) (Term r)
-type TermScopeRef = TermScope FRef
+type TermScopeRef = TermScope Ref
 
+-- TODO make the treatment of holes better---e.g. don't treat them as normal
+-- terms...
 data Term r v
     = V v
     | Ty r
@@ -76,7 +73,7 @@ data Term r v
     | Hole HoleId [Term r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-type TermRef = Term FRef
+type TermRef = Term Ref
 type TermId r = Term r Id
 type TermRefId = TermRef Id
 type TermSyn = Term () Id

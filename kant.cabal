@@ -52,7 +52,6 @@ Library
                       Kant.REPL
 
     Other-Modules:    Kant.Common,
-                      Kant.Forget,
                       Kant.Lexer,
                       Kant.REPL.Types
 

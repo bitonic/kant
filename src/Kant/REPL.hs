@@ -62,13 +62,15 @@ replOutput :: EnvId -> String -> REPLM (Output, EnvId)
 replOutput env₁ s₁ =
     do c <- parseInput s₁
        case c of
+           -- Note that here we often discard the generated environments since
+           -- all they have changed is the Ref
            ITyCheck s₂ -> do (env₂, t) <- parse env₁ s₂
-                             (ty, holes) <- tyct env₂ t
-                             return (OTyCheck (nf env₂ ty) holes, env₂)
+                             (ty, holes, _) <- tyct env₂ t
+                             return (OTyCheck (nf env₂ ty) holes, env₁)
            IEval s₂    -> do (env₂, t) <- parse env₁ s₂
                              tyct env₂ t
-                             let t' = nf env₁ t
-                             return (OPretty t', env₂)
+                             let t' = nf env₂ t
+                             return (OPretty t', env₁)
            IDecl s₂    -> do (env₂, d) <- parseE env₁ (parseDecl s₂)
                              (env₃, holes) <- elab env₂ d
                              return (OHoles holes, env₃)

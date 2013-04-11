@@ -3,18 +3,20 @@ module Kant.Constraint
     , Constrs
     , emptyConstrs
     , addConstr
-    , cyclical
+    , addConstrs
     ) where
+
+import           Data.Foldable (foldrM)
 
 data Constrs a = Constrs
 
-data Constr a = a :<=: a | a :==: a
+data Constr a = a :<=: a | a :<: a | a :==: a
 
 emptyConstrs :: Constrs a
 emptyConstrs = undefined
 
-addConstr :: Ord a => Constr a -> Constrs a -> Constrs a
+addConstr :: Ord a => Constr a -> Constrs a -> Maybe (Constrs a)
 addConstr = undefined
 
-cyclical :: Ord a => Constrs a -> Bool
-cyclical = undefined
+addConstrs :: Ord a => [Constr a] -> Constrs a -> Maybe (Constrs a)
+addConstrs = flip (foldrM addConstr)

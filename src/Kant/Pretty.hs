@@ -114,6 +114,7 @@ instance Pretty TyCheckError where
     pretty (UntypedTerm ty) =
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
+    pretty CyclicTypes = "Cyclic types."
 
 instance Pretty Output where
     pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty ty)

@@ -3,6 +3,8 @@
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Env
     ( Elim
+    , ConstrRef
+    , ConstrsRef
     , Env(..)
     , EnvId
     , newEnv
@@ -29,6 +31,8 @@ import           Kant.Constraint
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
 type Elim = forall v. Show v => [TermRef v] -> Maybe (TermRef v)
+type ConstrRef = Constr Ref
+type ConstrsRef = Constrs Ref
 
 -- | Bringing it all together
 data Env v = Env
@@ -39,7 +43,7 @@ data Env v = Env
     , envNest    :: Id -> v
     , envRename  :: v -> (Id -> Id) -> v
     , envRef     :: Ref
-    , envConstrs :: Constrs Ref
+    , envConstrs :: ConstrsRef
     }
 
 type EnvId = Env Id
