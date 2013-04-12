@@ -181,10 +181,9 @@ buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
 buildElim i tyc dcs (ts :: [TermRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
-        Canon dc (drop i -> args) | Just j <- elemIndex dc (map fst dcs) ->
+        Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
-            -- newEnv, since we only need to pull out the type constructor
-            in Just (app (method : args ++ recs 0 args dcty))
+            in Just (app (method : drop i args ++ recs 0 args dcty))
         Canon _ _ -> error "buildElim: constructor not present"
         _ -> Nothing
   where
