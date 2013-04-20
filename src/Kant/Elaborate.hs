@@ -14,7 +14,7 @@ import           Data.List (elemIndex)
 import           Data.Maybe (isJust)
 
 import           Control.Monad.Error (MonadError(..))
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 
 import           Bound
 import           Bound.Name
@@ -74,12 +74,12 @@ elaborateCon env₁ tyc dc ty =
        return (addFree env₂ dc (Just t) (Just ty))
   where
     -- TODO Check that we return the D with the right arguments.
-    goodTy :: (Var v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
+    goodTy :: (VarC v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
     goodTy env' vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
            let fvs  = envFreeVs env' arg
-           unless (not (Set.member tyc fvs) || appHead arg == V (envNest env' tyc))
+           unless (not (HashSet.member tyc fvs) || appHead arg == V (envNest env' tyc))
                   (wrongRecTypePos env₁ dc tyc ty)
            goodTy (neste₁ env') (B dummyN : map F vs) (fromScope s)
     goodTy env' vs (appV -> (arg, pars)) =

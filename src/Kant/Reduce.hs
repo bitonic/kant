@@ -10,7 +10,7 @@ import           Bound
 import           Kant.Term
 import           Kant.Env
 
-type Reducer = forall v. Var v => Env v -> TermRef v -> TermRef v
+type Reducer = forall v. VarC v => Env v -> TermRef v -> TermRef v
 
 reduce :: Reducer -> Reducer
 reduce r env@Env{envValue = value} t@(V v) =
@@ -29,8 +29,7 @@ reduce r env (Elim c ts) =
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
-reduceScope :: forall v. Show v
-            => Reducer -> Env v -> TermScopeRef v -> TermScopeRef v
+reduceScope :: VarC v => Reducer -> Env v -> TermScopeRef v -> TermScopeRef v
 reduceScope r env s = (toScope (r (nestEnv env Nothing Nothing) (fromScope s)))
 
 whnf :: Reducer

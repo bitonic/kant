@@ -44,38 +44,38 @@ class (Functor m, Applicative m, MonadError TyCheckError m) => MonadTyCheck m
 instance MonadTyCheck (ErrorT TyCheckError IO)
 instance (MonadTyCheck m) => MonadTyCheck (StateT s m)
 
-mismatch :: (Var v, MonadTyCheck m)
+mismatch :: (VarC v, MonadTyCheck m)
          => Env v -> TermRef v -> TermRef v -> TermRef v -> m a
 mismatch env t₁ t₂ t₃ =
     runFresh $ do [t₁', t₂', t₃'] <- mapM (slam env) [t₁, t₂, t₃]
                   return (throwError (Mismatch t₁' t₂' t₃'))
 
-expectingType :: (Var v, MonadTyCheck m) => Env v -> TermRef v -> TermRef v -> m a
+expectingType :: (VarC v, MonadTyCheck m) => Env v -> TermRef v -> TermRef v -> m a
 expectingType env t ty =
     runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
                   return (throwError (ExpectingType t' ty'))
 
-expectingFunction :: (Var v, MonadTyCheck m)
+expectingFunction :: (VarC v, MonadTyCheck m)
                   => Env v -> TermRef v -> TermRef v -> m a
 expectingFunction env t ty =
     runFresh $ do [t', ty'] <- mapM (slam env) [t, ty]
                   return (throwError (ExpectingFunction t' ty'))
 
-expectingTypeData :: (Var v, MonadTyCheck m)
+expectingTypeData :: (VarC v, MonadTyCheck m)
                   => Env v -> ConId -> ConId -> TermRef v -> m a
 expectingTypeData env dc tyc ty  =
     throwError (ExpectingTypeData dc tyc (slam' env ty))
 
-wrongRecTypePos :: (Var v, MonadTyCheck m)
+wrongRecTypePos :: (VarC v, MonadTyCheck m)
                 => Env v -> ConId -> ConId -> TermRef v -> m a
 wrongRecTypePos env dc tyc ty =
     throwError (WrongRecTypePos dc tyc (slam' env ty))
 
-untypedTerm :: (Var v, MonadError TyCheckError m)
+untypedTerm :: (VarC v, MonadError TyCheckError m)
             => Env v -> TermRef v -> m a
 untypedTerm env t = throwError (UntypedTerm (slam' env t))
 
-lookupTy :: (Var v, MonadTyCheck m) => Env v -> v -> m (TermRef v)
+lookupTy :: (VarC v, MonadTyCheck m) => Env v -> v -> m (TermRef v)
 lookupTy env v = case envType env v of
                      Nothing -> throwError (OutOfBounds (envPull env v))
                      Just ty -> return ty
@@ -102,7 +102,7 @@ newConstrs' f = do r <- freshRef
 newConstr' :: MonadTyCheck m => (Ref -> ConstrRef) -> TyMonad m Ref
 newConstr' f = newConstrs' (return . f)
 
-tyInfer :: (Var v, MonadTyCheck m)
+tyInfer :: (VarC v, MonadTyCheck m)
         => Env v -> TermRef v -> m (TermRef v, [HoleCtx], Env v)
 tyInfer env t =
     do (ty, (holes, r, constrs)) <-
@@ -110,14 +110,14 @@ tyInfer env t =
        return (ty, reverse holes, env{envRef = r, envConstrs = constrs})
 
 -- TODO this should be never necessary, I should allow holes in data decls
-tyInferNH :: (Var v, MonadTyCheck m) => Env v -> TermRef v -> m (TermRef v, Env v)
+tyInferNH :: (VarC v, MonadTyCheck m) => Env v -> TermRef v -> m (TermRef v, Env v)
 tyInferNH env t =
     do (ty, holes, env') <- tyInfer env t
        case holes of
            []                           -> return (ty, env')
            (HoleCtx{holeName = hn} : _) -> throwError (UnexpectedHole hn)
 
-tyInfer' :: (Var v, MonadTyCheck m) => Env v -> TermRef v -> TyMonad m (TermRef v)
+tyInfer' :: (VarC v, MonadTyCheck m) => Env v -> TermRef v -> TyMonad m (TermRef v)
 tyInfer' _ (Ty r) = Ty <$> newConstr' (r :<:)
 tyInfer' env (V v) = lookupTy env v
 tyInfer' env t@(Lam _) = untypedTerm env t
@@ -145,12 +145,10 @@ tyInfer' env (Ann ty t) =
        ty <$ tyCheck env t ty
 tyInfer' env t@(Hole _ _) = untypedTerm env t
 
-tyCheck :: (Ord v, Show v, MonadTyCheck m)
-         => Env v -> TermRef v -> TermRef v -> TyMonad m ()
+tyCheck :: (VarC v, MonadTyCheck m) => Env v -> TermRef v -> TermRef v -> TyMonad m ()
 tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
   where
-    go :: (Ord v, Show v, MonadTyCheck m)
-       => Env v -> TermRef v -> TermRef v -> TyMonad m ()
+    go :: (VarC v, MonadTyCheck m) => Env v -> TermRef v -> TermRef v -> TyMonad m ()
     go env (Lam s₁) (Arr ty s₂) =
         go (nestEnvTy env ty) (fromScope s₁) (fromScope s₂)
     go env (Hole hn ts) ty =
@@ -162,7 +160,7 @@ tyCheck env₀ t₀ ty₀ = go env₀ t₀ (nf env₀ ty₀)
            unless eq (mismatch env ty t tyt)
 
 -- TODO maybe find a way to eliminate the explicit recursion?
-eqRefs :: (Var v, MonadTyCheck m) => TermRef v -> TermRef v -> TyMonad m Bool
+eqRefs :: (VarC v, MonadTyCheck m) => TermRef v -> TermRef v -> TyMonad m Bool
 eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
 eqRefs (Ty r₁) (Ty r₂) = do newConstrs [r₁ :==: r₂]; return True
 eqRefs (Lam s₁) (Lam s₂) = eqRefs (fromScope s₁) (fromScope s₂)

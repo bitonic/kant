@@ -37,7 +37,7 @@ module Kant.Term
     , isHole
     , HoleCtx(..)
       -- * Variables
-    , Var
+    , VarC
     ) where
 
 import           Control.Applicative (Applicative, (<$>), (<*>))
@@ -172,4 +172,7 @@ data HoleCtx = HoleCtx
     , holeCtx  :: [(TermRefId, TermRefId)]
     }
 
-class (Show v, Hashable v, Ord v) => Var v
+class (Show v, Hashable v, Ord v) => VarC v
+instance (Show a, Hashable a, Ord a) => VarC [a]
+instance (Show n, Show a, Hashable a, Ord a) => VarC (Name n a)
+instance (VarC b, VarC a) => VarC (Var b a)

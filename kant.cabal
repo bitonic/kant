@@ -22,14 +22,14 @@ Library
 
     Build-Depends:    base >= 3 && < 5,
                       array,
-                      bound,
-                      containers,
+                      bound >= 0.7,
                       haskeline,
                       hashable,
                       mtl,
                       parsec,
                       prelude-extras,
                       transformers,
+                      unordered-containers,
                       wl-pprint
 
     Build-Tools:      alex, happy

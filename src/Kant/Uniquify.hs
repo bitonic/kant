@@ -13,8 +13,8 @@ import           Data.Traversable (mapM)
 import           Prelude hiding (mapM)
 
 import           Control.Monad.State (MonadState(..), evalState, State)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 import           Bound
 import           Bound.Name
@@ -22,30 +22,30 @@ import           Bound.Name
 import           Kant.Env
 import           Kant.Term
 
-type FreshMonad v = State (Map v Id, Map Id Integer)
+type FreshMonad v = State (HashMap v Id, HashMap Id Integer)
 
-collectFree :: Var => Env v -> Term r v -> FreshMonad v ()
+collectFree :: VarC v => Env v -> Term r v -> FreshMonad v ()
 collectFree env t = void (mapM go t)
   where go v = when (envFree env v) (addVar env v)
 
-addVar :: Var v => Env v -> v -> FreshMonad v ()
+addVar :: VarC v => Env v -> v -> FreshMonad v ()
 addVar env v =
     do (names, ixs) <- get
-       case Map.lookup v names of
+       case HashMap.lookup v names of
            Nothing -> let (n', ixs') = addVar' (envPull env v) ixs
-                      in  put (Map.insert v n' names, ixs')
+                      in  put (HashMap.insert v n' names, ixs')
            Just _  -> return ()
 
-addVar' :: Id -> Map Id Integer -> (Id, Map Id Integer)
-addVar' n ixs = (n', Map.insert n (ix+1) ixs)
+addVar' :: Id -> HashMap Id Integer -> (Id, HashMap Id Integer)
+addVar' n ixs = (n', HashMap.insert n (ix+1) ixs)
   where
-    ix = fromMaybe 0 (Map.lookup n ixs)
+    ix = fromMaybe 0 (HashMap.lookup n ixs)
     n' = n ++ if ix /= 0 then show ix else ""
 
-freshVar :: Var v => Env v -> v -> Map v Id -> v
-freshVar env v names = envRename env v (const (names Map.! v))
+freshVar :: VarC v => Env v -> v -> HashMap v Id -> v
+freshVar env v names = envRename env v (const (names HashMap.! v))
 
-uniquify :: Var v => Env v -> Term r v -> FreshMonad v (Term r v)
+uniquify :: VarC v => Env v -> Term r v -> FreshMonad v (Term r v)
 uniquify env t =
     do collectFree env t
        mapM (addVar env) t
@@ -63,7 +63,7 @@ uniquify env t =
     go (Ann ty t') = Ann <$> go ty <*> go t'
     go (Hole hn ts) = Hole hn <$> mapM go ts
 
-    goScope :: Var v => TermScope r v -> State (Map Id Integer) (TermScope r v)
+    goScope :: VarC v => TermScope r v -> State (HashMap Id Integer) (TermScope r v)
     goScope s =
         case binding s of
             Nothing -> toScope <$> go (fromScope s)
@@ -74,21 +74,21 @@ uniquify env t =
                    put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
                             <* put ixs
 
-slam :: Var v => Env v -> Term r v -> FreshMonad v (TermId r)
+slam :: VarC v => Env v -> Term r v -> FreshMonad v (TermId r)
 slam env t = (envPull env <$>) <$> uniquify env t
 
-slamVar :: Var v => Env v -> v -> FreshMonad v Id
+slamVar :: VarC v => Env v -> v -> FreshMonad v Id
 slamVar env v = do addVar env v
                    (names, _) <- get
                    return (envPull env (freshVar env v names))
 
 runFresh :: FreshMonad v a -> a
-runFresh s = evalState s (Map.empty, Map.empty)
+runFresh s = evalState s (HashMap.empty, HashMap.empty)
 
-slam' :: Var v => Env v -> Term r v -> TermId r
+slam' :: VarC v => Env v -> Term r v -> TermId r
 slam' env t = runFresh (slam env t)
 
-formHole :: Var v
+formHole :: VarC v
          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
          -> FreshMonad v (HoleCtx)
 formHole env hn goal ts =
