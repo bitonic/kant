@@ -74,7 +74,7 @@ elaborateCon env₁ tyc dc ty =
        return (addFree env₂ dc (Just t) (Just ty))
   where
     -- TODO Check that we return the D with the right arguments.
-    goodTy :: (Ord v, Show v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
+    goodTy :: (Var v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
     goodTy env' vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.

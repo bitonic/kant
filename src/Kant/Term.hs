@@ -36,6 +36,8 @@ module Kant.Term
       -- * Holes
     , isHole
     , HoleCtx(..)
+      -- * Variables
+    , Var
     ) where
 
 import           Control.Applicative (Applicative, (<$>), (<*>))
@@ -47,6 +49,7 @@ import           Control.Monad.Identity (runIdentity)
 import           Bound
 import           Bound.Name
 import           Bound.Scope
+import           Data.Hashable (Hashable)
 import           Prelude.Extras
 
 type Id = String
@@ -168,3 +171,5 @@ data HoleCtx = HoleCtx
     , holeGoal :: TermRefId
     , holeCtx  :: [(TermRefId, TermRefId)]
     }
+
+class (Show v, Hashable v, Ord v) => Var v

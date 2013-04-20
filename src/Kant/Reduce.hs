@@ -10,7 +10,7 @@ import           Bound
 import           Kant.Term
 import           Kant.Env
 
-type Reducer = forall v. Show v => Env v -> TermRef v -> TermRef v
+type Reducer = forall v. Var v => Env v -> TermRef v -> TermRef v
 
 reduce :: Reducer -> Reducer
 reduce r env@Env{envValue = value} t@(V v) =

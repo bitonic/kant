@@ -24,11 +24,11 @@ import           Kant.Term
 
 type FreshMonad v = State (Map v Id, Map Id Integer)
 
-collectFree :: (Ord v, Show v) => Env v -> Term r v -> FreshMonad v ()
+collectFree :: Var => Env v -> Term r v -> FreshMonad v ()
 collectFree env t = void (mapM go t)
   where go v = when (envFree env v) (addVar env v)
 
-addVar :: (Ord v, Show v) => Env v -> v -> FreshMonad v ()
+addVar :: Var v => Env v -> v -> FreshMonad v ()
 addVar env v =
     do (names, ixs) <- get
        case Map.lookup v names of
@@ -42,10 +42,10 @@ addVar' n ixs = (n', Map.insert n (ix+1) ixs)
     ix = fromMaybe 0 (Map.lookup n ixs)
     n' = n ++ if ix /= 0 then show ix else ""
 
-freshVar :: (Ord v, Show v) => Env v -> v -> Map v Id -> v
+freshVar :: Var v => Env v -> v -> Map v Id -> v
 freshVar env v names = envRename env v (const (names Map.! v))
 
-uniquify :: (Ord v, Show v) => Env v -> Term r v -> FreshMonad v (Term r v)
+uniquify :: Var v => Env v -> Term r v -> FreshMonad v (Term r v)
 uniquify env t =
     do collectFree env t
        mapM (addVar env) t
@@ -63,8 +63,7 @@ uniquify env t =
     go (Ann ty t') = Ann <$> go ty <*> go t'
     go (Hole hn ts) = Hole hn <$> mapM go ts
 
-    goScope :: (Ord v, Show v)
-            => TermScope r v -> State (Map Id Integer) (TermScope r v)
+    goScope :: Var v => TermScope r v -> State (Map Id Integer) (TermScope r v)
     goScope s =
         case binding s of
             Nothing -> toScope <$> go (fromScope s)
@@ -75,10 +74,10 @@ uniquify env t =
                    put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
                             <* put ixs
 
-slam :: (Ord v, Show v) => Env v -> Term r v -> FreshMonad v (TermId r)
+slam :: Var v => Env v -> Term r v -> FreshMonad v (TermId r)
 slam env t = (envPull env <$>) <$> uniquify env t
 
-slamVar :: (Ord v, Show v) => Env v -> v -> FreshMonad v Id
+slamVar :: Var v => Env v -> v -> FreshMonad v Id
 slamVar env v = do addVar env v
                    (names, _) <- get
                    return (envPull env (freshVar env v names))
@@ -86,10 +85,10 @@ slamVar env v = do addVar env v
 runFresh :: FreshMonad v a -> a
 runFresh s = evalState s (Map.empty, Map.empty)
 
-slam' :: (Ord v, Show v) => Env v -> Term r v -> TermId r
+slam' :: Var v => Env v -> Term r v -> TermId r
 slam' env t = runFresh (slam env t)
 
-formHole :: (Show v, Ord v)
+formHole :: Var v
          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
          -> FreshMonad v (HoleCtx)
 formHole env hn goal ts =

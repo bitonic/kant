@@ -30,7 +30,7 @@ import           Kant.Constraint
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
-type Elim = forall v. Show v => [TermRef v] -> Maybe (TermRef v)
+type Elim = forall v. Var v => [TermRef v] -> Maybe (TermRef v)
 type ConstrRef = Constr Ref
 type ConstrsRef = Constrs Ref
 
@@ -91,7 +91,7 @@ addFree env@Env{envValue = value, envType = type_} v mv mty =
        , envType  = \v' -> if v == v' then mty else type_ v'
        }
 
-envFreeVs :: Ord v => Env v -> TermRef v -> Set Id
+envFreeVs :: Var v => Env v -> TermRef v -> Set Id
 envFreeVs env = foldMap (\v -> if envFree env v
                                then Set.singleton (envPull env v)
                                else Set.empty)

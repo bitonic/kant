@@ -25,6 +25,7 @@ Library
                       bound,
                       containers,
                       haskeline,
+                      hashable,
                       mtl,
                       parsec,
                       prelude-extras,
