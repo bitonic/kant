@@ -25,6 +25,7 @@ Library
                       bound >= 0.7,
                       haskeline,
                       hashable,
+                      hashtables,
                       mtl,
                       parsec,
                       prelude-extras,

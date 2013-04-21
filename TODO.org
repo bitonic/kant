@@ -1,14 +1,9 @@
 * TODO Local type inference
 * TODO Check that the Type hierarchy is respected
-* TODO Maybe remove the Ref/() terms and use Ref all the time after parsing
 * TODO Add Prop
 * TODO Better pretty printing
 * TODO Show all values in context
 * TODO Rewrite elaboration 
-
-* TODO Extract parameters (non-indices) from eliminators methods
-  Or maybe have explicit parameters like Agda?
-
 * TODO Modules
 
 * TODO Line numbers in errors
