@@ -4,21 +4,27 @@
 --     /Structuring Depth-First Search Algorithms in Haskell/,
 --     by David King and John Launchbury.
 module Data.LGraph
-    ( Graph
+    ( -- * Graph type
+      Graph
+      -- * Construction
     , Edge
     , empty
     , build
+    , addEdge
+      -- * Edges and vertices
     , edges
     , vertices
-    , addEdge
+      -- * Transformations
     , transpose
-    , Tree(..)
+      -- * DFS search
+    , Tree(Node)
     , Forest
     , dfs
     , dff
+      -- * Strongly connected components
     , scc
-    , scc'
     , SCC(..)
+    , scc'
     ) where
 
 import           Control.Monad.ST
@@ -40,15 +46,6 @@ empty = Graph HashMap.empty
 build :: (Eq v, Hashable v, Ord l, Hashable l) => [Edge v l] -> Graph v l
 build = foldl' (flip addEdge) empty
 
-edges :: Graph v l -> [Edge v l]
-edges (Graph gr) = HashMap.foldlWithKey' vEdges [] gr
-  where
-    vEdges es v₁ sucs =
-        HashMap.foldlWithKey' (\es' v₂ l -> (v₁, l, v₂) : es') [] sucs ++ es
-
-vertices :: Graph v l -> [v]
-vertices (Graph gr) = HashMap.keys gr
-
 addEdge :: (Eq v, Hashable v, Ord l, Hashable l) => Edge v l -> Graph v l -> Graph v l
 addEdge (v₁, l, v₂) (Graph oldGr) = Graph (HashMap.insert v₁ sucs' oldGr')
   where
@@ -61,6 +58,15 @@ addEdge (v₁, l, v₂) (Graph oldGr) = Graph (HashMap.insert v₁ sucs' oldGr')
 
     addNode v gr = if HashMap.member v gr then gr
                    else HashMap.insert v HashMap.empty gr
+
+edges :: Graph v l -> [Edge v l]
+edges (Graph gr) = HashMap.foldlWithKey' vEdges [] gr
+  where
+    vEdges es v₁ sucs =
+        HashMap.foldlWithKey' (\es' v₂ l -> (v₁, l, v₂) : es') [] sucs ++ es
+
+vertices :: Graph v l -> [v]
+vertices (Graph gr) = HashMap.keys gr
 
 reverseG :: Graph v l -> [Edge v l]
 reverseG gr = [(v₂, l, v₁) | (v₁, l, v₂) <- edges gr]
@@ -76,9 +82,6 @@ dfs g vs = prune (map (generate g) vs)
 
 dff :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
 dff gr = dfs gr (vertices gr)
-
-scc :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
-scc gr = dfs gr (reverse (postOrd (transpose gr)))
 
 postOrd :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> [v]
 postOrd = concatMap postorder . dff
@@ -117,6 +120,9 @@ chopTop m = chop m nodeV nodeTs (\n ts -> n{nodeTs = ts})
 chopRec :: (Eq v, Hashable v) => Set s v -> [(l, Tree v l)] -> ST s [(l, Tree v l)]
 chopRec m = chop m (nodeV . snd) (nodeTs . snd) (\(l, n) ts -> (l, n{nodeTs = ts}))
 
+scc :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
+scc gr = dfs gr (reverse (postOrd (transpose gr)))
+
 data SCC v l = Acyclic v | Cyclic [Edge v l]
 
 scc' :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
@@ -130,4 +136,3 @@ scc' gr = map decode (scc gr)
         [(v₁, l, v₂) | (l, Node v₂ _) <- ts] ++ concatMap (decode' . snd) ts
 
     mentionsItself v = HashMap.lookup v (unGraph gr HashMap.! v)
-
