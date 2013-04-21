@@ -26,7 +26,8 @@ import           Bound
 import           Bound.Name
 
 import           Kant.Term
-import           Kant.Constraint
+import           Kant.Constraint (Constr, Constrs)
+import qualified Kant.Constraint as Constr
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
@@ -76,7 +77,7 @@ newEnv = Env{ envValue   = const Nothing
             , envNest    = id
             , envRename  = \v f -> f v
             , envRef     = 0
-            , envConstrs = emptyConstrs
+            , envConstrs = Constr.empty
             }
 
 nestEnvTy :: Env v -> TermRef v -> Env (Var (NameId ()) v)

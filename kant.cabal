@@ -50,7 +50,8 @@ Library
                       Kant.Distill,
                       Kant.Parser
                       Kant.Pretty,
-                      Kant.REPL
+                      Kant.REPL,
+                      Data.LGraph
 
     Other-Modules:    Kant.Common,
                       Kant.Lexer,
