@@ -172,7 +172,7 @@ data HoleCtx = HoleCtx
     , holeCtx  :: [(TermRefId, TermRefId)]
     }
 
-class (Show v, Hashable v, Ord v) => VarC v
-instance (Show a, Hashable a, Ord a) => VarC [a]
-instance (Show n, Show a, Hashable a, Ord a) => VarC (Name n a)
+class (Hashable v, Ord v) => VarC v
+instance (Hashable a, Ord a) => VarC [a]
+instance (Hashable a, Ord a) => VarC (Name n a)
 instance (VarC b, VarC a) => VarC (Var b a)
