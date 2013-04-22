@@ -10,7 +10,7 @@ import           Kant.Uniquify
 import           Kant.Env
 
 distill :: TermId r -> STerm
-distill = distill' . slam' newEnv
+distill = distill' . slam newEnv
 
 distill' :: TermId r -> STerm
 distill' (V v) = SV v

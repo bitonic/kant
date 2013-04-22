@@ -1,10 +1,4 @@
-module Kant.Uniquify
-    ( runFresh
-    , slamVar
-    , slam
-    , slam'
-    , formHole
-    ) where
+module Kant.Uniquify (slam, formHole) where
 
 import           Control.Monad (when, void)
 import           Data.Maybe (fromMaybe)
@@ -74,24 +68,25 @@ uniquify env t =
                    put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
                             <* put ixs
 
-slam :: VarC v => Env v -> Term r v -> FreshMonad v (TermId r)
-slam env t = (envPull env <$>) <$> uniquify env t
+slam' :: VarC v => Env v -> Term r v -> FreshMonad v (TermId r)
+slam' env t = (envPull env <$>) <$> uniquify env t
 
-slamVar :: VarC v => Env v -> v -> FreshMonad v Id
-slamVar env v = do addVar env v
-                   (names, _) <- get
-                   return (envPull env (freshVar env v names))
+formHole' :: VarC v
+          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+          -> FreshMonad v (HoleCtx)
+formHole' env hn goal ts =
+    do hctx <- sequence [(,) <$> slam' env t <*> slam' env ty | (t, ty) <- ts]
+       goal' <- slam' env goal
+       return HoleCtx{holeName = hn, holeGoal = goal', holeCtx = hctx}
 
 runFresh :: FreshMonad v a -> a
 runFresh s = evalState s (HashMap.empty, HashMap.empty)
 
-slam' :: VarC v => Env v -> Term r v -> TermId r
-slam' env t = runFresh (slam env t)
+slam :: VarC v => Env v -> Term r v -> TermId r
+slam env t = runFresh (slam' env t)
 
 formHole :: VarC v
          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
-         -> FreshMonad v (HoleCtx)
-formHole env hn goal ts =
-    do hctx <- sequence [(,) <$> slam env t <*> slam env ty | (t, ty) <- ts]
-       goal' <- slam env goal
-       return HoleCtx{holeName = hn, holeGoal = goal', holeCtx = hctx}
+         -> HoleCtx
+formHole env hn goal ts = runFresh (formHole' env hn goal ts)
+

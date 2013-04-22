@@ -82,7 +82,7 @@ elaborateCon tyc dc ty =
            env <- getEnv
            let fvs  = envFreeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (envNest env tyc))
-                  (throwKError (WrongRecTypePos dc tyc (slam' envTop ty)))
+                  (throwKError (WrongRecTypePos dc tyc (slam envTop ty)))
            nestEnvM Nothing Nothing
                     (goodTy envTop (B dummyN : map F vs) (fromScope s))
     goodTy envTop vs (appV -> (arg, pars)) =
@@ -91,7 +91,7 @@ elaborateCon tyc dc ty =
         do env <- getEnv
            unless (arg == V (envNest env tyc) &&
                    and (zipWith (==) pars (map V (reverse vs))))
-                  (throwKError (ExpectingTypeData dc tyc (slam' envTop ty)))
+                  (throwKError (ExpectingTypeData dc tyc (slam envTop ty)))
 
 elimTy :: ConId                 -- ^ Tycon
        -> TermRefId             -- ^ Tycon type
