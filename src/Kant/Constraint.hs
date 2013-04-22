@@ -46,7 +46,7 @@ addConstrs :: (Eq a, Hashable a) => [Constr a] -> Constrs a -> Maybe (Constrs a)
 addConstrs = flip (foldrM addConstr)
 
 consistent :: (Eq a, Hashable a) => Graph a ConstrTy -> Bool
-consistent = any strongCycle . Graph.scc'
+consistent = any strongCycle . Graph.scc
   where
     strongCycle (Graph.Acyclic _) = False
     strongCycle (Graph.Cyclic es) = any (\(_, cty, _) -> cty == Strong) es

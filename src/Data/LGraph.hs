@@ -22,9 +22,9 @@ module Data.LGraph
     , dfs
     , dff
       -- * Strongly connected components
-    , scc
     , SCC(..)
     , scc'
+    , scc
     ) where
 
 import           Control.Monad.ST
@@ -32,6 +32,7 @@ import           Data.List (foldl')
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import           Data.HashTable.ST.Basic (HashTable)
 import qualified Data.HashTable.ST.Basic as HashTable
 import           Data.Hashable (Hashable(..))
@@ -74,7 +75,7 @@ reverseG gr = [(v₂, l, v₁) | (v₁, l, v₂) <- edges gr]
 transpose :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Graph v l
 transpose = build . reverseG
 
-data Tree v l = Node {nodeV :: v, nodeTs :: [(l, Tree v l)]}
+data Tree v l = Node v (Forest v l)
 type Forest v l = [Tree v l]
 
 dfs :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> [v] -> Forest v l
@@ -84,55 +85,53 @@ dff :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
 dff gr = dfs gr (vertices gr)
 
 postOrd :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> [v]
-postOrd = concatMap postorder . dff
+postOrd = postorderF . dff
   where
     postorder (Node v ts) = postorderF ts ++ [v]
-    postorderF = concatMap (postorder . snd)
+    postorderF = concatMap postorder
 
 generate :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> v -> Tree v l
 generate (Graph gr) v₁ = Node v₁ (HashMap.foldrWithKey trees [] (gr HashMap.! v₁))
-  where
-    trees v₂ l ts = (l, generate (Graph gr) v₂) : ts
+  where trees v₂ _ ts = generate (Graph gr) v₂ : ts
 
 type Set s v = HashTable s v ()
 
 prune :: (Eq v, Hashable v) => Forest v l -> Forest v l
-prune ts = runST $ do m <- HashTable.new; chopTop m ts
+prune ts = runST $ do m <- HashTable.new; chop m ts
 
-chop :: (Eq v, Hashable v)
-     => Set s v
-     -> (a -> v) -> (a -> [(l, Tree v l)]) -> (a -> [(l, Tree v l)] -> a)
-     -> [a] -> ST s [a]
-chop _ _ _ _ [] = return []
-chop m getV getTs putTs (n : us) =
-    do let v = getV n
-       visited <- HashTable.lookup m v
+chop :: (Eq v, Hashable v) => Set s v -> Forest v l -> ST s (Forest v l)
+chop _ [] = return []
+chop m (Node v ts : us) =
+    do visited <- HashTable.lookup m v
        case visited of
-           Nothing -> chop m getV getTs putTs us
-           Just () -> do HashTable.insert m v ()
-                         as <- chopRec m (getTs n)
-                         bs <- chop m getV getTs putTs us
-                         return (putTs n as : bs)
+           Just () -> chop m us
+           Nothing -> do HashTable.insert m v ()
+                         as <- chop m ts
+                         bs <- chop m us
+                         return (Node v as : bs)
 
-chopTop :: (Eq v, Hashable v) => Set s v -> Forest v l -> ST s (Forest v l)
-chopTop m = chop m nodeV nodeTs (\n ts -> n{nodeTs = ts})
-
-chopRec :: (Eq v, Hashable v) => Set s v -> [(l, Tree v l)] -> ST s [(l, Tree v l)]
-chopRec m = chop m (nodeV . snd) (nodeTs . snd) (\(l, n) ts -> (l, n{nodeTs = ts}))
-
-scc :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
-scc gr = dfs gr (reverse (postOrd (transpose gr)))
+scc' :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
+scc' gr = dfs gr (reverse (postOrd (transpose gr)))
 
 data SCC v l = Acyclic v | Cyclic [Edge v l]
+    deriving (Show)
 
-scc' :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
-scc' gr = map decode (scc gr)
+-- TODO I'd like this to be more efficient, without doing the edges on a second
+-- pass.
+scc :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
+scc gr = map decode (scc' gr)
   where
     decode (Node v []) | Just l <- mentionsItself v = Cyclic [(v, l, v)]
                        | otherwise                  = Acyclic v
-    decode ts          = Cyclic (decode' ts )
+    decode ts          = Cyclic (getEdges (decode' ts HashSet.empty))
 
-    decode' (Node v₁ ts) =
-        [(v₁, l, v₂) | (l, Node v₂ _) <- ts] ++ concatMap (decode' . snd) ts
+    decode' (Node v₁ ts) s = foldl' (flip decode') (HashSet.insert v₁ s) ts
 
     mentionsItself v = HashMap.lookup v (unGraph gr HashMap.! v)
+
+    getEdges s =
+        HashSet.foldl'
+        (\es v₁ -> HashMap.foldlWithKey' (\es' v₂ l -> if HashSet.member v₂ s
+                                                       then (v₁, l, v₂) : es'
+                                                       else es')
+                   [] (unGraph gr HashMap.! v₁) ++ es) [] s
