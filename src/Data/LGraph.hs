@@ -91,15 +91,14 @@ postOrd = postorderF . dff
     postorderF = concatMap postorder
 
 generate :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> v -> Tree v l
+-- Note that we use a lazy foldr since the trees generated might be infinite.
 generate (Graph gr) v₁ = Node v₁ (HashMap.foldrWithKey trees [] (gr HashMap.! v₁))
   where trees v₂ _ ts = generate (Graph gr) v₂ : ts
-
-type Set s v = HashTable s v ()
 
 prune :: (Eq v, Hashable v) => Forest v l -> Forest v l
 prune ts = runST $ do m <- HashTable.new; chop m ts
 
-chop :: (Eq v, Hashable v) => Set s v -> Forest v l -> ST s (Forest v l)
+chop :: (Eq v, Hashable v) => HashTable s v () -> Forest v l -> ST s (Forest v l)
 chop _ [] = return []
 chop m (Node v ts : us) =
     do visited <- HashTable.lookup m v
@@ -117,7 +116,8 @@ data SCC v l = Acyclic v | Cyclic [Edge v l]
     deriving (Show)
 
 -- TODO I'd like this to be more efficient, without doing the edges on a second
--- pass.
+-- pass.  We could already make this faster by using ST when collecting the
+-- edges.
 scc :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
 scc gr = map decode (scc' gr)
   where

@@ -2,10 +2,9 @@
 {-# LANGUAGE TypeFamilies #-}
 module Kant.Ref (PutRef(..)) where
 
-import           Control.Applicative ((<$>), (<*>))
-
 import           Control.Monad.State (State, StateT, runState, get, put)
 
+import           Kant.Common
 import           Kant.Term
 import           Kant.Env
 import           Kant.Decl

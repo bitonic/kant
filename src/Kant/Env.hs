@@ -16,7 +16,6 @@ module Kant.Env
     , addElim
     ) where
 
-import           Control.Applicative ((<$>))
 import           Data.Foldable (foldMap)
 
 import           Data.HashSet (HashSet)
@@ -25,6 +24,7 @@ import qualified Data.HashSet as HashSet
 import           Bound
 import           Bound.Name
 
+import           Kant.Common
 import           Kant.Term
 import           Kant.Constraint (Constr, Constrs)
 import qualified Kant.Constraint as Constr

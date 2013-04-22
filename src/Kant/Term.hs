@@ -40,7 +40,6 @@ module Kant.Term
     , VarC
     ) where
 
-import           Control.Applicative (Applicative, (<$>), (<*>))
 import           Data.Foldable (Foldable)
 import           Data.Traversable (Traversable)
 
@@ -51,6 +50,8 @@ import           Bound.Name
 import           Bound.Scope
 import           Data.Hashable (Hashable)
 import           Prelude.Extras
+
+import           Kant.Common
 
 type Id = String
 type ConId = Id
@@ -147,8 +148,7 @@ annV :: Term r t -> Term r t
 annV (Ann _ t) = t
 annV t         = t
 
-mapRef :: (Functor m, Applicative m, Monad m)
-       => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
+mapRef :: (Monad m) => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
 mapRef _ (V v)         = return (V v)
 mapRef f (Ty r)        = Ty <$> f r
 mapRef f (Lam s)       = Lam . toScope <$> mapRef f (fromScope s)

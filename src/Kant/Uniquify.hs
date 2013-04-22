@@ -6,7 +6,6 @@ module Kant.Uniquify
     , formHole
     ) where
 
-import           Control.Applicative ((<$>), (<*>), (<*), (*>))
 import           Control.Monad (when, void)
 import           Data.Maybe (fromMaybe)
 import           Data.Traversable (mapM)
@@ -19,6 +18,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Bound
 import           Bound.Name
 
+import           Kant.Common
 import           Kant.Env
 import           Kant.Term
 

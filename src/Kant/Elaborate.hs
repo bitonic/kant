@@ -6,7 +6,6 @@
 -- | This is largely ripped off fig. 9 of 'The View from the Left'.
 module Kant.Elaborate (Elaborate(..)) where
 
-import           Control.Applicative ((<$>))
 import           Control.Arrow ((***))
 import           Control.Monad (when, unless)
 import           Data.Foldable (foldrM)
@@ -19,6 +18,7 @@ import qualified Data.HashSet as HashSet
 import           Bound
 import           Bound.Name
 
+import           Kant.Common
 import           Kant.Term
 import           Kant.Decl
 import           Kant.Env

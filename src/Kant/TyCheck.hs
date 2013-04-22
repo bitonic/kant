@@ -10,7 +10,6 @@ module Kant.TyCheck
     , tyInferNH
     ) where
 
-import           Control.Applicative (Applicative, (<$>), (<$), (<*>))
 import           Control.Monad (unless)
 
 import           Control.Monad.Error (MonadError(..), Error, ErrorT)
@@ -18,6 +17,7 @@ import           Control.Monad.State (StateT(..), MonadState(..))
 
 import           Bound
 
+import           Kant.Common
 import           Kant.Env
 import           Kant.Reduce
 import           Kant.Term
@@ -40,7 +40,7 @@ data TyCheckError
 
 instance Error TyCheckError
 
-class (Functor m, Applicative m, MonadError TyCheckError m) => MonadTyCheck m
+class (MonadError TyCheckError m) => MonadTyCheck m
 instance MonadTyCheck (ErrorT TyCheckError IO)
 instance (MonadTyCheck m) => MonadTyCheck (StateT s m)
 

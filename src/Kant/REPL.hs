@@ -1,7 +1,7 @@
 -- TODO write usage
 module Kant.REPL (main) where
 
-import           Control.Applicative ((*>), (<$>), (<|>), (<$))
+import           Control.Applicative ((<|>))
 import           Control.Arrow (left)
 import           Control.Exception (catch)
 import           Control.Monad (msum)
