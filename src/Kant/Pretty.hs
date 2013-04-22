@@ -13,7 +13,7 @@ import           Text.PrettyPrint.Leijen
 import           Kant.Term
 import           Kant.Sugar
 import           Kant.Distill
-import           Kant.TyCheck
+import           Kant.Monad
 import           Kant.REPL.Types
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
@@ -87,7 +87,7 @@ instance Pretty HoleCtx where
 
     prettyList = vcat . map pretty
 
-instance Pretty TyCheckError where
+instance Pretty KError where
     pretty (OutOfBounds n) = "Out of bound variable `" <> pretty n <> "'"
     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
     pretty (Mismatch ty₁ t ty₂) =
@@ -115,6 +115,9 @@ instance Pretty TyCheckError where
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
     pretty CyclicTypes = "Cyclic types."
+    pretty (CmdParse err) = gnest ("Error parsing command:" <$> pretty (show err))
+    pretty (TermParse s)  = gnest ("Error parsing code:" <$> pretty s)
+    pretty (IOError err)  = gnest ("IO error:" <$> pretty (show err))
 
 instance Pretty Output where
     pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty ty)
@@ -126,9 +129,3 @@ instance Pretty Output where
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
-
-instance Pretty REPLError where
-    pretty (CmdParse err) = gnest ("Error parsing command:" <$> pretty (show err))
-    pretty (TermParse s)  = gnest ("Error parsing code:" <$> pretty s)
-    pretty (TyCheck err)  = gnest ("Type checking error:" <$> pretty err)
-    pretty (IOError err)  = gnest ("IO error:" <$> pretty (show err))

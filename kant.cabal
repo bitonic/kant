@@ -51,6 +51,7 @@ Library
                       Kant.Distill,
                       Kant.Parser
                       Kant.Pretty,
+                      Kant.Monad,
                       Kant.REPL,
                       Data.LGraph
 

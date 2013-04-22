@@ -8,11 +8,9 @@ module Kant.Elaborate (Elaborate(..)) where
 
 import           Control.Arrow ((***))
 import           Control.Monad (when, unless)
-import           Data.Foldable (foldrM)
 import           Data.List (elemIndex)
 import           Data.Maybe (isJust)
 
-import           Control.Monad.Error (MonadError(..))
 import qualified Data.HashSet as HashSet
 
 import           Bound
@@ -23,71 +21,77 @@ import           Kant.Term
 import           Kant.Decl
 import           Kant.Env
 import           Kant.TyCheck
+import           Kant.Monad
+import           Kant.Uniquify
 
 class Elaborate a where
-    elaborate :: MonadTyCheck m => EnvId -> a -> m (EnvId, [HoleCtx])
+    elaborate :: Monad m => a -> KMonad Id m [HoleCtx]
 
 instance r ~ Ref => Elaborate (Decl r) where
-    elaborate env₁ (Val n t) =
-        do checkDup env₁ n
-           (ty, holes, env₂) <- tyInfer env₁ t;
-           return (addFree env₂ n (Just t) (Just ty), holes)
-    elaborate env₁ (Postulate n ty) =
-        do checkDup env₁ n
-           (tyty, holes, env₂) <- tyInfer env₁ ty
-           return (addFree env₂ n Nothing (Just tyty), holes)
+    elaborate (Val n t) =
+        do checkDup n
+           (ty, holes) <- tyInfer t
+           holes <$ addFreeM n (Just t) (Just ty)
+    elaborate (Postulate n ty) =
+        do checkDup n
+           (tyty, holes) <- tyInfer ty
+           holes <$ addFreeM n Nothing (Just tyty)
     -- TODO normalise all types before elaborating
-    elaborate env₁ (Data tyc tycty dcs) =
-        do checkDup env₁ tyc
+    elaborate (Data tyc tycty dcs) =
+        do checkDup tyc
            -- Check that the type of the tycon is well typed
-           (_, env₂) <- tyInferNH env₁ tycty
+           tyInferNH tycty
            -- Check that the type constructor returns a type
-           unless (returnsTy tycty) (throwError (ExpectingTypeCon tyc tycty))
-           let -- Add the type of the tycon to scope
-               env₃ = addFree env₂ tyc Nothing (Just tycty)
-               -- Create the functions that will form 'Canon's
-           env₄ <- foldrM (\(dc, dcty) env₄ -> elaborateCon env₄ tyc dc dcty) env₃ dcs
-           let elty  = elimTy tyc tycty dcs undefined -- D-elim type
+           unless (returnsTy tycty) (expectingTypeCon tyc tycty)
+           -- Add the type of the tycon to scope
+           addFreeM tyc Nothing (Just tycty)
+           -- Create the functions that will form 'Canon's
+           mapM (\(dc, dcty) -> elaborateCon tyc dc dcty) dcs
+           eltyR <- freshRef
+           let elty  = elimTy tyc tycty dcs eltyR     -- D-elim type
                eln   = elimName tyc                   -- D-elim name
                -- Function that will form the 'Elim's
                elfun = typedLam (Elim eln) elty
-               env₅  = addFree env₄ eln (Just elfun)  (Just elty)
-               -- Add the actual eliminator
-           return (addElim env₅ eln (buildElim (arrLen tycty) tyc dcs), [])
+           addFreeM eln (Just elfun)  (Just elty)
+           -- Add the actual eliminator
+           [] <$ addElimM eln (buildElim (arrLen tycty) tyc dcs)
       where
         returnsTy :: TermRef v -> Bool
         returnsTy (Arr  _ s) = returnsTy (fromScope s)
         returnsTy (Ty _)     = True
         returnsTy _          = False
 
-elaborateCon :: MonadTyCheck m
-             => EnvId
-             -> ConId           -- ^ Tycon name
+elaborateCon :: Monad m
+             => ConId           -- ^ Tycon name
              -> ConId           -- ^ Name of the datacon
              -> TermRefId       -- ^ Type of the datacon
-             -> m EnvId
-elaborateCon env₁ tyc dc ty =
-    do checkDup env₁ dc
-       (_, env₂) <- tyInferNH env₁ ty  -- The type of the datacon is well typed
-       goodTy env₂ [] ty                -- ...and well formed
+             -> KMonad Id m ()
+elaborateCon tyc dc ty =
+    do checkDup dc
+       tyInferNH ty -- The type of the datacon is well typed
+       envTop <- getEnv
+       goodTy envTop [] ty -- ...and well formed
        let t = typedLam (Canon dc) ty -- Function that forms the 'Canon'
-       return (addFree env₂ dc (Just t) (Just ty))
+       addFreeM dc (Just t) (Just ty)
   where
     -- TODO Check that we return the D with the right arguments.
-    goodTy :: (VarC v, MonadTyCheck m) => Env v -> [v] -> TermRef v -> m ()
-    goodTy env' vs (Arr arg s) =
+    goodTy :: (VarC v, Monad m) => EnvId -> [v] -> TermRef v -> KMonad v m ()
+    goodTy envTop vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
-           let fvs  = envFreeVs env' arg
-           unless (not (HashSet.member tyc fvs) || appHead arg == V (envNest env' tyc))
-                  (wrongRecTypePos env₁ dc tyc ty)
-           goodTy (neste₁ env') (B dummyN : map F vs) (fromScope s)
-    goodTy env' vs (appV -> (arg, pars)) =
+           env <- getEnv
+           let fvs  = envFreeVs env arg
+           unless (not (HashSet.member tyc fvs) || appHead arg == V (envNest env tyc))
+                  (throwKError (WrongRecTypePos dc tyc (slam' envTop ty)))
+           nestEnvM Nothing Nothing
+                    (goodTy envTop (B dummyN : map F vs) (fromScope s))
+    goodTy envTop vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
         -- tycon must be applied to the parameters, in order.
-        unless (arg == V (envNest env' tyc) &&
-                and (zipWith (==) pars (map V (reverse vs))))
-               (expectingTypeData env₁ dc tyc ty)
+        do env <- getEnv
+           unless (arg == V (envNest env tyc) &&
+                   and (zipWith (==) pars (map V (reverse vs))))
+                  (throwKError (ExpectingTypeData dc tyc (slam' envTop ty)))
 
 elimTy :: ConId                 -- ^ Tycon
        -> TermRefId             -- ^ Tycon type
@@ -201,9 +205,10 @@ buildElim i tyc dcs (ts :: [TermRef v]) =
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"
 
-checkDup :: (Eq v, MonadTyCheck m) => Env v -> v -> m ()
-checkDup env v = when (isJust (envType env v) || isJust (envValue env v))
-                      (throwError (DuplicateName (envPull env v)))
+checkDup :: (VarC v, Monad m) => v -> KMonad v m ()
+checkDup v =
+    do env <- getEnv
+       when (isJust (envType env v) || isJust (envValue env v)) (duplicateName v)
 
 neste₁ :: Env v -> Env (Var (NameId ()) v)
 neste₁ env = nestEnv env Nothing Nothing
@@ -243,8 +248,8 @@ typedLam f ty = Ann ty (go newEnv [] ty)
     go _ vs _ = f (map V (reverse vs))
 
 instance r ~ Ref => Elaborate (Module r) where
-    elaborate e = go e [] . unModule
+    elaborate = go [] . unModule
       where
-        go env holes []             = return (env, holes)
-        go env holes (decl : decls) = do (ty, holes') <- elaborate env decl
-                                         go ty (holes ++ holes') decls
+        go holes []             = return holes
+        go holes (decl : decls) = do holes' <- elaborate decl
+                                     go (holes ++ holes') decls
