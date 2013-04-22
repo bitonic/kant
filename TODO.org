@@ -1,5 +1,4 @@
 * TODO Local type inference
-* TODO Check that the Type hierarchy is respected
 * TODO Add Prop
 * TODO Better pretty printing
 * TODO Show all values in context

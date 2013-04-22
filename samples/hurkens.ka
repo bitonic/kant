@@ -1,4 +1,4 @@
--- This should not typecheck, but currently it does.  Taken from
+-- This should not typecheck.  Taken from
 -- <http://code.haskell.org/Agda/test/succeed/Hurkens.agda>.
 
 bot : * => ([A : *] -> A)
