@@ -72,12 +72,12 @@ slam' :: VarC v => Env v -> Term r v -> FreshMonad v (TermId r)
 slam' env t = (envPull env <$>) <$> uniquify env t
 
 formHole' :: VarC v
-          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+          => Env v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
           -> FreshMonad v (HoleCtx)
-formHole' env hn goal ts =
+formHole' env ref hn goal ts =
     do hctx <- sequence [(,) <$> slam' env t <*> slam' env ty | (t, ty) <- ts]
        goal' <- slam' env goal
-       return HoleCtx{holeName = hn, holeGoal = goal', holeCtx = hctx}
+       return HoleCtx{holeRef = ref, holeName = hn, holeGoal = goal', holeCtx = hctx}
 
 runFresh :: FreshMonad v a -> a
 runFresh s = evalState s (HashMap.empty, HashMap.empty)
@@ -86,6 +86,6 @@ slam :: VarC v => Env v -> Term r v -> TermId r
 slam env t = runFresh (slam' env t)
 
 formHole :: VarC v
-         => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+         => Env v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
          -> HoleCtx
-formHole env hn goal ts = runFresh (formHole' env hn goal ts)
+formHole env ref hn goal ts = runFresh (formHole' env ref hn goal ts)

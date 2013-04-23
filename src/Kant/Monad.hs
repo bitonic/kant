@@ -170,7 +170,10 @@ slamM t = flip slam t <$> getEnv
 formHoleM :: (VarC v, Monad m)
           => HoleId -> TermRef v -> [(TermRef v, TermRef v)]
           -> KMonad v m HoleCtx
-formHoleM hn goal ts = do env <- getEnv; return (formHole env hn goal ts)
+formHoleM hn goal ts =
+    do env <- getEnv
+       r <- freshRef
+       return (formHole env r hn goal ts)
 
 mismatch :: (VarC v, Monad m) => TermRef v -> TermRef v -> TermRef v -> KMonad v m a
 mismatch t₁ t₂ t₃ =

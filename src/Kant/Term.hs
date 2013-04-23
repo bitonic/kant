@@ -167,7 +167,8 @@ isHole (Hole _ _) = True
 isHole _          = False
 
 data HoleCtx = HoleCtx
-    { holeName :: HoleId
+    { holeRef  :: Ref
+    , holeName :: HoleId
     , holeGoal :: TermRefId
     , holeCtx  :: [(TermRefId, TermRefId)]
     }
