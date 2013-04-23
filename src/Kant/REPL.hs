@@ -3,16 +3,16 @@ module Kant.REPL
     ( Input(..)
     , Output(..)
     , REPL
-    , parseInput
+    , runKMonad
+    , replInput
     , replLine
-    , replLine'
     , repl
     , main
     ) where
 
 import           Control.Applicative ((<|>))
 import           Control.Exception (catch)
-import           Control.Monad (msum, when)
+import           Control.Monad (msum, when, (>=>))
 import           Prelude hiding (catch)
 
 import           Control.Monad.IO.Class (MonadIO(..))
@@ -60,25 +60,24 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
-replLine :: MonadIO m => String -> REPL m Output
-replLine s₁ =
-    do c <- parseInput s₁
-       case c of
-           ITyCheck s₂ -> do t <- putRef =<< parseTermM s₂
-                             (ty, holes) <- tyInfer t
-                             ty' <- nfM ty
-                             return (OTyCheck ty' holes)
-           IEval s₂    -> do t <- putRef =<< parseTermM s₂
-                             tyInfer t
-                             OPretty <$> nfM t
-           IDecl s₂    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s₂)
-           ILoad r fp  -> do when r (putEnv newEnv)
-                             s₂ <- readSafe fp
-                             m <- putRef =<< parseModuleM s₂
-                             OHoles <$> elaborate m
-           IPretty s₂  -> OPretty <$> (whnfM =<< putRef =<< parseTermM s₂)
-           IQuit       -> return OQuit
-           ISkip       -> return OSkip
+replInput :: MonadIO m => Input -> REPL m Output
+replInput c =
+   case c of
+       ITyCheck s -> do t <- putRef =<< parseTermM s
+                        (ty, holes) <- tyInfer t
+                        ty' <- nfM ty
+                        return (OTyCheck ty' holes)
+       IEval s    -> do t <- putRef =<< parseTermM s
+                        tyInfer t
+                        OPretty <$> nfM t
+       IDecl s    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s)
+       ILoad r fp -> do when r (putEnv newEnv)
+                        s <- readSafe fp
+                        m <- putRef =<< parseModuleM s
+                        OHoles <$> elaborate m
+       IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTermM s)
+       IQuit      -> return OQuit
+       ISkip      -> return OSkip
   where
     readSafe fp =
         do se <- liftIO (catch (Right <$> readFile fp) (return . Left))
@@ -86,12 +85,12 @@ replLine s₁ =
                Left err -> throwKError (IOError err)
                Right s  -> return s
 
-replLine' :: MonadIO m => EnvId -> String -> m (Either KError (Output, EnvId))
-replLine' env₁ input = liftIO (runKMonad env₁ (replLine input))
+replLine :: MonadIO m => String -> REPL m Output
+replLine = parseInput >=> replInput
 
 repl :: MonadIO m => EnvId -> String -> m (Maybe EnvId)
 repl env₁ input =
-    do res <- liftIO (replLine' env₁ input)
+    do res <- liftIO (runKMonad env₁ (replLine input))
        case res of
            Left err          -> do liftIO (putPretty err); return (Just env₁)
            Right (out, env₂) -> do liftIO (putPretty out); quit out env₂
