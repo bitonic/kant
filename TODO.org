@@ -1,4 +1,4 @@
-* TODO Include the environment in the type checking monad
+* TODO Fix type hierarchy check
 * TODO Local type inference
 * TODO Add Prop
 * TODO Better pretty printing
