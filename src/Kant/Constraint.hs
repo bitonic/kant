@@ -2,6 +2,8 @@
 --   * Condense cycles of <=
 --   * Prune vertices of variables that do not appear anymore, preserving the
 --     paths.
+--   * Once I have the 'condense' mechanism in place, reduce :==: to adding to
+--     an equivalence class.
 module Kant.Constraint
     ( Constr(..)
     , Constrs
