@@ -41,7 +41,7 @@ tyInferNH t =
 
 tyInfer' :: (VarC v, Monad m) => TermRef v -> TyMonad v m (TermRef v)
 tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
-tyInfer' (V v) = lookupTy v
+tyInfer' (V v) = constrIfTy =<< lookupTy v
 tyInfer' t@(Lam _) = untypedTerm t
 tyInfer' (Arr ty₁ s) =
     do tyty₁ <- tyInfer' ty₁
@@ -60,12 +60,19 @@ tyInfer' (App t₁ t₂) =
     do tyt₁ <- tyInfer' t₁
        tyt₁' <- whnfM tyt₁
        case tyt₁' of
-           Arr ty₁ s -> do tyCheck t₂ ty₁; return (instantiate1 t₂ s)
+           Arr ty₁ s -> do tyCheck t₂ ty₁; constrIfTy (instantiate1 t₂ s)
            _         -> expectingFunction t₁ tyt₁
 tyInfer' (Canon dc ts) = do env <- getEnv; tyInfer' (app (V (envNest env dc) : ts))
 tyInfer' (Elim en ts) = do env <- getEnv; tyInfer' (app (V (envNest env en) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTerm t
+
+constrIfTy :: (VarC v, Monad m) => TermRef v -> KMonad v m (Term Ref v)
+constrIfTy ty =
+    do ty' <- nfM ty
+       case ty' of
+           Ty r -> Ty <$> addConstr' (r :<=:)
+           _    -> return ty
 
 tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonad v m ()
 tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀

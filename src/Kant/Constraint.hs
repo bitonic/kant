@@ -1,3 +1,7 @@
+-- TODO I can greatly improve the efficiency of this:
+--   * Condense cycles of <=
+--   * Prune vertices of variables that do not appear anymore, preserving the
+--     paths.
 module Kant.Constraint
     ( Constr(..)
     , Constrs
@@ -12,8 +16,6 @@ import           Data.Hashable (Hashable(..))
 
 import           Data.LGraph (Graph)
 import qualified Data.LGraph as Graph
-
-import Debug.Trace
 
 data ConstrTy = Weak | Strong
     deriving (Eq, Show)
