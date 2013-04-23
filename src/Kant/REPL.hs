@@ -2,7 +2,7 @@
 module Kant.REPL
     ( Input(..)
     , Output(..)
-    , REPLM
+    , REPL
     , parseInput
     , replLine
     , replLine'
@@ -42,9 +42,9 @@ data Input
     | IQuit
     | ISkip
 
-type REPLM = KMonad Id IO
+type REPL m = KMonad Id m
 
-parseInput :: String -> REPLM Input
+parseInput :: Monad m => String -> REPL m Input
 parseInput =
     either (throwKError . CmdParse) return . Parsec.parse (Parsec.spaces *> go) ""
   where
@@ -60,7 +60,7 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
-replLine :: String -> REPLM Output
+replLine :: MonadIO m => String -> REPL m Output
 replLine s₁ =
     do c <- parseInput s₁
        case c of
