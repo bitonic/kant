@@ -45,8 +45,9 @@ addConstr c (Constrs oldGr) =
 addConstrs :: (Eq a, Hashable a) => [Constr a] -> Constrs a -> Maybe (Constrs a)
 addConstrs = flip (foldrM addConstr)
 
-consistent :: (Eq a, Hashable a) => Graph a ConstrTy -> Bool
-consistent = any strongCycle . Graph.scc
+consistent :: (Eq a, Hashable a, Show a) => Graph a ConstrTy -> Bool
+consistent gr = all weakCycle (Graph.scc gr)
   where
-    strongCycle (Graph.Acyclic _) = True
-    strongCycle (Graph.Cyclic es) = all (\(_, cty, _) -> cty == Weak) es
+    weakCycle (Graph.Acyclic _) = True
+    weakCycle (Graph.Cyclic vs) =
+        all (\(_, cty, _) -> cty == Weak) (Graph.inEdges vs gr)

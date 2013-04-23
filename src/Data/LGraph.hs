@@ -13,6 +13,7 @@ module Data.LGraph
     , addEdge
       -- * Edges and vertices
     , edges
+    , inEdges
     , vertices
       -- * Transformations
     , transpose
@@ -23,7 +24,6 @@ module Data.LGraph
     , dff
       -- * Strongly connected components
     , SCC(..)
-    , scc'
     , scc
     ) where
 
@@ -65,6 +65,19 @@ edges (Graph gr) = HashMap.foldlWithKey' vEdges [] gr
   where
     vEdges es v₁ sucs =
         HashMap.foldlWithKey' (\es' v₂ l -> (v₁, l, v₂) : es') [] sucs ++ es
+
+-- TODO I'd like this to be more efficient, without doing the edges on a second
+-- pass.  We could already make this faster by using ST when collecting the
+-- edges.
+inEdges :: (Eq v, Hashable v, Ord l, Hashable l) => [v] -> Graph v l -> [Edge v l]
+inEdges vs (Graph gr) = go (HashSet.fromList vs)
+  where
+    go s =
+        HashSet.foldl'
+        (\es v₁ -> HashMap.foldlWithKey' (\es' v₂ l -> if HashSet.member v₂ s
+                                                       then (v₁, l, v₂) : es'
+                                                       else es')
+                   [] (gr HashMap.! v₁) ++ es) [] s
 
 vertices :: Graph v l -> [v]
 vertices (Graph gr) = HashMap.keys gr
@@ -112,26 +125,13 @@ chop m (Node v ts : us) =
 scc' :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
 scc' gr = dfs gr (reverse (postOrd (transpose gr)))
 
-data SCC v l = Acyclic v | Cyclic [Edge v l]
+data SCC v l = Acyclic v | Cyclic [v]
     deriving (Show)
 
--- TODO I'd like this to be more efficient, without doing the edges on a second
--- pass.  We could already make this faster by using ST when collecting the
--- edges.
 scc :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
 scc gr = map decode (scc' gr)
   where
-    decode (Node v []) | Just l <- mentionsItself v = Cyclic [(v, l, v)]
-                       | otherwise                  = Acyclic v
-    decode ts          = Cyclic (getEdges (decode' ts HashSet.empty))
-
-    decode' (Node v₁ ts) s = foldl' (flip decode') (HashSet.insert v₁ s) ts
-
-    mentionsItself v = HashMap.lookup v (unGraph gr HashMap.! v)
-
-    getEdges s =
-        HashSet.foldl'
-        (\es v₁ -> HashMap.foldlWithKey' (\es' v₂ l -> if HashSet.member v₂ s
-                                                       then (v₁, l, v₂) : es'
-                                                       else es')
-                   [] (unGraph gr HashMap.! v₁) ++ es) [] s
+    decode (Node v []) = if mentionsItself v then Cyclic [v] else Acyclic v
+    decode ts          = Cyclic (decode' ts)
+    decode' (Node v₁ ts) = v₁ : concatMap decode' ts
+    mentionsItself v = HashMap.member v (unGraph gr HashMap.! v)
