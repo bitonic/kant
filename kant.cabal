@@ -12,6 +12,7 @@ Tested-With:          GHC==7.4.1
 Homepage:             https://github.com/bitonic/kant
 Bug-Reports:          https://github.com/bitonic/kant/issues
 Description:
+Data-Dir:             data
 
 Source-Repository head
     Type:             git
@@ -35,7 +36,7 @@ Library
 
     Build-Tools:      alex, happy
 
-    GHC-Options:      -Wall -fno-warn-unused-do-bind
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Exposed-Modules:  Kant.Term,
                       Kant.Decl,
@@ -59,10 +60,26 @@ Library
                       Kant.Lexer,
                       Kant.REPL.Types
 
-executable kant
+Executable kant
     Main-Is:          kant.hs
 
-    GHC-Options:      -Wall -fno-warn-unused-do-bind
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Build-Depends:    base >= 3 && < 5,
                       kant
+
+Test-Suite kant-tests:
+    Type:             exitcode-stdio-1.0
+
+    Main-Is:          Tests.hs
+
+    Ghc-Options:      -Wall -O2 -fno-warn-unused-do-bind
+
+    Build-Depends:    base >= 4 && < 5,
+                      kant,
+                      directory,
+                      filepath,
+                      HUnit,
+                      test-framework,
+                      test-framework-hunit,
+                      wl-pprint
