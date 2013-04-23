@@ -1,25 +1,25 @@
 
-data And : * -> * -> *
-    { and : [A B : *] -> A -> B -> And A B }
+data And : [A B : *] -> *
+    { and : A -> B -> And A B }
 
 fst [A B : *] [x : And A B] : A => (
-    And-Elim A B x (\A _ _ => A) (\_ _ a _ => a)
+    And-Elim A B x (\_ => A) (\a _ => a)
 )
 
 snd [A B : *] [x : And A B] : B => (
-    And-Elim A B x (\_ B _ => B) (\_ _ _ b => b)
+    And-Elim A B x (\_ => B) (\_ b => b)
 )
 
-data Or : * -> * -> *
-    { inl : [A B : *] -> A -> Or A B
-    | inr : [A B : *] -> B -> Or A B
+data Or : [A B : *] -> *
+    { inl : A -> Or A B
+    | inr : B -> Or A B
     }
 
 case [A B C : *] [x : Or A B] [f : A -> C] [g : B -> C] : C => (
     Or-Elim A B x
-        (\A B _ => [C : *] -> (A -> C) -> (B -> C) -> C)
-        (\_ _ y _ f _ => f y)
-        (\_ _ y _ _ f => f y)
+        (\_ => [C : *] -> (A -> C) -> (B -> C) -> C)
+        (\y _ f _ => f y)
+        (\y _ _ f => f y)
         C f g
 )
 
