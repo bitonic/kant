@@ -93,6 +93,7 @@ elaborateCon tyc dc ty =
                    and (zipWith (==) pars (map V (reverse vs))))
                   (throwKError (ExpectingTypeData dc tyc (slam envTop ty)))
 
+-- TODO better argument names.
 elimTy :: ConId                 -- ^ Tycon
        -> TermRefId             -- ^ Tycon type
        -> [(ConId, TermRefId)]  -- ^ Constructors
