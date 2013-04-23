@@ -4,7 +4,8 @@ module Kant.REPL
     , Output(..)
     , REPLM
     , parseInput
-    , replOutput
+    , replLine
+    , replLine'
     , repl
     , main
     ) where
@@ -14,7 +15,7 @@ import           Control.Exception (catch)
 import           Control.Monad (msum, when)
 import           Prelude hiding (catch)
 
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.IO.Class (MonadIO(..))
 import qualified Text.Parsec as Parsec
 import           Text.Parsec.Char (anyChar, char)
 
@@ -59,8 +60,8 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
-replOutput :: String -> REPLM Output
-replOutput s₁ =
+replLine :: String -> REPLM Output
+replLine s₁ =
     do c <- parseInput s₁
        case c of
            ITyCheck s₂ -> do t <- putRef =<< parseTermM s₂
@@ -85,9 +86,12 @@ replOutput s₁ =
                Left err -> throwKError (IOError err)
                Right s  -> return s
 
-repl :: EnvId -> String -> InputT IO (Maybe EnvId)
+replLine' :: MonadIO m => EnvId -> String -> m (Either KError (Output, EnvId))
+replLine' env₁ input = liftIO (runKMonad env₁ (replLine input))
+
+repl :: MonadIO m => EnvId -> String -> m (Maybe EnvId)
 repl env₁ input =
-    do res <- liftIO (runKMonad env₁ (replOutput input))
+    do res <- liftIO (replLine' env₁ input)
        case res of
            Left err          -> do liftIO (putPretty err); return (Just env₁)
            Right (out, env₂) -> do liftIO (putPretty out); quit out env₂
