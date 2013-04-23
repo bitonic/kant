@@ -1,5 +1,13 @@
 -- TODO write usage
-module Kant.REPL (main) where
+module Kant.REPL
+    ( Input(..)
+    , Output(..)
+    , REPLM
+    , parseInput
+    , replOutput
+    , repl
+    , main
+    ) where
 
 import           Control.Applicative ((<|>))
 import           Control.Exception (catch)
@@ -23,8 +31,6 @@ import           Kant.Elaborate
 import           Kant.Pretty
 import           Kant.REPL.Types
 import           Kant.Monad
-
-type REPL = InputT IO
 
 data Input
     = ITyCheck String
@@ -57,8 +63,6 @@ replOutput :: String -> REPLM Output
 replOutput s₁ =
     do c <- parseInput s₁
        case c of
-           -- Note that here we often discard the generated environments since
-           -- all they have changed is the Ref
            ITyCheck s₂ -> do t <- putRef =<< parseTermM s₂
                              (ty, holes) <- tyInfer t
                              ty' <- nfM ty
@@ -67,9 +71,9 @@ replOutput s₁ =
                              tyInfer t
                              OPretty <$> nfM t
            IDecl s₂    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s₂)
-           ILoad r fp  -> do s₂ <- readSafe fp
+           ILoad r fp  -> do when r (putEnv newEnv)
+                             s₂ <- readSafe fp
                              m <- putRef =<< parseModuleM s₂
-                             when r (putEnv newEnv)
                              OHoles <$> elaborate m
            IPretty s₂  -> OPretty <$> (whnfM =<< putRef =<< parseTermM s₂)
            IQuit       -> return OQuit
@@ -81,7 +85,7 @@ replOutput s₁ =
                Left err -> throwKError (IOError err)
                Right s  -> return s
 
-repl :: EnvId -> String -> REPL (Maybe EnvId)
+repl :: EnvId -> String -> InputT IO (Maybe EnvId)
 repl env₁ input =
     do res <- liftIO (runKMonad env₁ (replOutput input))
        case res of
@@ -90,7 +94,7 @@ repl env₁ input =
   where quit OQuit _ = return Nothing
         quit _     e = return (Just e)
 
-run :: EnvId -> REPL ()
+run :: EnvId -> InputT IO ()
 run env =
     do sm <- getInputLine "> "
        case sm of
