@@ -34,8 +34,8 @@ instance r ~ Ref => Elaborate (Decl r) where
            holes <$ addFreeM n (Just t) (Just ty)
     elaborate (Postulate n ty) =
         do checkDup n
-           (tyty, holes) <- tyInfer ty
-           holes <$ addFreeM n Nothing (Just tyty)
+           (_, holes) <- tyInfer ty
+           holes <$ addFreeM n Nothing (Just ty)
     -- TODO normalise all types before elaborating
     elaborate (Data tyc tycty dcs) =
         do checkDup tyc
