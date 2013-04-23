@@ -8,7 +8,7 @@ License:              GPL-3
 Build-Type:           Simple
 Category:             Compilers/Interpreters, Dependent Types
 Synopsis:             Core dependent language based on OTT (hopefully)
-Tested-With:          GHC==7.4.1
+Tested-With:          GHC==7.6.3
 Homepage:             https://github.com/bitonic/kant
 Bug-Reports:          https://github.com/bitonic/kant/issues
 Description:
