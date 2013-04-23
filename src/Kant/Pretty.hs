@@ -23,12 +23,12 @@ putPretty = putStrLn . show . pretty
 instance IsString Doc where
     fromString = pretty
 
-instance (v ~ Id) => Pretty (Term r v) where
+instance (Pretty r, v ~ Id) => Pretty (Term r v) where
     pretty = pretty . distill
 
-instance Pretty STerm where
+instance Pretty r => Pretty (STerm r) where
     pretty (SV v) = pretty v
-    pretty STy = "*"
+    pretty (STy r) = "*" <> pretty r
     pretty (SArr pars ty) = prettyPis pars <+> pretty ty
     pretty to@(SApp _ _) = go to
       where go (SApp t₁ t₂) = go t₁ <+> singleParens t₂
@@ -45,19 +45,19 @@ nest' = nest 2
 gnest :: Doc -> Doc
 gnest = group . nest'
 
-singleTerm :: STerm -> Bool
+singleTerm :: STerm r -> Bool
 singleTerm (SV _)      = True
-singleTerm STy         = True
+singleTerm (STy _)     = True
 singleTerm (SHole _ _) = True
 singleTerm _           = False
 
-singleParens :: STerm -> Doc
+singleParens :: Pretty r => STerm r -> Doc
 singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
 -- TODO Group equal types in `prettyPis' and `prettyPar'
 
-prettyPis :: [SParam] -> Doc
+prettyPis :: Pretty r => [SParam r] -> Doc
 prettyPis pars' = hsep (go pars')
   where
     go []                       = []
@@ -68,7 +68,7 @@ prettyPis pars' = hsep (go pars')
     mapp t@(SApp _ _) = pretty t
     mapp t            = singleParens t
 
-prettyPar :: SParam -> Doc
+prettyPar :: Pretty r => SParam r -> Doc
 prettyPar (mn, ty) = "[" <> n <+> ":" <+> pretty ty <> "]"
   where n = case mn of
                 Nothing -> "_"

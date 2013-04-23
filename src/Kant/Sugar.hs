@@ -1,36 +1,50 @@
 module Kant.Sugar
      ( -- * Abstract syntax tree
        Id
+     , Ref
      , ConId
      , SModule(..)
+     , SModuleSyn
+     , SModuleRef
      , SDecl(..)
+     , SDeclSyn
+     , SDeclRef
      , SParam
      , SConstr
      , STerm(..)
+     , STermSyn
+     , STermRef
      ) where
 
 import           Kant.Term
 
-newtype SModule = SModule {unSModule :: [SDecl]}
+newtype SModule r = SModule {unSModule :: [SDecl r]}
+type SModuleSyn = SModule ()
+type SModuleRef = SModule Ref
 
-data SDecl
-    = SVal Id [SParam] STerm STerm
-    | SPostulate Id STerm
-    | SData ConId [(Id, STerm)] [SConstr]
+data SDecl r
+    = SVal Id [SParam r] (STerm r) (STerm r)
+    | SPostulate Id (STerm r)
+    | SData ConId [(Id, STerm r)] [SConstr r]
     deriving (Show)
+type SDeclSyn = SDecl ()
+type SDeclRef = SDecl Ref
 
-type SParam = (Maybe Id, STerm)
-type SConstr = (ConId, STerm)
+type SParam r = (Maybe Id, STerm r)
+type SConstr r = (ConId, STerm r)
 
 -- TODO add let bindings
 -- | A term matching what we parse, which can be 'desugar'ed and 'distill'ed
 --   into a 'Term'.
-data STerm
+data STerm r
     = SV Id
-    | STy
-    | SLam [Maybe Id] STerm
-    | SAnn [SParam] STerm STerm
-    | SApp STerm STerm
-    | SArr [SParam] STerm
-    | SHole HoleId [STerm]
+    | STy r
+    | SLam [Maybe Id] (STerm r)
+    | SAnn [SParam r] (STerm r) (STerm r)
+    | SApp (STerm r) (STerm r)
+    | SArr [SParam r] (STerm r)
+    | SHole HoleId [STerm r]
     deriving (Show)
+type STermSyn = STerm ()
+type STermRef = STerm Ref
+

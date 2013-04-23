@@ -89,4 +89,3 @@ formHole :: VarC v
          => Env v -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
          -> HoleCtx
 formHole env hn goal ts = runFresh (formHole' env hn goal ts)
-

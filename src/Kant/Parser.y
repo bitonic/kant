@@ -67,42 +67,42 @@ Bar(X)
     | X                                      { [$1] }
     | X '|' Bar(X)                           { $1 : $3 }
 
-Module :: { SModule }
+Module :: { SModuleSyn }
 Module : Seq0(Decl)                          { SModule $1 }
 
-Decl :: { SDecl }
+Decl :: { SDeclSyn }
 Decl : Val                                   { $1 }
      | 'postulate' name ':' SingleTerm       { SPostulate $2 $4}
      | Data                                  { $1 }
 
-Data :: { SDecl }
+Data :: { SDeclSyn }
 Data : 'data' name ':' Arr1(Type) '{' Bar(DataCon) '}'
        {% do pars <- dataConPars (fst $4)
              return (SData $2 pars $6) }
 
-Val :: { SDecl }
+Val :: { SDeclSyn }
 Val : name Seq0(Pi) ':' Term '=>' SingleTerm { SVal $1 (concat $2) $4 $6 }
 
-DataCon :: { SConstr }
+DataCon :: { SConstr () }
 DataCon : name ':' Term                      { ($1, $3) }
 
-Term :: { STerm }
+Term :: { STermSyn }
 Term
     : '\\' Seq(Binder) '=>' Term             { SLam $2 $4 }
     | '\\' Seq0(LamParam) ':' Term '=>' Term { SAnn $2 $4 $6 }
     | Arr                                    { uncurry SArr $1 }
 
-SingleTerm :: { STerm }
+SingleTerm :: { STermSyn }
 SingleTerm
     : name                                   { SV $1 }
     | Type                                   { $1 }
     | Hole                                   { $1 }
     | '(' Term ')'                           { $2 }
 
-Type :: { STerm }
-Type : '*'                                   { STy }
+Type :: { STermSyn }
+Type : '*'                                   { STy () }
 
-Arr :: { ([SParam], STerm) }
+Arr :: { ([SParam ()], STermSyn) }
 Arr : Arr1(App)                              { $1 }
 
 Arr1(X)
@@ -110,10 +110,10 @@ Arr1(X)
     | App '->' Arr                           { first ((Nothing, $1) :) $3 }
     | X                                      { ([], $1) }
 
-Pi  :: { [SParam] }
+Pi  :: { [SParam ()] }
 Pi  : '[' Seq(Binder) ':' Term ']'           { zip $2 (repeat $4) }
 
-App :: { STerm }
+App :: { STermSyn }
 App : Seq(SingleTerm)                        { foldl1 SApp $1 }
 
 Binder :: { Maybe Id }
@@ -121,11 +121,11 @@ Binder
     : '_'                                    { Nothing }
     | name                                   { Just $1 }
 
-LamParam :: { SParam }
+LamParam :: { SParam () }
 LamParam
     : '[' Binder ':' Term ']'                { ($2, $4) }
 
-Hole :: { STerm }
+Hole :: { STermSyn }
 Hole : '{!' name Seq0(SingleTerm) '!}'       { SHole $2 $3 }
 
 {
@@ -143,7 +143,7 @@ parseErr err =
 happyError :: Alex a
 happyError = parseErr "."
 
-dataConPars :: [SParam] -> Alex [(Id, STerm)]
+dataConPars :: [SParam ()] -> Alex [(Id, STermSyn)]
 dataConPars pars =
     maybe happyError return
           (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])

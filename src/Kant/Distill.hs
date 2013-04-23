@@ -9,12 +9,12 @@ import           Kant.Term
 import           Kant.Uniquify
 import           Kant.Env
 
-distill :: TermId r -> STerm
+distill :: TermId r -> STerm r
 distill = distill' . slam newEnv
 
-distill' :: TermId r -> STerm
+distill' :: TermId r -> STerm r
 distill' (V v) = SV v
-distill' (Ty _) = STy
+distill' (Ty r) = STy r
 distill' t₁@(Lam _) = SLam vs (distill' t₂)
   where (vs, t₂) = unrollLam t₁
 distill' t₁@(Arr _ _) = SArr (map (second distill) pars) (distill' t₂)
