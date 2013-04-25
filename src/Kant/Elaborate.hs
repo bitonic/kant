@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -23,6 +24,7 @@ import           Kant.Env
 import           Kant.TyCheck
 import           Kant.Monad
 import           Kant.Uniquify
+#include "impossible.h"
 
 class Elaborate a where
     elaborate :: Monad m => a -> KMonad Id m [HoleCtx]
@@ -159,9 +161,9 @@ elimTy tyc tycty cons ref = targets tycty
                      args
         in go env₀ motiveV₀ args₀ [] (discharge args₀ (envNest env₀ <$> dcty))
 
-    discharge [] dcty      = dcty
+    discharge [] dcty = dcty
     discharge (arg : args) (Arr _ s) = discharge args (instantiate1 (V arg) s)
-    discharge _ _ = error "Elaborate.discharge: the impossible happened"
+    discharge _ _ = IMPOSSIBLE("collected arguments don't match type")
 
     hyps :: Eq v => Env v
          -> ConId
@@ -182,14 +184,14 @@ buildElim :: Int -> ConId -> [(ConId, TermRefId)] -> Elim
 -- motive, the second for the target, the third for the number of
 -- constructors.
 buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
-    error "buildElim: got wrong number of arguments in eliminator"
+    IMPOSSIBLE("got wrong number of arguments in eliminator")
 buildElim i tyc dcs (ts :: [TermRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
         Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
             in Just (app (method : drop i args ++ recs 0 args dcty))
-        Canon _ _ -> error "buildElim: constructor not present"
+        Canon _ _ -> IMPOSSIBLE("constructor not present")
         _ -> Nothing
   where
     (pars, (t : motive : methods)) = splitAt i ts

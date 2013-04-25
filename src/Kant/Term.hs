@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -52,6 +53,7 @@ import           Data.Hashable (Hashable)
 import           Prelude.Extras
 
 import           Kant.Common
+#include "impossible.h"
 
 type Id = String
 type ConId = Id
@@ -134,7 +136,7 @@ dummyN = Name "$" ()
 scopeV :: TermScope r v -> (NameId () -> Term r v) -> (Maybe (NameId ()), Term r v)
 scopeV s f =
     case bindings s of
-        []      -> (Nothing, instantiate1 (error "scopeV: the impossible happened") s)
+        []      -> (Nothing, instantiate1 IMPOSSIBLE("the impossible happened") s)
         (n : _) -> (Just n, instantiate1 (f n) s)
 
 scopeN :: TermScope r Id -> (Maybe Id, TermId r)

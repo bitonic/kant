@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
@@ -28,6 +29,7 @@ import           Kant.Common
 import           Kant.Term
 import           Kant.Constraint (Constr, Constrs)
 import qualified Kant.Constraint as Constr
+#include "impossible.h"
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
@@ -72,7 +74,7 @@ nestEnv env@Env{ envValue = value
 newEnv :: EnvId
 newEnv = Env{ envValue   = const Nothing
             , envType    = const Nothing
-            , envElim    = error "newEnv: looking up a non-existant elim"
+            , envElim    = IMPOSSIBLE("looking up a non-existant elim")
             , envPull    = id
             , envNest    = id
             , envRename  = \v f -> f v
