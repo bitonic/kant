@@ -10,11 +10,11 @@ import           Control.Monad.Writer (WriterT(..), MonadWriter(..))
 
 import           Bound
 
+import           Data.Constraint (Constr(..))
 import           Kant.Common
 import           Kant.Env
 import           Kant.Term
 import           Kant.Monad
-import           Kant.Constraint (Constr(..))
 
 type TyMonad v m = KMonad v (WriterT [HoleCtx] m)
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -24,7 +23,7 @@ import           Kant.Env
 import           Kant.TyCheck
 import           Kant.Monad
 import           Kant.Uniquify
-#include "impossible.h"
+#include "../impossible.h"
 
 class Elaborate a where
     elaborate :: Monad m => a -> KMonad Id m [HoleCtx]

@@ -11,8 +11,9 @@ Synopsis:             Core dependent language based on OTT (hopefully)
 Tested-With:          GHC==7.6.3
 Homepage:             https://github.com/bitonic/kant
 Bug-Reports:          https://github.com/bitonic/kant/issues
-Description:
+Extra-Source-Files:   src/Kant/impossible.h
 Data-Dir:             data
+Description:
 
 Source-Repository head
     Type:             git
@@ -37,10 +38,10 @@ Library
     Build-Tools:      alex, happy
 
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+    Extensions:       CPP
 
     Exposed-Modules:  Kant.Term,
                       Kant.Decl,
-                      Kant.Constraint,
                       Kant.Env,
                       Kant.Reduce,
                       Kant.TyCheck,
@@ -54,7 +55,8 @@ Library
                       Kant.Pretty,
                       Kant.Monad,
                       Kant.REPL,
-                      Data.LGraph
+                      Data.LGraph,
+                      Data.Constraint
 
     Other-Modules:    Kant.Common,
                       Kant.Lexer,

@@ -57,11 +57,11 @@ import qualified Text.Parsec as Parsec
 
 import           Bound
 
+import qualified Data.Constraint as Constr
 import           Kant.Common
 import           Kant.Term
 import           Kant.Env
 import           Kant.Uniquify
-import qualified Kant.Constraint as Constr
 import           Kant.Reduce
 import           Kant.Parser
 import           Kant.Decl

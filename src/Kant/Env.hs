@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
@@ -25,11 +24,11 @@ import qualified Data.HashSet as HashSet
 import           Bound
 import           Bound.Name
 
+import           Data.Constraint (Constr, Constrs)
+import qualified Data.Constraint as Constr
 import           Kant.Common
 import           Kant.Term
-import           Kant.Constraint (Constr, Constrs)
-import qualified Kant.Constraint as Constr
-#include "impossible.h"
+#include "../impossible.h"
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -53,7 +52,7 @@ import           Data.Hashable (Hashable)
 import           Prelude.Extras
 
 import           Kant.Common
-#include "impossible.h"
+#include "../impossible.h"
 
 type Id = String
 type ConId = Id
