@@ -38,7 +38,7 @@ data Constr a = a :<=: a | a :<: a | a :==: a
 empty :: Constrs a
 empty = Constrs Graph.empty
 
-addConstr :: (Eq a, Hashable a, Show a) => Constr a -> Constrs a -> Maybe (Constrs a)
+addConstr :: (Eq a, Hashable a) => Constr a -> Constrs a -> Maybe (Constrs a)
 addConstr c (Constrs oldGr) =
     if consistent newGr then Just (Constrs newGr) else Nothing
   where
@@ -48,10 +48,10 @@ addConstr c (Constrs oldGr) =
     edges (r₁ :<:  r₂) = [(r₁, Strong, r₂)]
     edges (r₁ :==: r₂) = [(r₁, Weak, r₂), (r₂, Weak, r₁)]
 
-addConstrs :: (Eq a, Hashable a, Show a) => [Constr a] -> Constrs a -> Maybe (Constrs a)
+addConstrs :: (Eq a, Hashable a) => [Constr a] -> Constrs a -> Maybe (Constrs a)
 addConstrs = flip (foldrM addConstr)
 
-consistent :: (Eq a, Hashable a, Show a) => Graph a ConstrTy -> Bool
+consistent :: (Eq a, Hashable a) => Graph a ConstrTy -> Bool
 consistent gr = all weakCycle (Graph.scc gr)
   where
     weakCycle (Graph.Acyclic _) = True
