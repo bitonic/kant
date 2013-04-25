@@ -8,6 +8,7 @@ module Kant.Reduce
 import           Bound
 
 import           Kant.Term
+import           Kant.ADT
 import           Kant.Env
 
 type Reducer = forall v. VarC v => Env v -> TermRef v -> TermRef v
@@ -23,8 +24,10 @@ reduce r env (App t₁ t₂) =
         Lam s -> reduce r env (instantiate1 t₂ s)
         t₁'   -> App t₁' (reduce r env t₂)
 reduce r env (Canon c ts) = Canon c (map (reduce r env) ts)
-reduce r env (Elim c ts) =
-    case envElim env c ts' of Nothing -> Elim c ts'; Just t  -> reduce r env t
+reduce r env (Rewr c ts) =
+    case adtRewr (envADTs env c) ts' of
+         Nothing -> Rewr c ts'
+         Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)

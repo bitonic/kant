@@ -63,7 +63,7 @@ tyInfer' (App t₁ t₂) =
            Arr ty₁ s -> do tyCheck t₂ ty₁; constrIfTy (instantiate1 t₂ s)
            _         -> expectingFunction t₁ tyt₁
 tyInfer' (Canon dc ts) = do env <- getEnv; tyInfer' (app (V (envNest env dc) : ts))
-tyInfer' (Elim en ts) = do env <- getEnv; tyInfer' (app (V (envNest env en) : ts))
+tyInfer' (Rewr en ts) = do env <- getEnv; tyInfer' (app (V (envNest env en) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTerm t
 
@@ -101,7 +101,7 @@ eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs 
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
 eqRefs (Canon c₁ ts₁) (Canon c₂ ts₂) =
     ((c₁ == c₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
-eqRefs (Elim c₁ ts₁) (Elim c₂ ts₂) =
+eqRefs (Rewr c₁ ts₁) (Rewr c₂ ts₂) =
     ((c₁ == c₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False

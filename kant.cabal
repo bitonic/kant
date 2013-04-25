@@ -42,6 +42,7 @@ Library
 
     Exposed-Modules:  Kant.Term,
                       Kant.Decl,
+                      Kant.ADT,
                       Kant.Env,
                       Kant.Reduce,
                       Kant.TyCheck,

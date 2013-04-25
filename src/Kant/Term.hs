@@ -74,7 +74,7 @@ data Term r v
     | App (Term r v) (Term r v)
     | Ann (Term r v) (Term r v)
     | Canon ConId [Term r v]
-    | Elim ConId [Term r v]
+    | Rewr ConId [Term r v]
     | Hole HoleId [Term r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
@@ -97,7 +97,7 @@ instance Monad (Term r) where
     Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
     App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
     Canon c ts >>= f = Canon c (map (>>= f) ts)
-    Elim c ts  >>= f = Elim c (map (>>= f) ts)
+    Rewr c ts  >>= f = Rewr c (map (>>= f) ts)
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
     Hole hn ts >>= f = Hole hn (map (>>= f) ts)
 
@@ -157,7 +157,7 @@ mapRef f (Arr t s)     = Arr <$> mapRef f t <*> (toScope <$> mapRef f (fromScope
 mapRef f (App t₁ t₂)   = App <$> mapRef f t₁ <*> mapRef f t₂
 mapRef f (Ann ty t)    = Ann <$> mapRef f ty <*> mapRef f t
 mapRef f (Canon dc ts) = Canon dc <$> mapM (mapRef f) ts
-mapRef f (Elim dc ts)  = Elim dc <$> mapM (mapRef f) ts
+mapRef f (Rewr dc ts)  = Rewr dc <$> mapM (mapRef f) ts
 mapRef f (Hole h ts)   = Hole h <$> mapM (mapRef f) ts
 
 unRef :: Term r v -> Term () v

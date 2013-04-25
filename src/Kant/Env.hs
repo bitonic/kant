@@ -1,9 +1,7 @@
-{-# LANGUAGE RankNTypes #-}
 -- | Sets up a warm place (cit) to reduce, typecheck, and reify things into.
 --   The main hurdle is the multi-level structure of our 'Term', due to bound.
 module Kant.Env
-    ( Elim
-    , ConstrRef
+    ( ConstrRef
     , ConstrsRef
     , Env(..)
     , EnvId
@@ -13,7 +11,7 @@ module Kant.Env
     , envFree
     , addFree
     , envFreeVs
-    , addElim
+    , addADT
     ) where
 
 import           Data.Foldable (foldMap)
@@ -28,11 +26,11 @@ import           Data.Constraint (Constr, Constrs)
 import qualified Data.Constraint as Constr
 import           Kant.Common
 import           Kant.Term
+import           Kant.ADT
 #include "../impossible.h"
 
 type Value = TermRef
 type Ctx v = v -> Maybe (Value v)
-type Elim = forall v. VarC v => [TermRef v] -> Maybe (TermRef v)
 type ConstrRef = Constr Ref
 type ConstrsRef = Constrs Ref
 
@@ -40,7 +38,7 @@ type ConstrsRef = Constrs Ref
 data Env v = Env
     { envValue   :: Ctx v
     , envType    :: Ctx v
-    , envElim    :: ConId -> Elim
+    , envADTs    :: ConId -> ADT
     , envPull    :: v -> Id
     , envNest    :: Id -> v
     , envRename  :: v -> (Id -> Id) -> v
@@ -73,7 +71,7 @@ nestEnv env@Env{ envValue = value
 newEnv :: EnvId
 newEnv = Env{ envValue   = const Nothing
             , envType    = const Nothing
-            , envElim    = IMPOSSIBLE("looking up a non-existant elim")
+            , envADTs    = IMPOSSIBLE("looking up a non-existant adt")
             , envPull    = id
             , envNest    = id
             , envRename  = \v f -> f v
@@ -98,6 +96,6 @@ envFreeVs env = foldMap (\v -> if envFree env v
                                then HashSet.singleton (envPull env v)
                                else HashSet.empty)
 
-addElim :: Env v -> Id -> Elim -> Env v
-addElim env@Env{envElim = elim} n el =
-    env{envElim = \n' -> if n == n' then el else elim n'}
+addADT :: Env v -> Id -> ADT -> Env v
+addADT env@Env{envADTs = adts} n adt =
+    env{envADTs = \n' -> if n == n' then adt else adts n'}

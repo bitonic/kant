@@ -17,7 +17,7 @@ module Kant.Monad
     , nestEnvTyM
     , lookupTy
     , addFreeM
-    , addElimM
+    , addADTM
       -- * References
     , freshRef
       -- * Constraints
@@ -60,6 +60,7 @@ import           Bound
 import qualified Data.Constraint as Constr
 import           Kant.Common
 import           Kant.Term
+import           Kant.ADT
 import           Kant.Env
 import           Kant.Uniquify
 import           Kant.Reduce
@@ -140,8 +141,8 @@ addFreeM :: (VarC v, Monad m)
          => v -> Maybe (TermRef v) -> Maybe (TermRef v) -> KMonad v m ()
 addFreeM v mv mty = do env <- getEnv; putEnv (addFree env v mv mty)
 
-addElimM :: (Monad m) => Id -> Elim -> KMonad v m ()
-addElimM n el = do env <- getEnv; putEnv (addElim env n el)
+addADTM :: (Monad m) => Id -> ADT -> KMonad v m ()
+addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
 
 freshRef :: (Monad m) => KMonad v m Ref
 freshRef = do env <- getEnv; envRef env <$ putEnv (env{envRef = envRef env + 1})

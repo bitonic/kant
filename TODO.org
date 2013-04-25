@@ -1,3 +1,4 @@
+* TODO Distinguish Envs to do all that stuff and envs just to reify names
 * TODO Local type inference
 * TODO Add Prop
 * TODO Better pretty printing

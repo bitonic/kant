@@ -1,11 +1,14 @@
 module Kant.Decl
-    ( Decl(..)
+    ( Cons
+    , Decl(..)
     , DeclSyn
     , Module(..)
     , ModuleSyn
     ) where
 
 import           Kant.Term
+
+type Cons r = [(ConId, TermId r)]
 
 data Decl r
     = Val Id (TermId r)

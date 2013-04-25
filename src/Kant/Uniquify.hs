@@ -53,7 +53,7 @@ uniquify env t =
     go (Lam s) = Lam <$> goScope s
     go (App t₁ t₂) = App <$> go t₁ <*> go t₂
     go (Canon c ts') = Canon c <$> mapM go ts'
-    go (Elim ce ts') = Elim ce <$> mapM go ts'
+    go (Rewr ce ts') = Rewr ce <$> mapM go ts'
     go (Ann ty t') = Ann <$> go ty <*> go t'
     go (Hole hn ts) = Hole hn <$> mapM go ts
 

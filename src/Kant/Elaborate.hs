@@ -18,6 +18,7 @@ import           Bound.Name
 
 import           Kant.Common
 import           Kant.Term
+import           Kant.ADT
 import           Kant.Decl
 import           Kant.Env
 import           Kant.TyCheck
@@ -52,10 +53,13 @@ instance r ~ Ref => Elaborate (Decl r) where
            let elty  = elimTy tyc tycty dcs eltyR     -- D-elim type
                eln   = elimName tyc                   -- D-elim name
                -- Function that will form the 'Elim's
-               elfun = typedLam (Elim eln) elty
+               elfun = typedLam (Rewr eln) elty
            addFreeM eln (Just elfun)  (Just elty)
-           -- Add the actual eliminator
-           [] <$ addElimM eln (buildElim (arrLen tycty) tyc dcs)
+           -- Add the actual ADT
+           [] <$ addADTM tyc ADT{ adtName = tyc
+                                , adtTy   = tycty
+                                , adtRewr = buildRewr (arrLen tycty) tyc dcs
+                                , adtCons = dcs }
       where
         returnsTy :: TermRef v -> Bool
         returnsTy (Arr  _ s) = returnsTy (fromScope s)
@@ -178,13 +182,13 @@ elimTy tyc tycty cons ref = targets tycty
                          (map (F *** nestt₁) args))
         else hyps env dc motiveV motiveArg args
 
-buildElim :: Int -> ConId -> [(ConId, TermRefId)] -> Elim
+buildRewr :: Int -> ConId -> [(ConId, TermRefId)] -> Rewr
 -- The `i' is the number of parameters for the tycon, the first 1 for the
 -- motive, the second for the target, the third for the number of
 -- constructors.
-buildElim i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
-    IMPOSSIBLE("got wrong number of arguments in eliminator")
-buildElim i tyc dcs (ts :: [TermRef v]) =
+buildRewr i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
+    IMPOSSIBLE("got wrong number of arguments in rewriteinator")
+buildRewr i tyc dcs (ts :: [TermRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
         Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
@@ -197,12 +201,12 @@ buildElim i tyc dcs (ts :: [TermRef v]) =
 
     recs :: Int -> [TermRef v] -> TermRefId -> [TermRef v]
     recs n args (Arr (appV -> (tyHead, _)) s) =
-        (if tyHead == V tyc then [recElim (args !! n)] else []) ++
+        (if tyHead == V tyc then [recRewr (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
-    recElim x = Elim (elimName tyc) (pars ++ [x, motive] ++ methods)
+    recRewr x = Rewr tyc (pars ++ [x, motive] ++ methods)
 
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"
