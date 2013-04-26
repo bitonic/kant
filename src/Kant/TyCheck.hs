@@ -14,13 +14,8 @@ import           Data.Proxy
 import           Data.Constraint (Constr(..))
 import           Kant.Common
 import           Kant.Env
-import           Kant.Term
 import           Kant.Monad
-
-type TyMonad f v m = KMonad f v (WriterT [HoleCtx] m)
-
-addHole :: Monad m => HoleCtx -> TyMonad f v m ()
-addHole hole = lift (tell [hole])
+import           Kant.Term
 
 tyInfer :: (VarC v, Monad m) => TermRef v -> KMonadT v m (TermRef v, [HoleCtx])
 tyInfer t =
@@ -40,7 +35,14 @@ tyInferNH t =
            []                           -> return ty
            (HoleCtx{holeName = hn} : _) -> unexpectedHole hn
 
-tyInfer' :: (VarC v, Monad m) => TermRef v -> TyMonad TermRef v m (TermRef v)
+type TyMonad f v m = KMonad f v (WriterT [HoleCtx] m)
+type TyMonadP v m = TyMonad Proxy v m
+type TyMonadT v m = TyMonad TermRef v m
+
+addHole :: Monad m => HoleCtx -> TyMonad f v m ()
+addHole hole = lift (tell [hole])
+
+tyInfer' :: (VarC v, Monad m) => TermRef v -> TyMonadT v m (TermRef v)
 tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
 tyInfer' (V v) = constrIfTy =<< lookupTy v
 tyInfer' t@(Lam _) = untypedTerm t
@@ -70,15 +72,15 @@ tyInfer' t@(Hole _ _) = untypedTerm t
 
 constrIfTy :: (VarC v, Monad m) => TermRef v -> KMonad f v m (Term Ref v)
 constrIfTy ty =
-    do ty' <- nfM ty
+    do ty' <- whnfM ty
        case ty' of
            Ty r -> Ty <$> addConstr' (r :<=:)
            _    -> return ty
 
-tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonad TermRef v m ()
+tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
 tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
   where
-    go :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonad TermRef v m ()
+    go :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
     go (Lam s₁) (Arr ty s₂) = nestEnvM ty (go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
@@ -89,7 +91,7 @@ tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
            unless eq (mismatch ty t tyt)
 
 -- TODO maybe find a way to eliminate the explicit recursion?
-eqRefs :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonad Proxy v m Bool
+eqRefs :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadP v m Bool
 eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
 eqRefs (Ty r₁) (Ty r₂) = do addConstrs [r₁ :==: r₂]; return True
 eqRefs (Lam s₁) (Lam s₂) = nestEnvPM (eqRefs (fromScope s₁) (fromScope s₂))
@@ -104,3 +106,6 @@ eqRefs (Rewr c₁ ts₁) (Rewr c₂ ts₂) =
     ((c₁ == c₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
+
+isProp :: (VarC v, Monad m) => TermRef v -> TyMonadT v m Bool
+isProp = undefined

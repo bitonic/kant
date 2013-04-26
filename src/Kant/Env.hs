@@ -33,12 +33,12 @@ import           Bound
 import           Bound.Name
 import           Data.Proxy
 
-import           Kant.Common
-import           Kant.Term
-import           Kant.Cursor
 import           Data.Constraint (Constr, Constrs)
 import qualified Data.Constraint as Constr
 import           Kant.ADT
+import           Kant.Common
+import           Kant.Cursor
+import           Kant.Term
 #include "../impossible.h"
 
 type ConstrRef = Constr Ref

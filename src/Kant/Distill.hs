@@ -4,10 +4,10 @@ import           Control.Arrow (second)
 
 import           Bound
 
+import           Kant.Cursor
 import           Kant.Sugar
 import           Kant.Term
 import           Kant.Uniquify
-import           Kant.Cursor
 
 distill :: TermId r -> STerm r
 distill = distill' . slam newCurs

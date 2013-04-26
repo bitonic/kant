@@ -4,9 +4,9 @@ module Kant.Reduce (nf, whnf) where
 import           Bound
 import           Data.Proxy
 
-import           Kant.Term
 import           Kant.ADT
 import           Kant.Env
+import           Kant.Term
 
 type Reducer = forall v. VarC v => EnvP v -> TermRef v -> TermRef v
 
@@ -37,4 +37,3 @@ whnf env = reduce (\_ t -> t) (toEnvP env)
 
 nf :: VarC v => Env f v -> TermRef v -> TermRef v
 nf env = reduce nf (toEnvP env)
-

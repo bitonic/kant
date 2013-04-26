@@ -15,11 +15,11 @@ import           Control.Arrow (first)
 import           Control.Monad (liftM)
 import           Data.List (foldl1)
 
-import           Kant.Term
 import           Kant.Decl
+import           Kant.Desugar
 import           Kant.Lexer
 import           Kant.Sugar
-import           Kant.Desugar
+import           Kant.Term
 
 }
 

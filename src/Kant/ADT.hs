@@ -2,8 +2,8 @@
 -- | A reified representation of abstract data types.
 module Kant.ADT (Rewr, ADT(..)) where
 
-import           Kant.Term
 import           Kant.Decl
+import           Kant.Term
 
 type Rewr = forall v. VarC v => [TermRef v] -> Maybe (TermRef v)
 

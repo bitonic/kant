@@ -13,8 +13,8 @@ import           Bound
 import           Bound.Name
 
 import           Kant.Common
-import           Kant.Term
 import           Kant.Cursor
+import           Kant.Term
 
 type FreshMonad v = State (HashMap v Id, HashMap Id Integer)
 

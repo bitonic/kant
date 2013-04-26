@@ -3,9 +3,9 @@
 module Kant.Ref (PutRef(..)) where
 
 import           Kant.Common
-import           Kant.Term
 import           Kant.Decl
 import           Kant.Monad
+import           Kant.Term
 
 class PutRef a where
     type WithRef a :: *

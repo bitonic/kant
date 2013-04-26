@@ -24,14 +24,14 @@ import           System.Console.Haskeline
 import           System.Console.Haskeline.MonadException ()
 
 import           Kant.Common
-import           Kant.Term
-import           Kant.Env
-import           Kant.TyCheck
-import           Kant.Ref
 import           Kant.Elaborate
+import           Kant.Env
+import           Kant.Monad
 import           Kant.Pretty
 import           Kant.REPL.Types
-import           Kant.Monad
+import           Kant.Ref
+import           Kant.Term
+import           Kant.TyCheck
 
 data Input
     = ITyCheck String

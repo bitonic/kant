@@ -16,14 +16,14 @@ import qualified Data.HashSet as HashSet
 import           Bound
 import           Bound.Name
 
-import           Kant.Common
-import           Kant.Term
-import           Kant.Cursor
 import           Kant.ADT
+import           Kant.Common
+import           Kant.Cursor
 import           Kant.Decl
 import           Kant.Env
-import           Kant.TyCheck
 import           Kant.Monad
+import           Kant.Term
+import           Kant.TyCheck
 #include "../impossible.h"
 
 class Elaborate a where

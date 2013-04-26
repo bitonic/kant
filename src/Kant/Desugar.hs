@@ -3,9 +3,9 @@ module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (first, second)
 
-import           Kant.Term
 import           Kant.Decl
 import           Kant.Sugar
+import           Kant.Term
 
 class Desugar a where
     type Core a :: *

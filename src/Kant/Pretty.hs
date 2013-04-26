@@ -10,11 +10,11 @@ import           Data.String (IsString(..))
 
 import           Text.PrettyPrint.Leijen
 
-import           Kant.Term
-import           Kant.Sugar
 import           Kant.Distill
 import           Kant.Monad
 import           Kant.REPL.Types
+import           Kant.Sugar
+import           Kant.Term
 
 -- | @'putPretty' = 'putStrLn' . 'show' . 'pretty'@.
 putPretty :: Pretty a => a -> IO ()

@@ -11,8 +11,8 @@ module Kant.Lexer
     ) where
 
 import           Kant.Common
-import           Kant.Term
 import           Kant.Sugar
+import           Kant.Term
 
 }
 
