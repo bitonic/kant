@@ -78,7 +78,6 @@ elaborateCon tyc dc ty =
        let t = typedLam (Canon dc) ty -- Function that forms the 'Canon'
        addFreeM dc ty (Just t)
   where
-    -- TODO Check that we return the D with the right arguments.
     goodTy :: (VarC v, Monad m) => [v] -> TermRef v -> KMonadP v m ()
     goodTy vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
