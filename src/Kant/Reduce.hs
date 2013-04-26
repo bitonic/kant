@@ -1,21 +1,18 @@
 {-# LANGUAGE RankNTypes #-}
-module Kant.Reduce
-    ( Reducer
-    , nf
-    , whnf
-    ) where
+module Kant.Reduce (nf, whnf) where
 
 import           Bound
+import           Data.Proxy
 
 import           Kant.Term
 import           Kant.ADT
 import           Kant.Env
 
-type Reducer = forall v. VarC v => Env v -> TermRef v -> TermRef v
+type Reducer = forall v. VarC v => EnvP v -> TermRef v -> TermRef v
 
 reduce :: Reducer -> Reducer
-reduce r env@Env{envValue = value} t@(V v) =
-    maybe t (reduce r env) (value v)
+reduce r env t@(V v) =
+    maybe t (reduce r env) (envBody env v)
 reduce _ _ (Ty r) = (Ty r)
 reduce r env (Lam s)    = Lam (reduceScope r env s)
 reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
@@ -25,18 +22,19 @@ reduce r env (App t₁ t₂) =
         t₁'   -> App t₁' (reduce r env t₂)
 reduce r env (Canon c ts) = Canon c (map (reduce r env) ts)
 reduce r env (Rewr c ts) =
-    case adtRewr (envADTs env c) ts' of
+    case adtRewr (envADT env c) ts' of
          Nothing -> Rewr c ts'
          Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
-reduceScope :: VarC v => Reducer -> Env v -> TermScopeRef v -> TermScopeRef v
-reduceScope r env s = (toScope (r (nestEnv env Nothing Nothing) (fromScope s)))
+reduceScope :: VarC v => Reducer -> EnvP v -> TermScopeRef v -> TermScopeRef v
+reduceScope r env s = (toScope (r (nestEnv env Proxy) (fromScope s)))
 
-whnf :: Reducer
-whnf = reduce (\_ t -> t)
+whnf :: VarC v => Env f v -> TermRef v -> TermRef v
+whnf env = reduce (\_ t -> t) (toEnvP env)
 
-nf :: Reducer
-nf = reduce nf
+nf :: VarC v => Env f v -> TermRef v -> TermRef v
+nf env = reduce nf (toEnvP env)
+

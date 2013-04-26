@@ -42,7 +42,7 @@ data Input
     | IQuit
     | ISkip
 
-type REPL m = KMonad Id m
+type REPL m = KMonadT Id m
 
 parseInput :: Monad m => String -> REPL m Input
 parseInput =

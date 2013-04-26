@@ -31,6 +31,7 @@ Library
                       mtl,
                       parsec,
                       prelude-extras,
+                      tagged,
                       transformers,
                       unordered-containers,
                       wl-pprint
@@ -43,6 +44,7 @@ Library
     Exposed-Modules:  Kant.Term,
                       Kant.Decl,
                       Kant.ADT,
+                      Kant.Cursor,
                       Kant.Env,
                       Kant.Reduce,
                       Kant.TyCheck,

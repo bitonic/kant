@@ -7,10 +7,10 @@ import           Bound
 import           Kant.Sugar
 import           Kant.Term
 import           Kant.Uniquify
-import           Kant.Env
+import           Kant.Cursor
 
 distill :: TermId r -> STerm r
-distill = distill' . slam newEnv
+distill = distill' . slam newCurs
 
 distill' :: TermId r -> STerm r
 distill' (V v) = SV v

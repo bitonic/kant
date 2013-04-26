@@ -1,20 +1,22 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 module Kant.Monad
     ( -- * Kant 'Monad'
       KError(..)
+    , KMonadT
+    , KMonadP
     , KMonad(KMonad)
     , runKMonad
     , mapKMonad
+    , fromKMonadP
     , throwKError
       -- * Environment actions
     , getEnv
     , putEnv
     , nestEnvM
-    , nestEnvTyM
+    , nestEnvPM
     , lookupTy
     , addFreeM
     , addADTM
@@ -56,16 +58,17 @@ import           Control.Monad.Trans.Class (MonadTrans(..))
 import qualified Text.Parsec as Parsec
 
 import           Bound
+import           Data.Proxy
 
 import qualified Data.Constraint as Constr
-import           Kant.Common
-import           Kant.Term
 import           Kant.ADT
-import           Kant.Env
-import           Kant.Uniquify
-import           Kant.Reduce
-import           Kant.Parser
+import           Kant.Common
 import           Kant.Decl
+import           Kant.Env
+import           Kant.Parser
+import           Kant.Reduce
+import           Kant.Term
+import           Kant.Uniquify
 
 data KError
     = OutOfBounds Id
@@ -87,133 +90,141 @@ data KError
 
 instance Error KError
 
-newtype KMonad v m a = KMonad {runKMonad' :: StateT (Env v) (ErrorT KError m) a}
+newtype KMonad f v m a = KMonad {runKMonad' :: StateT (Env f v) (ErrorT KError m) a}
     deriving (Functor, Applicative, Monad)
+type KMonadP = KMonad Proxy
+type KMonadT = KMonad TermRef
 
-instance MonadTrans (KMonad v) where
+instance MonadTrans (KMonad f v) where
     lift m = KMonad (lift (lift m))
 
-instance MonadIO m => MonadIO (KMonad v m) where
+instance MonadIO m => MonadIO (KMonad f v m) where
     liftIO = KMonad . liftIO
 
-runKMonad :: Env v -> KMonad v m a -> m (Either KError (a, Env v))
+runKMonad :: Env f v -> KMonad f v m a -> m (Either KError (a, Env f v))
 runKMonad env = runErrorT . (`runStateT` env) . runKMonad'
 
-mapKMonad :: (m (Either KError (a, Env v)) -> n (Either KError (b, Env v)))
-          -> KMonad v m a -> KMonad v n b
+mapKMonad :: (m (Either KError (a, Env f v)) -> n (Either KError (b, Env f v)))
+          -> KMonad f v m a -> KMonad f v n b
 mapKMonad f = KMonad . mapStateT (mapErrorT f) . runKMonad'
 
-throwKError :: Monad m => KError -> KMonad v m a
+fromKMonadP :: Monad m => KMonadP v m a -> KMonad f v m a
+fromKMonadP (KMonad (StateT f)) =
+    KMonad $ StateT $ \env -> recover env (f (toEnvP env))
+  where
+    recover env m =
+        do (x, envp) <- m
+           return (x, Env{ envDefs    = envDefs envp
+                         , envADTs    = envADTs envp
+                         , envConstrs = envConstrs envp
+                         , envCurs    = envCurs env
+                         , envRef     = envRef envp
+                         })
+
+throwKError :: Monad m => KError -> KMonad f v m a
 throwKError = KMonad . throwError
 
-getEnv :: Monad m => KMonad v m (Env v)
+getEnv :: Monad m => KMonad f v m (Env f v)
 getEnv = KMonad get
 
-putEnv :: Monad m => Env v -> KMonad v m ()
+putEnv :: Monad m => Env f v -> KMonad f v m ()
 putEnv env = KMonad (put env)
 
 -- | Enters a scope with a certain value and type, runs an action on that new
 --   scope, and returns back to the outer scope.
-nestEnvM :: Monad m
-         => Maybe (TermRef v) -> Maybe (TermRef v)
-         -> KMonad (Var (NameId ()) v) m a -> KMonad v m a
-nestEnvM t ty (KMonad m) =
+nestEnvM :: (Monad m, Functor f)
+         => f v -> KMonad f (Var (NameId ()) v) m a -> KMonad f v m a
+nestEnvM ty (KMonad m) =
     KMonad $ StateT $
-    \env -> do (x, env') <- runStateT m (nestEnv env t ty)
-               return (x, env'{ envValue  = envValue env
-                              , envType   = envType env
-                              , envPull   = envPull env
-                              , envNest   = envNest env
-                              , envRename = envRename env
-                              })
+    \env -> do (x, env') <- runStateT m (nestEnv env ty)
+               return (x, env'{envCurs = envCurs env})
 
-nestEnvTyM :: Monad m => TermRef v -> KMonad (Var (NameId ()) v) m a -> KMonad v m a
-nestEnvTyM ty = nestEnvM Nothing (Just ty)
+nestEnvPM :: Monad m => KMonadP (Var (NameId ()) v) m a -> KMonadP v m a
+nestEnvPM = nestEnvM Proxy
 
-lookupTy :: (VarC v, Monad m) => v -> KMonad v m (TermRef v)
+lookupTy :: (VarC v, Monad m) => v -> KMonadT v m (TermRef v)
 lookupTy v =
     do env <- getEnv
        case envType env v of
            Nothing -> KMonad (throwError (OutOfBounds (envPull env v)))
            Just ty -> return ty
 
-addFreeM :: (VarC v, Monad m)
-         => v -> Maybe (TermRef v) -> Maybe (TermRef v) -> KMonad v m ()
-addFreeM v mv mty = do env <- getEnv; putEnv (addFree env v mv mty)
+addFreeM :: (VarC v, Monad m) => Id -> TermRefId -> Maybe TermRefId -> KMonadT v m ()
+addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)
 
-addADTM :: (Monad m) => Id -> ADT -> KMonad v m ()
+addADTM :: (Monad m) => ConId -> ADT -> KMonadT v m ()
 addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
 
-freshRef :: (Monad m) => KMonad v m Ref
+freshRef :: (Monad m) => KMonad f v m Ref
 freshRef = do env <- getEnv; envRef env <$ putEnv (env{envRef = envRef env + 1})
 
-addConstrs :: (Monad m) => [ConstrRef] -> KMonad v m ()
+addConstrs :: (Monad m) => [ConstrRef] -> KMonad f v m ()
 addConstrs cs =
     do env <- getEnv
        constrs <- maybe cyclicTypes return (Constr.addConstrs cs (envConstrs env))
        putEnv (env{envConstrs = constrs})
 
-addConstrs' :: (Monad m) => (Ref -> [ConstrRef]) -> KMonad v m Ref
+addConstrs' :: (Monad m) => (Ref -> [ConstrRef]) -> KMonad f v m Ref
 addConstrs' f = do r <- freshRef; addConstrs (f r); return r
 
-addConstr' :: (Monad m) => (Ref -> ConstrRef) -> KMonad v m Ref
+addConstr' :: (Monad m) => (Ref -> ConstrRef) -> KMonad f v m Ref
 addConstr' f = addConstrs' (return . f)
 
-whnfM :: (Monad m, VarC v) => TermRef v -> KMonad v m (TermRef v)
+whnfM :: (Monad m, VarC v) => TermRef v -> KMonad f v m (TermRef v)
 whnfM t = (`whnf` t) <$> getEnv
 
-nfM :: (Monad m, VarC v) => TermRef v -> KMonad v m (TermRef v)
+nfM :: (Monad m, VarC v) => TermRef v -> KMonad f v m (TermRef v)
 nfM t = (`nf` t) <$> getEnv
 
-slamM :: (VarC v, Monad m) => Term r v -> KMonad v m (TermId r)
-slamM t = flip slam t <$> getEnv
+slamM :: (VarC v, Monad m) => Term r v -> KMonad f v m (TermId r)
+slamM t = flip slam t . envCurs <$> getEnv
 
 formHoleM :: (VarC v, Monad m)
           => HoleId -> TermRef v -> [(TermRef v, TermRef v)]
-          -> KMonad v m HoleCtx
+          -> KMonad f v m HoleCtx
 formHoleM hn goal ts =
     do env <- getEnv
        r <- freshRef
-       return (formHole env r hn goal ts)
+       return (formHole (envCurs env) r hn goal ts)
 
-mismatch :: (VarC v, Monad m) => TermRef v -> TermRef v -> TermRef v -> KMonad v m a
+mismatch :: (VarC v, Monad m) => TermRef v -> TermRef v -> TermRef v -> KMonad f v m a
 mismatch t₁ t₂ t₃ =
     throwKError =<< Mismatch <$> slamM t₁ <*> slamM t₂ <*> slamM t₃
 
-expectingType :: (VarC v, Monad m) => TermRef v -> TermRef v -> KMonad v m a
+expectingType :: (VarC v, Monad m) => TermRef v -> TermRef v -> KMonad f v m a
 expectingType t₁ t₂ = throwKError =<< ExpectingType <$> slamM t₁ <*> slamM t₂
 
-expectingFunction :: (VarC v, Monad m) => TermRef v -> TermRef v -> KMonad v m a
+expectingFunction :: (VarC v, Monad m) => TermRef v -> TermRef v -> KMonad f v m a
 expectingFunction t₁ t₂ = throwKError =<< ExpectingFunction <$> slamM t₁ <*> slamM t₂
 
 expectingTypeData :: (VarC v, Monad m)
-                  => ConId -> ConId -> TermRef v -> KMonad v m a
-expectingTypeData dc tyc ty = throwKError =<< ExpectingTypeData dc tyc <$> slamM ty
+                  => ConId -> ConId -> TermRefId -> KMonad f v m a
+expectingTypeData dc tyc ty = throwKError (ExpectingTypeData dc tyc ty)
 
 wrongRecTypePos :: (VarC v, Monad m)
-                => ConId -> ConId -> TermRef v -> KMonad v m a
-wrongRecTypePos dc tyc ty = throwKError =<< WrongRecTypePos dc tyc <$> slamM ty
+                => ConId -> ConId -> TermRefId -> KMonad f v m a
+wrongRecTypePos dc tyc ty = throwKError (WrongRecTypePos dc tyc ty)
 
-untypedTerm :: (VarC v, Monad m) => TermRef v -> KMonad v m a
+untypedTerm :: (VarC v, Monad m) => TermRef v -> KMonad f v m a
 untypedTerm t = throwKError =<< UntypedTerm <$> slamM t
 
-unexpectedHole :: (Monad m) => HoleId -> KMonad v m a
-unexpectedHole hid = KMonad (throwError (UnexpectedHole hid))
+unexpectedHole :: (Monad m) => HoleId -> KMonad f v m a
+unexpectedHole hid = throwKError (UnexpectedHole hid)
 
-cyclicTypes :: (Monad m) => KMonad v m a
-cyclicTypes = KMonad (throwError CyclicTypes)
+cyclicTypes :: (Monad m) => KMonad f v m a
+cyclicTypes = throwKError CyclicTypes
 
-expectingTypeCon :: (VarC v, Monad m) => ConId -> TermRef v -> KMonad v m a
+expectingTypeCon :: (VarC v, Monad m) => ConId -> TermRef v -> KMonad f v m a
 expectingTypeCon dc t = throwKError =<< ExpectingTypeCon dc <$> slamM t
 
-duplicateName :: (VarC v, Monad m) => v -> KMonad v m a
-duplicateName v = throwKError =<< DuplicateName <$> ((`envPull` v) <$> getEnv)
+duplicateName :: (Monad m) => Id -> KMonad f v m a
+duplicateName = throwKError . DuplicateName
 
-parseModuleM :: (Monad m) => String -> KMonad v m ModuleSyn
+parseModuleM :: (Monad m) => String -> KMonad f v m ModuleSyn
 parseModuleM = either (throwKError . TermParse) return . parseModule
 
-parseDeclM :: (Monad m) => String -> KMonad v m DeclSyn
+parseDeclM :: (Monad m) => String -> KMonad f v m DeclSyn
 parseDeclM = either (throwKError . TermParse) return . parseDecl
 
-parseTermM :: (Monad m) => String -> KMonad v m TermSyn
+parseTermM :: (Monad m) => String -> KMonad f v m TermSyn
 parseTermM = either (throwKError . TermParse) return . parseTerm

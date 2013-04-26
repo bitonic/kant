@@ -9,7 +9,7 @@ import           Kant.Monad
 
 class PutRef a where
     type WithRef a :: *
-    putRef :: Monad m => a -> KMonad v m (WithRef a)
+    putRef :: Monad m => a -> KMonad f v m (WithRef a)
 
 instance r ~ () => PutRef (Term r v) where
     type WithRef (Term r v) = TermRef v
