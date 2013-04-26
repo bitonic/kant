@@ -1,4 +1,4 @@
-* TODO Distinguish Envs to do all that stuff and envs just to reify names
+* TODO When checking for equality, only use whnf
 * TODO Local type inference
 * TODO Add Prop
 * TODO Better pretty printing

@@ -51,7 +51,7 @@ tyInfer' (Arr ty₁ s) =
            Ty r₁ -> nestEnvM ty₁ $
                     do let ty₂ = fromScope s
                        tyty₂ <- tyInfer' ty₂
-                       tyty₂' <- nfM tyty₂
+                       tyty₂' <- whnfM tyty₂
                        case tyty₂' of
                            (Ty r₂) -> Ty <$>
                                       addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
