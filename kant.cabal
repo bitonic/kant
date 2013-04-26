@@ -41,25 +41,25 @@ Library
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
     Extensions:       CPP
 
-    Exposed-Modules:  Kant.Term,
-                      Kant.Decl,
+    Exposed-Modules:  Data.Constraint,
+                      Data.LGraph,
                       Kant.ADT,
                       Kant.Cursor,
-                      Kant.Env,
-                      Kant.Reduce,
-                      Kant.TyCheck,
-                      Kant.Ref,
-                      Kant.Elaborate,
-                      Kant.Uniquify,
-                      Kant.Sugar,
+                      Kant.Decl,
                       Kant.Desugar,
                       Kant.Distill,
+                      Kant.Elaborate,
+                      Kant.Env,
+                      Kant.Monad,
                       Kant.Parser
                       Kant.Pretty,
-                      Kant.Monad,
                       Kant.REPL,
-                      Data.LGraph,
-                      Data.Constraint
+                      Kant.Reduce,
+                      Kant.Ref,
+                      Kant.Sugar,
+                      Kant.Term,
+                      Kant.TyCheck,
+                      Kant.Uniquify
 
     Other-Modules:    Kant.Common,
                       Kant.Lexer,
