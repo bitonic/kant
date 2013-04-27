@@ -1,9 +1,3 @@
--- TODO I can greatly improve the efficiency of this:
---   * Condense cycles of <=
---   * Prune vertices of variables that do not appear anymore, preserving the
---     paths.
---   * Once I have the 'condense' mechanism in place, reduce :==: to adding to
---     an equivalence class.
 module Data.Constraint
     ( Constr(..)
     , Constrs
@@ -12,6 +6,7 @@ module Data.Constraint
     , addConstrs
     ) where
 
+import           Control.Applicative ((<$>))
 import           Data.Foldable (foldrM)
 
 import           Data.Hashable (Hashable(..))
@@ -39,8 +34,7 @@ empty :: Constrs a
 empty = Constrs Graph.empty
 
 addConstr :: (Eq a, Hashable a) => Constr a -> Constrs a -> Maybe (Constrs a)
-addConstr c (Constrs oldGr) =
-    if consistent newGr then Just (Constrs newGr) else Nothing
+addConstr c (Constrs oldGr) = Constrs <$> consistent newGr
   where
     newGr = foldr Graph.addEdge oldGr (edges c)
 
@@ -51,9 +45,14 @@ addConstr c (Constrs oldGr) =
 addConstrs :: (Eq a, Hashable a) => [Constr a] -> Constrs a -> Maybe (Constrs a)
 addConstrs = flip (foldrM addConstr)
 
-consistent :: (Eq a, Hashable a) => Graph a ConstrTy -> Bool
-consistent gr = all weakCycle (Graph.scc gr)
+consistent :: (Eq a, Hashable a) => Graph a ConstrTy -> Maybe (Graph a ConstrTy)
+consistent gr =
+    if all weakCycle sccs
+    then Just (Graph.condenseAll sccs gr)
+    else Nothing
   where
+    sccs = Graph.scc gr
+
     weakCycle (Graph.Acyclic _) = True
     weakCycle (Graph.Cyclic vs) =
         all (\(_, cty, _) -> cty == Weak) (Graph.inEdges vs gr)

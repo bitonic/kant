@@ -32,6 +32,7 @@ module Data.LGraph
     , SCC(..)
     , scc
     , condense
+    , condenseAll
     ) where
 
 import           Control.Monad.ST
@@ -190,3 +191,6 @@ condense (Cyclic (r : rs)) Graph{grSucs = sucs, grReps = reps, grSper = sper} =
     rsper  = HashSet.union rssper HMBANG(r, sper)
 
     sucs'  = clean (HashMap.insert r (clean (bang r sucs)) sucs)
+
+condenseAll :: (Eq v, Hashable v) => [SCC v l] -> Graph v l -> Graph v l
+condenseAll ss gr = foldl' (flip condense) gr ss
