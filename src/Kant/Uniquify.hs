@@ -15,6 +15,7 @@ import           Bound.Name
 import           Kant.Common
 import           Kant.Cursor
 import           Kant.Term
+#include "../containers.h"
 
 type FreshMonad v = State (HashMap v Id, HashMap Id Integer)
 
@@ -37,7 +38,7 @@ addVar' n ixs = (n', HashMap.insert n (ix+1) ixs)
     n' = n ++ if ix /= 0 then show ix else ""
 
 freshVar :: VarC v => CursorP v -> v -> HashMap v Id -> v
-freshVar env v names = cursRename env v (const (names HashMap.! v))
+freshVar env v names = cursRename env v (const HMBANG(v, names))
 
 uniquify :: VarC v => CursorP v -> Term r v -> FreshMonad v (Term r v)
 uniquify env t =

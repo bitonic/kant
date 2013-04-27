@@ -11,9 +11,8 @@ Synopsis:             Core dependent language based on OTT (hopefully)
 Tested-With:          GHC==7.6.3
 Homepage:             https://github.com/bitonic/kant
 Bug-Reports:          https://github.com/bitonic/kant/issues
-Extra-Source-Files:   src/Kant/impossible.h
+Extra-Source-Files:   src/impossible.h src/containers.h
 Data-Dir:             data
-Description:
 
 Source-Repository head
     Type:             git
@@ -81,10 +80,10 @@ Test-Suite kant-tests:
     Ghc-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
     Build-Depends:    base >= 4 && < 5,
-                      kant,
+                      HUnit,
                       directory,
                       filepath,
-                      HUnit,
+                      kant,
                       test-framework,
                       test-framework-hunit,
                       wl-pprint
