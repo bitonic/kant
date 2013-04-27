@@ -1,14 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- | A graph with labelled edges, taken from
+-- | A graph with labelled edges and condensing of SCCs, derived from
 --
 --     /Structuring Depth-First Search Algorithms in Haskell/,
 --     by David King and John Launchbury.
 -- TODO I can greatly improve the efficiency of this:
---   * Condense cycles of <=
 --   * Prune vertices of variables that do not appear anymore, preserving the
 --     paths.
---   * Once I have the 'condense' mechanism in place, reduce :==: to adding to
---     an equivalence class.
 module Data.LGraph
     ( -- * Graph type
       Graph
