@@ -84,14 +84,14 @@ elaborateCon tyc dc ty =
            -- the top level.
            env <- getEnv
            let fvs  = envFreeVs env arg
-           unless (not (HashSet.member tyc fvs) || appHead arg == V (envNest env tyc))
+           unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
-           nestEnvPM (goodTy (B dummyN : map F vs) (fromScope s))
+           nestPM (goodTy (B dummyN : map F vs) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
         -- tycon must be applied to the parameters, in order.
         do env <- getEnv
-           unless (arg == V (envNest env tyc) &&
+           unless (arg == V (nest env tyc) &&
                    and (zipWith (==) pars (map V (reverse vs))))
                   (expectingTypeData dc tyc ty)
 
@@ -212,7 +212,7 @@ elimName tyc = tyc ++ "-Elim"
 checkDup :: (VarC v, Monad m) => Id -> KMonadT v m ()
 checkDup v =
     do env <- getEnv
-       when (isJust (envType env (envNest env v))) (duplicateName v)
+       when (isJust (envType env (nest env v))) (duplicateName v)
 
 nestc₁ :: CursorP v -> CursorP (Var (NameId ()) v)
 nestc₁ env = nestCursP env

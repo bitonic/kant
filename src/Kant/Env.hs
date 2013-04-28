@@ -7,18 +7,14 @@ module Kant.Env
     , EnvT
     , EnvP
     , EnvId
-    , envPull
-    , envNest
     , envType
     , envBody
     , envADT
     , newEnv
-    , nestEnv
     , envFree
     , addFree
     , envFreeVs
     , addADT
-    , toEnvP
     ) where
 
 import           Control.Monad (join)
@@ -29,8 +25,6 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 
-import           Bound
-import           Bound.Name
 import           Data.Proxy
 
 import           Data.Constraint (Constr, Constrs)
@@ -55,22 +49,20 @@ data Env f v = Env
 type EnvT = Env TermRef
 type EnvP = Env Proxy
 
-envPull :: Env f v -> v -> Id
-envPull = cursPull . envCurs
-
-envNest :: Env f v -> Id -> v
-envNest = cursNest . envCurs
+instance IsCursor Env where
+    getCurs = envCurs
+    putCurs c env = env{envCurs = c}
 
 envType :: Eq v => EnvT v -> v -> Maybe (TermRef v)
 envType env@Env{envDefs = defs, envCurs = curs} v =
     if envFree env v
-    then fmap (envNest env) . fst <$> HashMap.lookup (envPull env v) defs
+    then fmap (nest env) . fst <$> HashMap.lookup (pull env v) defs
     else Just (cursCtx curs v)
 
 envBody :: Eq v => Env f v -> v -> Maybe (TermRef v)
 envBody env@Env{envDefs = defs} v =
     if envFree env v
-    then fmap (envNest env) <$> join (snd <$> HashMap.lookup (envPull env v) defs)
+    then fmap (nest env) <$> join (snd <$> HashMap.lookup (pull env v) defs)
     else Nothing
 
 envADT :: Eq v => Env f v -> ConId -> ADT
@@ -80,9 +72,6 @@ envADT Env{envADTs = adts} v =
         Just adt -> adt
 
 type EnvId = EnvT Id
-
-nestEnv :: Functor f => Env f v -> f v -> Env f (Var (Name Id ()) v)
-nestEnv env@Env{envCurs = curs} ty = env{envCurs = nestCurs curs ty}
 
 newEnv :: EnvId
 newEnv = Env{ envDefs    = HashMap.empty
@@ -100,21 +89,8 @@ addFree env@Env{envDefs = defs} v ty mt =
 
 envFreeVs :: VarC v => Env f v -> TermRef v -> HashSet Id
 envFreeVs env = foldMap (\v -> if envFree env v
-                               then HashSet.singleton (envPull env v)
+                               then HashSet.singleton (pull env v)
                                else HashSet.empty)
 
 addADT :: EnvT v -> Id -> ADT -> EnvT v
 addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}
-
-toEnvP :: Env f v -> EnvP v
-toEnvP Env{ envDefs = defs
-          , envADTs = adts
-          , envConstrs = constrs
-          , envCurs    = curs
-          , envRef     = ref
-          } = Env{ envDefs    = defs
-                 , envADTs    = adts
-                 , envConstrs = constrs
-                 , envCurs    = toCursP curs
-                 , envRef     = ref
-                 }

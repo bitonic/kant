@@ -13,7 +13,7 @@ import           Data.Proxy
 
 import           Data.Constraint (Constr(..))
 import           Kant.Common
-import           Kant.Env
+import           Kant.Cursor
 import           Kant.Monad
 import           Kant.Term
 
@@ -35,7 +35,7 @@ tyInferNH t =
            []                           -> return ty
            (HoleCtx{holeName = hn} : _) -> unexpectedHole hn
 
-type TyMonad f v m = KMonad f v (WriterT [HoleCtx] m)
+type TyMonad f v m = KMonadE f v (WriterT [HoleCtx] m)
 type TyMonadP v m = TyMonad Proxy v m
 type TyMonadT v m = TyMonad TermRef v m
 
@@ -50,7 +50,7 @@ tyInfer' (Arr ty₁ s) =
     do tyty₁ <- tyInfer' ty₁
        tyty₁' <- whnfM tyty₁
        case tyty₁' of
-           Ty r₁ -> nestEnvM ty₁ $
+           Ty r₁ -> nestM ty₁ $
                     do let ty₂ = fromScope s
                        tyty₂ <- tyInfer' ty₂
                        tyty₂' <- whnfM tyty₂
@@ -65,12 +65,12 @@ tyInfer' (App t₁ t₂) =
        case tyt₁' of
            Arr ty₁ s -> do tyCheck t₂ ty₁; constrIfTy (instantiate1 t₂ s)
            _         -> expectingFunction t₁ tyt₁
-tyInfer' (Canon dc ts) = do env <- getEnv; tyInfer' (app (V (envNest env dc) : ts))
-tyInfer' (Rewr en ts) = do env <- getEnv; tyInfer' (app (V (envNest env en) : ts))
+tyInfer' (Canon dc ts) = do env <- getEnv; tyInfer' (app (V (nest env dc) : ts))
+tyInfer' (Rewr en ts) = do env <- getEnv; tyInfer' (app (V (nest env en) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTerm t
 
-constrIfTy :: (VarC v, Monad m) => TermRef v -> KMonad f v m (Term Ref v)
+constrIfTy :: (VarC v, Monad m) => TermRef v -> KMonadE f v m (Term Ref v)
 constrIfTy ty =
     do ty' <- whnfM ty
        case ty' of
@@ -81,7 +81,7 @@ tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
 tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
   where
     go :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
-    go (Lam s₁) (Arr ty s₂) = nestEnvM ty (go (fromScope s₁) (fromScope s₂))
+    go (Lam s₁) (Arr ty s₂) = nestM ty (go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
            addHole =<< formHoleM hn ty (zip ts tys)
@@ -94,10 +94,10 @@ tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
 eqRefs :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadP v m Bool
 eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
 eqRefs (Ty r₁) (Ty r₂) = do addConstrs [r₁ :==: r₂]; return True
-eqRefs (Lam s₁) (Lam s₂) = nestEnvPM (eqRefs (fromScope s₁) (fromScope s₂))
+eqRefs (Lam s₁) (Lam s₂) = nestPM (eqRefs (fromScope s₁) (fromScope s₂))
 eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
     (&&) <$> eqRefs ty₁ ty₂
-         <*> nestEnvPM (eqRefs (fromScope s₁) (fromScope s₂))
+         <*> nestPM (eqRefs (fromScope s₁) (fromScope s₂))
 eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs t'₁ t'₂
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
 eqRefs (Canon c₁ ts₁) (Canon c₂ ts₂) =

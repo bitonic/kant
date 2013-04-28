@@ -5,6 +5,7 @@ import           Bound
 import           Data.Proxy
 
 import           Kant.ADT
+import           Kant.Cursor
 import           Kant.Env
 import           Kant.Term
 
@@ -30,10 +31,10 @@ reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TermScopeRef v -> TermScopeRef v
-reduceScope r env s = (toScope (r (nestEnv env Proxy) (fromScope s)))
+reduceScope r env s = (toScope (r (nestC env Proxy) (fromScope s)))
 
 whnf :: VarC v => Env f v -> TermRef v -> TermRef v
-whnf env = reduce (\_ t -> t) (toEnvP env)
+whnf env = reduce (\_ t -> t) (toP env)
 
 nf :: VarC v => Env f v -> TermRef v -> TermRef v
-nf env = reduce nf (toEnvP env)
+nf env = reduce nf (toP env)

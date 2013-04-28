@@ -83,10 +83,10 @@ formHole' env ref hn goal ts =
 runFresh :: FreshMonad v a -> a
 runFresh s = evalState s (HashMap.empty, HashMap.empty)
 
-slam :: VarC v => Cursor f v -> Term r v -> TermId r
-slam env t = runFresh (slam' (toCursP env) t)
+slam :: (VarC v, IsCursor c) => c f v -> Term r v -> TermId r
+slam env t = runFresh (slam' (toP (getCurs env)) t)
 
-formHole :: VarC v
-         => Cursor f v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+formHole :: (VarC v, IsCursor c)
+         => c f v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
          -> HoleCtx
-formHole env ref hn goal ts = runFresh (formHole' (toCursP env) ref hn goal ts)
+formHole env ref hn goal ts = runFresh (formHole' (toP (getCurs env)) ref hn goal ts)
