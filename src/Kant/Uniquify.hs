@@ -6,11 +6,11 @@ import           Data.Traversable (mapM)
 import           Prelude hiding (mapM)
 
 import           Control.Monad.State (MonadState(..), evalState, State)
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 
 import           Bound
 import           Bound.Name
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 import           Kant.Common
 import           Kant.Cursor
@@ -48,15 +48,15 @@ uniquify env t =
        let t' = t >>= \v -> V (freshVar env v names)
        return (evalState (go t') ixs)
   where
-    go t'@(V _) = return t'
-    go (Ty r) = return (Ty r)
-    go (Arr ty s) = Arr <$> go ty <*> goScope s
-    go (Lam s) = Lam <$> goScope s
-    go (App t₁ t₂) = App <$> go t₁ <*> go t₂
+    go t'@(V _)      = return t'
+    go t'@(Ty _)     = return t'
+    go (Arr ty s)    = Arr <$> go ty <*> goScope s
+    go (Lam s)       = Lam <$> goScope s
+    go (App t₁ t₂)   = App <$> go t₁ <*> go t₂
     go (Canon c ts') = Canon c <$> mapM go ts'
     go (Rewr ce ts') = Rewr ce <$> mapM go ts'
-    go (Ann ty t') = Ann <$> go ty <*> go t'
-    go (Hole hn ts) = Hole hn <$> mapM go ts
+    go (Ann ty t')   = Ann <$> go ty <*> go t'
+    go (Hole hn ts)  = Hole hn <$> mapM go ts
 
     goScope :: VarC v => TermScope r v -> State (HashMap Id Integer) (TermScope r v)
     goScope s =
