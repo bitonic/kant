@@ -21,7 +21,7 @@ type FreshMonad v = State (HashMap v Id, HashMap Id Integer)
 
 collectFree :: VarC v => CursorP v -> Term r v -> FreshMonad v ()
 collectFree env t = void (mapM go t)
-  where go v = when (cursFree env v) (addVar env v)
+  where go v = when (free env v) (addVar env v)
 
 addVar :: VarC v => CursorP v -> v -> FreshMonad v ()
 addVar env v =

@@ -85,7 +85,7 @@ elaborateCon tyc dc ty =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
            env <- getEnv
-           let fvs  = envFreeVs env arg
+           let fvs  = freeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
            nestPM (goodTy (B dummyN : map F vs) (fromScope s))
@@ -118,7 +118,7 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
         -- again all the parameters plus an instance of D with those parameters.
         do curs <- getEnv
            let targs   = map V args
-               motive  = nestt₁ (mkArr (app (V (nest curs tyc) : targs)) (Ty ref))
+               motive  = nestt (mkArr (app (V (nest curs tyc) : targs)) (Ty ref))
                -- The variable that will refer to the motive
                motiveV = V (B (Name "P" ()))
                -- The arguments to the result of the functions, which will be `P
@@ -139,7 +139,7 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
     methods _ motiveV target [] = return (app [motiveV, target])
     methods args motiveV target ((dc, dcty) : dcs) =
         mkArr <$> method args dc dcty motiveV
-              <*> nestPM (methods (map F args) (nestt₁ motiveV) (nestt₁ target) dcs)
+              <*> nestPM (methods (map F args) (nestt motiveV) (nestt target) dcs)
 
     -- I can't use `telescope' because I need to bump the motiveV each time
     method :: Eq v
@@ -157,8 +157,8 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
                -> ElabM v (TermRef v)
             go motiveV tyargs args (Arr arg s) =
                 mkArr arg <$>
-                nestPM (go (nestt₁ motiveV) (map F tyargs)
-                           (map (F *** nestt₁) args ++ [(B (bindingN s), nestt₁ arg)])
+                nestPM (go (nestt motiveV) (map F tyargs)
+                           (map (F *** nestt) args ++ [(B (bindingN s), nestt arg)])
                            (fromScope s))
             go motiveV tyargs args (appV -> _) =
                 do curs <- getEnv
@@ -183,8 +183,8 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
         do curs <- getEnv
            if tyh == V (cursNest curs tyc)
              then mkArr (app [motiveV, V argv]) <$>
-                        nestPM (hyps dc (nestt₁ motiveV) (nestt₁ motiveArg)
-                                     (map (F *** nestt₁) args))
+                        nestPM (hyps dc (nestt motiveV) (nestt motiveArg)
+                                     (map (F *** nestt) args))
              else hyps dc motiveV motiveArg args
 
 buildRewr :: Int -> ConId -> [(ConId, TermRefId)] -> Rewr
@@ -221,8 +221,8 @@ checkDup v =
     do env <- getEnv
        when (isJust (envType env (nest env v))) (duplicateName v)
 
-nestt₁ :: Functor f => f a -> f (Var b a)
-nestt₁ = fmap F
+nestt :: Functor f => f a -> f (Var b a)
+nestt = fmap F
 
 mkArr :: TermRef v -> TermRef (Var (NameId ()) v) -> TermRef v
 mkArr  t₁ t₂ = Arr t₁ (toScope t₂)

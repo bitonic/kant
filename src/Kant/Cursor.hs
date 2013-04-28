@@ -4,23 +4,26 @@ module Kant.Cursor
     , CursorT
     , CursorId
     , CursorP
-    , cursFree
     , newCurs
-    , nestCurs
-    , nestCursP
-    , toCursP
     , IsCursor(..)
     , nestC
     , restoreC
     , toP
     , nest
     , pull
+    , free
+    , free'
+    , freeVs
+    , ctx
     ) where
 
 import           Control.Applicative ((<$>))
+import           Data.Foldable (Foldable, foldMap)
 
 import           Bound
 import           Bound.Name
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import           Data.Proxy
 
 import           Kant.Term
@@ -52,17 +55,14 @@ nestCurs :: Functor f => Cursor f v -> f v -> Cursor f (Var (Name Id ()) v)
 nestCurs Cursor{ cursPull   = pull_
                , cursNest   = nest_
                , cursRename = rename
-               , cursCtx    = ctx } t =
+               , cursCtx    = ctx_ } t =
     Cursor{ cursPull   = \v -> case v of B n -> name n; F v' -> pull_ v'
           , cursNest   = F . nest_
           , cursRename = \v f -> case v of B (Name n ()) -> B (Name (f n) ())
                                            F v'          -> F (rename v' f)
           , cursCtx    = \v -> case v of B _  -> F <$> t
-                                         F v' -> F <$> ctx v'
+                                         F v' -> F <$> ctx_ v'
           }
-
-nestCursP :: CursorP v -> CursorP (Var (Name Id ()) v)
-nestCursP = flip nestCurs Proxy
 
 toCursP :: Cursor f v -> CursorP v
 toCursP Cursor{cursPull = pull_, cursNest = nest_, cursRename = rename} =
@@ -94,3 +94,17 @@ nest c = cursNest (getCurs c)
 
 pull :: IsCursor c => c f v -> v -> Id
 pull c = cursPull (getCurs c)
+
+free :: (Eq v, IsCursor c) => c f v -> v -> Bool
+free t = cursFree (getCurs t)
+
+free' :: (Eq v, IsCursor c) => c f v -> v -> Maybe Id
+free' c v = if free c v then Just (pull c v) else Nothing
+
+freeVs :: (Eq v, IsCursor c, Foldable f) => c f v -> TermRef v -> HashSet Id
+freeVs c = foldMap (\v -> if free c v
+                          then HashSet.singleton (pull c v)
+                          else HashSet.empty)
+
+ctx :: IsCursor c => c f v -> Ctx f v
+ctx = cursCtx . getCurs

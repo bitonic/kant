@@ -11,20 +11,14 @@ module Kant.Env
     , envBody
     , envADT
     , newEnv
-    , envFree
     , addFree
-    , envFreeVs
     , addADT
     ) where
 
 import           Control.Monad (join)
-import           Data.Foldable (foldMap)
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
-
 import           Data.Proxy
 
 import           Data.Constraint (Constr, Constrs)
@@ -54,16 +48,15 @@ instance IsCursor Env where
     putCurs c env = env{envCurs = c}
 
 envType :: Eq v => EnvT v -> v -> Maybe (TermRef v)
-envType env@Env{envDefs = defs, envCurs = curs} v =
-    if envFree env v
-    then fmap (nest env) . fst <$> HashMap.lookup (pull env v) defs
-    else Just (cursCtx curs v)
+envType env@Env{envDefs = defs} v =
+    case free' env v of
+        Just n  -> fmap (nest env) . fst <$> HashMap.lookup n defs
+        Nothing -> Just (ctx env v)
 
 envBody :: Eq v => Env f v -> v -> Maybe (TermRef v)
 envBody env@Env{envDefs = defs} v =
-    if envFree env v
-    then fmap (nest env) <$> join (snd <$> HashMap.lookup (pull env v) defs)
-    else Nothing
+    do n <- free' env v
+       fmap (nest env) <$> join (snd <$> HashMap.lookup n defs)
 
 envADT :: Eq v => Env f v -> ConId -> ADT
 envADT Env{envADTs = adts} v =
@@ -80,17 +73,9 @@ newEnv = Env{ envDefs    = HashMap.empty
             , envCurs    = newCurs
             , envRef     = 0 }
 
-envFree :: Eq v => Env f v -> v -> Bool
-envFree Env{envCurs = curs} v = cursFree curs v
-
 addFree :: Eq v => EnvT v -> Id -> TermRefId -> Maybe TermRefId -> EnvT v
 addFree env@Env{envDefs = defs} v ty mt =
     env{envDefs = HashMap.insert v (ty, mt) defs}
-
-envFreeVs :: VarC v => Env f v -> TermRef v -> HashSet Id
-envFreeVs env = foldMap (\v -> if envFree env v
-                               then HashSet.singleton (pull env v)
-                               else HashSet.empty)
 
 addADT :: EnvT v -> Id -> ADT -> EnvT v
 addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}
