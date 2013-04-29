@@ -19,8 +19,9 @@ instance r ~ () => PutRef (Decl r) where
     type WithRef (Decl r) = Decl Ref
     putRef (Val n t)             = Val n <$> putRef t
     putRef (Postulate n ty)      = Postulate n <$> putRef ty
-    putRef (Data tyc tycty cons) =
-        Data tyc <$> putRef tycty <*> mapM (\(dc, dcty) -> (dc,) <$> putRef dcty) cons
+    putRef (Data (tyc, tycty) cons) =
+        do tycty' <- putRef tycty
+           Data (tyc, tycty') <$> mapM (\(dc, dcty) -> (dc,) <$> putRef dcty) cons
 
 instance r ~ () => PutRef (Module r) where
     type WithRef (Module r) = Module Ref

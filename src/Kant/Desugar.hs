@@ -34,7 +34,7 @@ instance r ~ () => Desugar (SDecl r) where
     desugar (SPostulate n t) = Postulate n (desugar t)
     desugar (SData c pars cons) =
         -- Add the parameters to each constructor
-        Data c (desugar (SArr pars' (STy ())))
+        Data (c, desugar (SArr pars' (STy ())))
              (map (second (desugar . SArr pars')) cons)
       where pars' = (map (first Just) pars)
 

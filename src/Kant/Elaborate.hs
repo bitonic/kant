@@ -41,7 +41,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            (_, holes) <- tyInfer ty
            holes <$ addFreeM n ty Nothing
     -- TODO normalise all types before elaborating
-    elaborate (Data tyc tycty dcs) =
+    elaborate (Data (tyc, tycty) dcs) =
         do checkDup tyc
            -- Check that the type of the tycon is well typed
            tyInferNH tycty

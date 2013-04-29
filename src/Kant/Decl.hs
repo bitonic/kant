@@ -13,8 +13,10 @@ type Cons r = [(ConId, TermId r)]
 data Decl r
     = Val Id (TermId r)
     | Postulate Id (TermId r)
-    | Data ConId (TermId r) [(ConId, TermId r)]
+    | Data (Constr r) [Constr r]
     deriving (Eq, Show)
+
+type Constr r = (ConId, TermId r)
 
 type DeclSyn = Decl ()
 
