@@ -13,7 +13,10 @@ module Kant.REPL
 import           Control.Applicative ((<|>))
 import           Control.Exception (catch)
 import           Control.Monad (msum, when, (>=>))
+
+# if __GLASGOW_HASKELL__ < 706
 import           Prelude hiding (catch)
+# endif
 
 import           Control.Monad.IO.Class (MonadIO(..))
 import qualified Text.Parsec as Parsec
