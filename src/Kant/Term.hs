@@ -66,6 +66,7 @@ type TermScopeRef = TermScope Ref
 
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
 -- terms...
+-- TODO merge 'Canon' and 'Rewr'.
 data Term r v
     = V v
     | Ty r

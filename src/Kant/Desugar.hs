@@ -36,7 +36,10 @@ instance r ~ () => Desugar (SDecl r) where
         -- Add the parameters to each constructor
         Data (c, desugar (SArr pars' (STy ())))
              (map (second (desugar . SArr pars')) cons)
-      where pars' = (map (first Just) pars)
+      where pars' = map (first Just) pars
+    desugar (SRecord c pars dc projs) =
+        Record (c, desugar (SArr pars' (STy ()))) dc (map (second desugar) projs)
+      where pars' = map (first Just) pars
 
 instance r ~ () => Desugar (SModule r) where
     type Core (SModule r) = ModuleSyn

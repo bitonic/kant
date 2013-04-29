@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 -- | A reified representation of abstract data types.
-module Kant.ADT (Rewr, ADT(..)) where
+module Kant.ADT (Rewr, ADT(..), Record(..)) where
 
 import           Kant.Decl
 import           Kant.Term
@@ -16,3 +16,9 @@ data ADT = ADT
     , adtCons :: Cons Ref
     }
 
+data Record = Record
+    { recName :: ConId
+    , recTy   :: TermRefId
+    , recProj :: [(Id, TermRefId)]
+    , recRewr :: [(Id, Int)]
+    }
