@@ -22,5 +22,4 @@ data Record = Record
     { recName :: ConId
     , recTy   :: TermRefId
     , recProj :: Id -> Proj
-    , recRewr :: [(Id, Int)]
     }

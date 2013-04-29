@@ -21,6 +21,7 @@ module Kant.Monad
     , lookupTy
     , addFreeM
     , addADTM
+    , addRecM
       -- * References
     , freshRef
       -- * Constraints
@@ -148,6 +149,9 @@ addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)
 
 addADTM :: (Monad m) => ConId -> ADT -> KMonadT v m ()
 addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
+
+addRecM :: (Monad m) => ConId -> Record -> KMonadT v m ()
+addRecM n rec = do env <- getEnv; putEnv (addRec env n rec)
 
 freshRef :: (Monad m) => KMonadE f v m Ref
 freshRef = do env <- getEnv; envRef env <$ putEnv (env{envRef = envRef env + 1})

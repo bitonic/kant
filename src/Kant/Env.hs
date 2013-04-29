@@ -14,6 +14,7 @@ module Kant.Env
     , newEnv
     , addFree
     , addADT
+    , addRec
     ) where
 
 import           Control.Monad (join)
@@ -88,3 +89,6 @@ addFree env@Env{envDefs = defs} v ty mt =
 
 addADT :: EnvT v -> Id -> ADT -> EnvT v
 addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}
+
+addRec :: EnvT v -> Id -> Record -> EnvT v
+addRec env@Env{envRecs = recs} n rec = env{envRecs = HashMap.insert n rec recs}

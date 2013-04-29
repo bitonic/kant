@@ -50,7 +50,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Add the type of the tycon to scope
            addFreeM tyc tycty Nothing
            -- Create the functions that will form 'ADTCon's
-           mapM (\(dc, dcty) -> elaborateCon tyc dc dcty) dcs
+           mapM (\(dc, dcty) -> elabCon tyc dc dcty) dcs
            eltyR <- freshRef
            let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
                eln   = elimName tyc                          -- D-elim name
@@ -62,18 +62,28 @@ instance r ~ Ref => Elaborate (Decl r) where
                                 , adtTy   = tycty
                                 , adtRewr = buildRewr (arrLen tycty) tyc dcs
                                 , adtCons = dcs }
-      where
-        returnsTy :: TermRef v -> Bool
-        returnsTy (Arr  _ s) = returnsTy (fromScope s)
-        returnsTy (Ty _)     = True
-        returnsTy _          = False
+    elaborate (RecD (tyc, tycty) dc projs) =
+        do checkDup tyc
+           tyInferNH tycty
+           unless (returnsTy tycty) (expectingTypeCon tyc tycty)
+           addFreeM tyc tycty Nothing
+           elabRecCon dc projs
+           elabRecProjs dc projs
+           [] <$ addRecM tyc Record{ recName = tyc
+                                   , recTy   = tycty
+                                   , recProj = undefined }
 
-elaborateCon :: Monad m
-             => ConId           -- ^ Tycon name
-             -> ConId           -- ^ Name of the datacon
-             -> TermRefId       -- ^ Type of the datacon
-             -> KMonadT Id m ()
-elaborateCon tyc dc ty =
+returnsTy :: TermRef v -> Bool
+returnsTy (Arr  _ s) = returnsTy (fromScope s)
+returnsTy (Ty _)     = True
+returnsTy _          = False
+
+elabCon :: Monad m
+        => ConId           -- ^ Tycon name
+        -> ConId           -- ^ Name of the datacon
+        -> TermRefId       -- ^ Type of the datacon
+        -> KMonadT Id m ()
+elabCon tyc dc ty =
     do checkDup dc
        tyInferNH ty -- The type of the datacon is well typed
        fromKMonadP (goodTy [] ty) -- ...and well formed
@@ -251,6 +261,12 @@ typedLam f ty = Ann ty (runElabM (go [] ty))
     go vs (Arr _ s) =
         Lam <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
     go vs _ = return (f (map V (reverse vs)))
+
+elabRecCon :: ConId -> [(Id, TermId r)] -> KMonadT Id m ()
+elabRecCon = undefined
+
+elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m ()
+elabRecProjs = undefined
 
 instance r ~ Ref => Elaborate (Module r) where
     elaborate = go [] . unModule
