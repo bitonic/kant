@@ -16,9 +16,11 @@ data ADT = ADT
     , adtCons :: Cons Ref
     }
 
+type Proj = forall v. VarC v => [TermRef v] -> TermRef v
+
 data Record = Record
     { recName :: ConId
     , recTy   :: TermRefId
-    , recProj :: [(Id, TermRefId)]
+    , recProj :: Id -> Proj
     , recRewr :: [(Id, Int)]
     }

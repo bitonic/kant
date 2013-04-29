@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Distill (distill) where
 
 import           Control.Arrow (second)
@@ -20,8 +21,7 @@ distill' t₁@(Lam _) = SLam vs (distill' t₂)
 distill' t₁@(Arr _ _) = SArr (map (second distill) pars) (distill' t₂)
   where (pars, t₂) = unrollArr t₁
 distill' (App t₁ t₂) = SApp (distill' t₁) (distill' t₂)
-distill' (Canon c ts) = distill' (app (V c : ts))
-distill' (Rewr ce ts) = distill' (app (V (ce) : ts))
+distill' (Data (dataId -> n) ts) = distill' (app (V n : ts))
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
 distill' (Hole hn ts) = SHole hn (map distill ts)

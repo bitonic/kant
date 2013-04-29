@@ -12,6 +12,8 @@ module Kant.Term
     , TermScope
     , TermScopeRef
     , Term(..)
+    , Data(..)
+    , dataId
     , TermRef
     , TermId
     , TermRefId
@@ -74,10 +76,18 @@ data Term r v
     | Arr (Term r v) (TermScope r v)
     | App (Term r v) (Term r v)
     | Ann (Term r v) (Term r v)
-    | Canon ConId [Term r v]
-    | Rewr ConId [Term r v]
+    | Data Data [Term r v]
     | Hole HoleId [Term r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecProj ConId Id
+    deriving (Eq, Ord, Show, Read)
+
+dataId :: Data -> ConId
+dataId (ADTCon c)    = c
+dataId (ADTRewr c)   = c
+dataId (RecCon c)    = c
+dataId (RecProj _ p) = p
 
 type TermRef = Term Ref
 type TermId r = Term r Id
@@ -97,8 +107,7 @@ instance Monad (Term r) where
     Lam s      >>= f = Lam (s >>>= f)
     Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
     App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Canon c ts >>= f = Canon c (map (>>= f) ts)
-    Rewr c ts  >>= f = Rewr c (map (>>= f) ts)
+    Data d ts  >>= f = Data d (map (>>= f) ts)
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
     Hole hn ts >>= f = Hole hn (map (>>= f) ts)
 
@@ -150,16 +159,15 @@ annV :: Term r t -> Term r t
 annV (Ann _ t) = t
 annV t         = t
 
-mapRef :: (Monad m) => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
-mapRef _ (V v)         = return (V v)
-mapRef f (Ty r)        = Ty <$> f r
-mapRef f (Lam s)       = Lam . toScope <$> mapRef f (fromScope s)
-mapRef f (Arr t s)     = Arr <$> mapRef f t <*> (toScope <$> mapRef f (fromScope s))
-mapRef f (App t₁ t₂)   = App <$> mapRef f t₁ <*> mapRef f t₂
-mapRef f (Ann ty t)    = Ann <$> mapRef f ty <*> mapRef f t
-mapRef f (Canon dc ts) = Canon dc <$> mapM (mapRef f) ts
-mapRef f (Rewr dc ts)  = Rewr dc <$> mapM (mapRef f) ts
-mapRef f (Hole h ts)   = Hole h <$> mapM (mapRef f) ts
+mapRef :: (Monad m)  => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
+mapRef _ (V v)       = return (V v)
+mapRef f (Ty r)      = Ty <$> f r
+mapRef f (Lam s)     = Lam . toScope <$> mapRef f (fromScope s)
+mapRef f (Arr t s)   = Arr <$> mapRef f t <*> (toScope <$> mapRef f (fromScope s))
+mapRef f (App t₁ t₂) = App <$> mapRef f t₁ <*> mapRef f t₂
+mapRef f (Ann ty t)  = Ann <$> mapRef f ty <*> mapRef f t
+mapRef f (Data d ts) = Data d <$> mapM (mapRef f) ts
+mapRef f (Hole h ts) = Hole h <$> mapM (mapRef f) ts
 
 unRef :: Term r v -> Term () v
 unRef = runIdentity . mapRef (const (return ()))

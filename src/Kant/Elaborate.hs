@@ -41,7 +41,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            (_, holes) <- tyInfer ty
            holes <$ addFreeM n ty Nothing
     -- TODO normalise all types before elaborating
-    elaborate (Data (tyc, tycty) dcs) =
+    elaborate (ADTD (tyc, tycty) dcs) =
         do checkDup tyc
            -- Check that the type of the tycon is well typed
            tyInferNH tycty
@@ -49,13 +49,13 @@ instance r ~ Ref => Elaborate (Decl r) where
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the type of the tycon to scope
            addFreeM tyc tycty Nothing
-           -- Create the functions that will form 'Canon's
+           -- Create the functions that will form 'ADTCon's
            mapM (\(dc, dcty) -> elaborateCon tyc dc dcty) dcs
            eltyR <- freshRef
            let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
                eln   = elimName tyc                          -- D-elim name
-               -- Function that will form the 'Elim's
-               elfun = typedLam (Rewr tyc) elty
+               -- Function that will form the 'ADTRewr's
+               elfun = typedLam (Data (ADTRewr tyc)) elty
            addFreeM eln elty (Just elfun)
            -- Add the actual ADT
            [] <$ addADTM tyc ADT{ adtName = tyc
@@ -77,7 +77,7 @@ elaborateCon tyc dc ty =
     do checkDup dc
        tyInferNH ty -- The type of the datacon is well typed
        fromKMonadP (goodTy [] ty) -- ...and well formed
-       let t = typedLam (Canon dc) ty -- Function that forms the 'Canon'
+       let t = typedLam (Data (ADTCon dc)) ty -- Function that forms the 'ADTCon'
        addFreeM dc ty (Just t)
   where
     goodTy :: (VarC v, Monad m) => [v] -> TermRef v -> KMonadP v m ()
@@ -196,10 +196,10 @@ buildRewr i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
 buildRewr i tyc dcs (ts :: [TermRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
-        Canon dc args | Just j <- elemIndex dc (map fst dcs) ->
+        Data (ADTCon dc) args | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
             in Just (app (method : drop i args ++ recs 0 args dcty))
-        Canon _ _ -> IMPOSSIBLE("constructor not present")
+        Data (ADTCon dc) _ -> IMPOSSIBLE("constructor not present: " ++ dc)
         _ -> Nothing
   where
     (pars, (t : motive : methods)) = splitAt i ts
@@ -211,7 +211,7 @@ buildRewr i tyc dcs (ts :: [TermRef v]) =
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
-    recRewr x = Rewr tyc (pars ++ [x, motive] ++ methods)
+    recRewr x = Data (ADTRewr tyc) (pars ++ [x, motive] ++ methods)
 
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"

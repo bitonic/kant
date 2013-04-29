@@ -10,6 +10,7 @@ module Kant.Env
     , envType
     , envBody
     , envADT
+    , envRec
     , newEnv
     , addFree
     , addADT
@@ -36,6 +37,7 @@ type ConstrsRef = Constrs Ref
 data Env f v = Env
     { envDefs    :: HashMap Id (TermRefId, Maybe TermRefId)
     , envADTs    :: HashMap ConId ADT
+    , envRecs    :: HashMap ConId Record
     , envConstrs :: ConstrsRef
     , envCurs    :: Cursor f v
     , envRef     :: Ref
@@ -64,11 +66,18 @@ envADT Env{envADTs = adts} v =
         Nothing  -> IMPOSSIBLE("looking up non-existant ADT")
         Just adt -> adt
 
+envRec :: Eq v => Env f v -> ConId -> Record
+envRec Env{envRecs = recs} v =
+    case HashMap.lookup v recs of
+        Nothing  -> IMPOSSIBLE("lookinp up non-existant record")
+        Just rec -> rec
+
 type EnvId = EnvT Id
 
 newEnv :: EnvId
 newEnv = Env{ envDefs    = HashMap.empty
             , envADTs    = HashMap.empty
+            , envRecs    = HashMap.empty
             , envConstrs = Constr.empty
             , envCurs    = newCurs
             , envRef     = 0 }

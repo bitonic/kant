@@ -65,8 +65,7 @@ tyInfer' (App t₁ t₂) =
        case tyt₁' of
            Arr ty₁ s -> do tyCheck t₂ ty₁; constrIfTy (instantiate1 t₂ s)
            _         -> expectingFunction t₁ tyt₁
-tyInfer' (Canon dc ts) = do env <- getEnv; tyInfer' (app (V (nest env dc) : ts))
-tyInfer' (Rewr en ts) = do env <- getEnv; tyInfer' (app (V (nest env en) : ts))
+tyInfer' (Data d ts) = do env <- getEnv; tyInfer' (app (V (nest env (dataId d)) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTerm t
 
@@ -80,6 +79,7 @@ constrIfTy ty =
 tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
 tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
   where
+    -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
     go (Lam s₁) (Arr ty s₂) = nestM ty (go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
@@ -100,10 +100,8 @@ eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
          <*> nestPM (eqRefs (fromScope s₁) (fromScope s₂))
 eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs t'₁ t'₂
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
-eqRefs (Canon c₁ ts₁) (Canon c₂ ts₂) =
-    ((c₁ == c₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
-eqRefs (Rewr c₁ ts₁) (Rewr c₂ ts₂) =
-    ((c₁ == c₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
+eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
+    ((d₁ == d₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
