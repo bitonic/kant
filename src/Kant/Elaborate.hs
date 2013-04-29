@@ -72,7 +72,6 @@ instance r ~ Ref => Elaborate (Decl r) where
            [] <$ addRecM tyc Record{ recName = tyc
                                    , recTy   = tycty
                                    , recProj = undefined }
-
 returnsTy :: TermRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True

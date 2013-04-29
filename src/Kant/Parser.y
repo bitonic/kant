@@ -34,6 +34,7 @@ import           Kant.Term
 
 %token
     ':'                 { COLON }
+    ','                 { COMMA }
     '{'                 { LBRACE }
     '}'                 { RBRACE }
     '('                 { LPAREN }
@@ -46,6 +47,7 @@ import           Kant.Term
     '\\'                { LAMBDA }
     '_'                 { UNDERSCORE }
     'data'              { DATA }
+    'record'            { RECORD }
     'postulate'         { POSTULATE }
     '*'                 { TYPE }
     '{!'                { LHOLE }
@@ -67,6 +69,11 @@ Bar(X)
     | X                                      { [$1] }
     | X '|' Bar(X)                           { $1 : $3 }
 
+Comma(X)
+    :                                        { [] }
+    | X                                      { [$1] }
+    | X ',' Comma(X)                         { $1 : $3 }
+
 Module :: { SModuleSyn }
 Module : Seq0(Decl)                          { SModule $1 }
 
@@ -74,17 +81,27 @@ Decl :: { SDeclSyn }
 Decl : Val                                   { $1 }
      | 'postulate' name ':' SingleTerm       { SPostulate $2 $4}
      | Data                                  { $1 }
+     | Record                                { $1 }
 
 Data :: { SDeclSyn }
-Data : 'data' name ':' Arr1(Type) '{' Bar(DataCon) '}'
-       {% do pars <- dataConPars (fst $4)
-             return (SData $2 pars $6) }
+Data : 'data' name ':' Arr1(Type) '=>' '{' Bar(DataCon) '}'
+       {% do pars <- tyConPars (fst $4); return (SData $2 pars $7) }
+
+Record :: { SDeclSyn }
+Record
+     : 'record' name ':' Arr1(Type) '=>' name '{' Comma(RecProj) '}'
+       {% do pars <- tyConPars (fst $4); return (SRecord $2 pars $6 $8) }
 
 Val :: { SDeclSyn }
 Val : name Seq0(Pi) ':' Term '=>' SingleTerm { SVal $1 (concat $2) $4 $6 }
 
 DataCon :: { SConstr () }
 DataCon : name ':' Term                      { ($1, $3) }
+
+RecProj :: { (Id, STermSyn) }
+RecProj : name ':' Term                      { ($1, $3) }
+
+
 
 Term :: { STermSyn }
 Term
@@ -143,10 +160,9 @@ parseErr err =
 happyError :: Alex a
 happyError = parseErr "."
 
-dataConPars :: [SParam ()] -> Alex [(Id, STermSyn)]
-dataConPars pars =
-    maybe happyError return
-          (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
+tyConPars :: [SParam ()] -> Alex [(Id, STermSyn)]
+tyConPars pars = maybe happyError return
+                       (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
 
 type ParseError = String
 

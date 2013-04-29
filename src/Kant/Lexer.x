@@ -26,6 +26,7 @@ tokens :-
     $white+                               ;
     "--".*                                ;
     ":"                                   { simpleTok COLON }
+    ","                                   { simpleTok COMMA }
     "{"                                   { simpleTok LBRACE }
     "}"                                   { simpleTok RBRACE }
     "("                                   { simpleTok LPAREN }
@@ -38,6 +39,7 @@ tokens :-
     "_"                                   { simpleTok UNDERSCORE }
     [\\]                                  { simpleTok LAMBDA }
     "data"                                { simpleTok DATA }
+    "record"                              { simpleTok RECORD }
     "postulate"                           { simpleTok POSTULATE }
     "*"                                   { simpleTok TYPE }
     "{!"                                  { simpleTok LHOLE }
@@ -66,6 +68,8 @@ data Token
     | UNDERSCORE
     | LHOLE
     | RHOLE
+    | COMMA
+    | RECORD
     deriving (Show, Eq, Ord)
 
 type Action r = (AlexPosn, Char, String) -> Int -> Alex r

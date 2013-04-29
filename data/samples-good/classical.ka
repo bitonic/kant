@@ -1,5 +1,5 @@
 
-data And : [A B : *] -> *
+data And : [A B : *] -> * =>
     { and : A -> B -> And A B }
 
 fst [A B : *] [x : And A B] : A => (
@@ -10,7 +10,7 @@ snd [A B : *] [x : And A B] : B => (
     And-Elim A B x (\_ => B) (\_ b => b)
 )
 
-data Or : [A B : *] -> *
+data Or : [A B : *] -> * =>
     { inl : A -> Or A B
     | inr : B -> Or A B
     }
@@ -23,7 +23,7 @@ case [A B C : *] [x : Or A B] [f : A -> C] [g : B -> C] : C => (
         C f g
 )
 
-data Bot : * { }
+data Bot : * => { }
 
 absurd [p : Bot] [A : *] : A => (
     Bot-Elim p (\_ => A)
