@@ -268,13 +268,14 @@ elabRecCon = undefined
 elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m [(Id, TermId r)]
 elabRecProjs = undefined
 
-buildRecRewr :: [Id] -> Id -> SureRewr
-buildRecRewr projs pr ts
-    | Just ix <- ixm, ix < length ts = ts !! ix
-    | Nothing <- ixm                 = IMPOSSIBLE("projection not present: " ++ pr)
-    | otherwise                      = IMPOSSIBLE("wrong number of record arguments")
-  where
-    ixm = elemIndex pr projs
+buildRecRewr :: [Id] -> Id -> Rewr
+buildRecRewr projs pr [Data (RecCon _) ts]
+    | Just ix <- ixm, length projs == length ts = Just (ts !! ix)
+    | Nothing <- ixm = IMPOSSIBLE("projection not present: " ++ pr)
+    | otherwise = IMPOSSIBLE("wrong number of record arguments")
+  where ixm = elemIndex pr projs
+buildRecRewr _ _ [_] = Nothing
+buildRecRewr _ _ _ = IMPOSSIBLE("got more than one argument")
 
 instance r ~ Ref => Elaborate (Module r) where
     elaborate = go [] . unModule
