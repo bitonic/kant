@@ -68,10 +68,11 @@ instance r ~ Ref => Elaborate (Decl r) where
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            addFreeM tyc tycty Nothing
            elabRecCon dc projs
-           elabRecProjs dc projs
-           [] <$ addRecM tyc Record{ recName = tyc
-                                   , recTy   = tycty
-                                   , recProj = undefined }
+           projsty <- elabRecProjs dc projs
+           [] <$ addRecM tyc Record{ recName  = tyc
+                                   , recTy    = tycty
+                                   , recProjs = projsty
+                                   , recRewr  = buildRecRewr (map fst projs) }
 returnsTy :: TermRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True
@@ -215,12 +216,12 @@ buildRewr i tyc dcs (ts :: [TermRef v]) =
 
     recs :: Int -> [TermRef v] -> TermRefId -> [TermRef v]
     recs n args (Arr (appV -> (tyHead, _)) s) =
-        (if tyHead == V tyc then [recRewr (args !! n)] else []) ++
+        (if tyHead == V tyc then [recuRewr (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
-    recRewr x = Data (ADTRewr tyc) (pars ++ [x, motive] ++ methods)
+    recuRewr x = Data (ADTRewr tyc) (pars ++ [x, motive] ++ methods)
 
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"
@@ -264,8 +265,16 @@ typedLam f ty = Ann ty (runElabM (go [] ty))
 elabRecCon :: ConId -> [(Id, TermId r)] -> KMonadT Id m ()
 elabRecCon = undefined
 
-elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m ()
+elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m [(Id, TermId r)]
 elabRecProjs = undefined
+
+buildRecRewr :: [Id] -> Id -> SureRewr
+buildRecRewr projs pr ts
+    | Just ix <- ixm, ix < length ts = ts !! ix
+    | Nothing <- ixm                 = IMPOSSIBLE("projection not present: " ++ pr)
+    | otherwise                      = IMPOSSIBLE("wrong number of record arguments")
+  where
+    ixm = elemIndex pr projs
 
 instance r ~ Ref => Elaborate (Module r) where
     elaborate = go [] . unModule
