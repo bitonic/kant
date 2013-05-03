@@ -6,7 +6,7 @@
 -- | This is largely ripped off fig. 9 of 'The View from the Left'.
 module Kant.Elaborate (Elaborate(..)) where
 
-import           Control.Arrow ((***))
+import           Control.Arrow ((***), second)
 import           Control.Monad (when, unless)
 import           Data.List (elemIndex)
 import           Data.Maybe (isJust)
@@ -67,7 +67,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            tyInferNH tycty
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            addFreeM tyc tycty Nothing
-           elabRecCon dc projs
+           elabRecCon tyc dc tycty projs
            projsty <- elabRecProjs dc projs
            [] <$ addRecM tyc Record{ recName  = tyc
                                    , recTy    = tycty
@@ -262,8 +262,25 @@ typedLam f ty = Ann ty (runElabM (go [] ty))
         Lam <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
     go vs _ = return (f (map V (reverse vs)))
 
-elabRecCon :: ConId -> [(Id, TermId r)] -> KMonadT Id m ()
-elabRecCon = undefined
+elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs -> KMonadT Id m ()
+elabRecCon tyc dc tycty projs =
+    do let dcty = runElabM (go₁ [] tycty)
+       addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
+  where
+    go₁ :: Eq v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go₁ vs (Arr ty s) =
+        Arr ty <$> (toScope <$> nestPM (go₁ (B (bindingN s) : map F vs) (fromScope s)))
+    go₁ vs _ = do env <- getEnv; go₂ vs (map (second (nest env <$>)) projs)
+
+    go₂ :: Eq v => [v] -> [(Id, TermRef v)] -> ElabM v (TermRef v)
+    go₂ vs [] =
+        do env <- getEnv
+           return (app (V (nest env tyc) : reverse (map V vs)))
+    go₂ vs ((n, proj) : pjs) =
+        do env <- getEnv
+           let abproj v = if v == nest env n then Just (Name n ()) else Nothing
+               pjs' = map (second (fromScope . abstract abproj)) pjs
+           Arr proj <$> (toScope <$> nestPM (go₂ (B (Name n ()) : map F vs) pjs'))
 
 elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m [(Id, TermId r)]
 elabRecProjs = undefined
@@ -275,6 +292,8 @@ buildRecRewr projs pr [Data (RecCon _) ts]
     | otherwise = IMPOSSIBLE("wrong number of record arguments")
   where ixm = elemIndex pr projs
 buildRecRewr _ _ [_] = Nothing
+-- TODO could it be that ill-typed expressions can lead to this?  In which case
+-- it might be better not to throw an error.
 buildRecRewr _ _ _ = IMPOSSIBLE("got more than one argument")
 
 instance r ~ Ref => Elaborate (Module r) where

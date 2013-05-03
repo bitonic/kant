@@ -1,5 +1,6 @@
 * TODO When checking for equality, only use whnf
-* TODO Local type inference
+* TODO η-expansion of records and funs
+* TODO Pattern unification
 * TODO Add Prop
 * TODO Better pretty printing
 * TODO Show all values in context

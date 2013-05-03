@@ -72,13 +72,13 @@ data Token
     | RECORD
     deriving (Show, Eq, Ord)
 
-type Action r = (AlexPosn, Char, String) -> Int -> Alex r
+type Action r = (AlexPosn, Char, [Byte], String) -> Int -> Alex r
 
 simpleTok :: Token -> Action Token
 simpleTok tok _ _ = return tok
 
-getS :: (AlexPosn, Char, String) -> Int -> String
-getS (_, _, input) len = take len input
+getS :: (AlexPosn, Char, [Byte], String) -> Int -> String
+getS (_, _, _, input) len = take len input
 
 stringTok :: (String -> Token) -> Action Token
 stringTok f inp len = return (f (getS inp len))
