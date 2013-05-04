@@ -1,5 +1,6 @@
 module Kant.Decl
     ( Cons
+    , Projs
     , Decl(..)
     , DeclSyn
     , Module(..)
@@ -9,6 +10,7 @@ module Kant.Decl
 import           Kant.Term
 
 type Cons r = [(ConId, TermId r)]
+type Projs r = [(Id, TermId r)]
 
 data Decl r
     = Val Id (TermId r)
@@ -16,7 +18,11 @@ data Decl r
     | ADTD (Constr r) [Constr r]
     | RecD (Constr r)         -- Tycon
            ConId              -- Data con
-           [(Id, TermId r)]   -- Projections
+           (Projs r)          -- Projections.  Note that those are all scoped
+                              -- over the type con parameters, since we need
+                              -- that in Elaborate.  This is ugly but necessary
+                              -- due to `bound'---our datatype needs to be
+                              -- uniform.
     deriving (Eq, Show)
 
 type Constr r = (ConId, TermId r)

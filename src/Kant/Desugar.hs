@@ -38,7 +38,8 @@ instance r ~ () => Desugar (SDecl r) where
              (map (second (desugar . SArr pars')) cons)
       where pars' = map (first Just) pars
     desugar (SRecord c pars dc projs) =
-        RecD (c, desugar (SArr pars' (STy ()))) dc (map (second desugar) projs)
+        RecD (c, desugar (SArr pars' (STy ()))) dc
+             [(n, desugar (SArr (map (first Just) pars) proj)) | (n, proj) <- projs]
       where pars' = map (first Just) pars
 
 instance r ~ () => Desugar (SModule r) where

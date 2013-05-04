@@ -28,6 +28,8 @@ import           Kant.Term
 import           Kant.TyCheck
 #include "../impossible.h"
 
+import Debug.Trace
+
 class Elaborate a where
     elaborate :: Monad m => a -> KMonadT Id m [HoleCtx]
 
@@ -64,15 +66,23 @@ instance r ~ Ref => Elaborate (Decl r) where
                                 , adtCons = dcs }
     elaborate (RecD (tyc, tycty) dc projs) =
         do checkDup tyc
+           -- Tycheck type con
            tyInferNH tycty
+           -- Returns a type...
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
+           -- Add the tycon
            addFreeM tyc tycty Nothing
+           -- Add the projections types
+           let projns = map fst projs
+           -- Note that it is important to add the projections in this order, so
+           -- that we typecheck them with regards to the previous fields only.
+--           projsty <- mapM (elabRecProj tyc tycty projns) projs
+           -- Finally, add the data constructor
            elabRecCon tyc dc tycty projs
-           projsty <- elabRecProjs dc projs
            [] <$ addRecM tyc Record{ recName  = tyc
                                    , recTy    = tycty
-                                   , recProjs = projsty
-                                   , recRewr  = buildRecRewr (map fst projs) }
+                                   , recProjs = []
+                                   , recRewr  = buildRecRewr projns }
 returnsTy :: TermRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True
@@ -262,17 +272,24 @@ typedLam f ty = Ann ty (runElabM (go [] ty))
         Lam <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
     go vs _ = return (f (map V (reverse vs)))
 
-elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs -> KMonadT Id m ()
-elabRecCon tyc dc tycty projs =
-    do let dcty = runElabM (go₁ [] tycty)
+elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs Ref -> KMonadT Id m ()
+elabRecCon tyc dc tycty projs' =
+    do let dcty = runElabM (go₁ [] projs' tycty)
+       -- TODO make sure that I typecheck everywhere like here but assert it,
+       -- since if we generate an ill typed type it's an internal error.
+       tyInferNH dcty
        addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
   where
-    go₁ :: Eq v => [v] -> TermRef v -> ElabM v (TermRef v)
-    go₁ vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go₁ (B (bindingN s) : map F vs) (fromScope s)))
-    go₁ vs _ = do env <- getEnv; go₂ vs (map (second (nest env <$>)) projs)
+    go₁ :: VarC v => [v] -> [(Id, TermRef v)] -> TermRef v -> ElabM v (TermRef v)
+    go₁ vs projs (Arr ty s) =
+        let par = B (bindingN s)
+        in  Arr ty <$>
+            (toScope <$> nestPM (go₁ (par : map F vs)
+                                     (map (second (dischargeProj par . fmap F)) projs)
+                                     (fromScope s)))
+    go₁ vs projs _ = go₂ vs projs
 
-    go₂ :: Eq v => [v] -> [(Id, TermRef v)] -> ElabM v (TermRef v)
+    go₂ :: VarC v => [v] -> [(Id, TermRef v)] -> ElabM v (TermRef v)
     go₂ vs [] =
         do env <- getEnv
            return (app (V (nest env tyc) : reverse (map V vs)))
@@ -282,8 +299,39 @@ elabRecCon tyc dc tycty projs =
                pjs' = map (second (fromScope . abstract abproj)) pjs
            Arr proj <$> (toScope <$> nestPM (go₂ (B (Name n ()) : map F vs) pjs'))
 
-elabRecProjs :: ConId -> [(Id, TermId r)] -> KMonadT Id m [(Id, TermId r)]
-elabRecProjs = undefined
+elabRecProj :: Monad m
+            => ConId            -- Type con
+            -> TermRefId        -- Type con type
+            -> [Id]             -- Projection names
+            -> (Id, TermRefId)  -- Current projection
+            -> KMonadT Id m (Id, TermRefId)
+elabRecProj tyc tycty projns (n, proj) =
+    do let projty = runElabM (go [] tycty)
+       tyInferNH projty
+       addFreeM n projty Nothing
+       return (n, projty)
+  where
+    go :: VarC v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go vs (Arr ty s) =
+        Arr ty <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
+    go vs _ =
+        do env <- getEnv
+           Arr (app (map V (nest env tyc : vs))) . toScope <$> nestPM (returnTy vs)
+
+    returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TermRef (Var (NameId ()) v))
+    returnTy vs =
+        do env' <- getEnv
+           let fixprojs v = if v `elem` map (nest env') projns
+                            then app [V v, V (B (Name "x" ()))]
+                            else V v
+               proj' = foldr dischargeProj (nest env' <$> proj) (map F vs)
+           return (fixprojs =<< proj')
+
+dischargeProj :: (Show a, Show r) => a -> Term r a -> Term r a
+dischargeProj v t@(Arr (Ty _) s) = trace (show t) (instantiate1 (V v) s)
+-- TODO should this really be a 'normal' error, since we report erros if the
+-- type constructor does not return Ty, for example?
+dischargeProj _ t = trace (show t) (IMPOSSIBLE("Got malformed projection"))
 
 buildRecRewr :: [Id] -> Id -> Rewr
 buildRecRewr projs pr [Data (RecCon _) ts]

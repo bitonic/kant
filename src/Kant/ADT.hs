@@ -3,7 +3,6 @@
 module Kant.ADT
     ( Rewr
     , ADT(..)
-    , Projs
     , Record(..)
     ) where
 
@@ -21,12 +20,10 @@ data ADT = ADT
     , adtCons :: Cons Ref
     }
 
-type Projs = [(Id, TermRefId)]
-
 data Record = Record
     { recName  :: ConId
     , recTy    :: TermRefId
-    , recProjs :: Projs
+    , recProjs :: Projs Ref
     , recRewr  :: Id -> Rewr
     }
 
