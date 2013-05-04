@@ -7,10 +7,13 @@ module Kant.Decl
     , ModuleSyn
     ) where
 
+import           Bound
+
 import           Kant.Term
+#include "../impossible.h"
 
 type Cons r = [(ConId, TermId r)]
-type Projs r = [(Id, TermId r)]
+type Projs r = [(Id, Scope Int (Term r) Id)]
 
 data Decl r
     = Val Id (TermId r)

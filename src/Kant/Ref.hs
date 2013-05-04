@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeFamilies #-}
 module Kant.Ref (PutRef(..)) where
 
+import           Bound
+
 import           Kant.Common
 import           Kant.Decl
 import           Kant.Monad
@@ -24,7 +26,9 @@ instance r ~ () => PutRef (Decl r) where
            ADTD (tyc, tycty') <$> mapM (\(dc, dcty) -> (dc,) <$> putRef dcty) cons
     putRef (RecD (tyc, tycty) dc projs) =
         do tycty' <- putRef tycty
-           RecD (tyc, tycty') dc <$> mapM (\(pr, prty) -> (pr,) <$> putRef prty) projs
+           RecD (tyc, tycty') dc <$>
+               mapM (\(pr, prty) -> (pr,) <$> (toScope <$> putRef (fromScope prty)))
+                    projs
 
 instance r ~ () => PutRef (Module r) where
     type WithRef (Module r) = Module Ref

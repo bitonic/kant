@@ -2,6 +2,9 @@
 module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (first, second)
+import           Data.List (elemIndex)
+
+import           Bound
 
 import           Kant.Decl
 import           Kant.Sugar
@@ -39,7 +42,8 @@ instance r ~ () => Desugar (SDecl r) where
       where pars' = map (first Just) pars
     desugar (SRecord c pars dc projs) =
         RecD (c, desugar (SArr pars' (STy ()))) dc
-             [(n, desugar (SArr (map (first Just) pars) proj)) | (n, proj) <- projs]
+             [ (n, abstract (`elemIndex` (map fst pars)) (desugar proj))
+             | (n, proj) <- projs ]
       where pars' = map (first Just) pars
 
 instance r ~ () => Desugar (SModule r) where

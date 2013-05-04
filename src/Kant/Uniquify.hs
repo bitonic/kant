@@ -1,3 +1,4 @@
+-- TODO I seem to override global names, check.
 module Kant.Uniquify (slam, formHole) where
 
 import           Control.Monad (when, void)

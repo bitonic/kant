@@ -26,4 +26,3 @@ data Record = Record
     , recProjs :: Projs Ref
     , recRewr  :: Id -> Rewr
     }
-

@@ -28,8 +28,6 @@ import           Kant.Term
 import           Kant.TyCheck
 #include "../impossible.h"
 
-import Debug.Trace
-
 class Elaborate a where
     elaborate :: Monad m => a -> KMonadT Id m [HoleCtx]
 
@@ -273,37 +271,38 @@ typedLam f ty = Ann ty (runElabM (go [] ty))
     go vs _ = return (f (map V (reverse vs)))
 
 elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs Ref -> KMonadT Id m ()
-elabRecCon tyc dc tycty projs' =
-    do let dcty = runElabM (go₁ [] projs' tycty)
+elabRecCon tyc dc tycty projs =
+    do let dcty = runElabM (go₁ [] tycty)
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
        addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
   where
-    go₁ :: VarC v => [v] -> [(Id, TermRef v)] -> TermRef v -> ElabM v (TermRef v)
-    go₁ vs projs (Arr ty s) =
+    go₁ :: VarC v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go₁ vs (Arr ty s) =
         let par = B (bindingN s)
         in  Arr ty <$>
-            (toScope <$> nestPM (go₁ (par : map F vs)
-                                     (map (second (dischargeProj par . fmap F)) projs)
-                                     (fromScope s)))
-    go₁ vs projs _ = go₂ vs projs
+            (toScope <$> nestPM (go₁ (par : map F vs) (fromScope s)))
+    go₁ vs _ =
+        do env <- getEnv
+           let vs' = reverse vs
+           go₂ vs' (instProjs vs' (map (second (fmap (nest env))) projs))
 
     go₂ :: VarC v => [v] -> [(Id, TermRef v)] -> ElabM v (TermRef v)
     go₂ vs [] =
         do env <- getEnv
-           return (app (V (nest env tyc) : reverse (map V vs)))
+           return (app (V (nest env tyc) : map V vs))
     go₂ vs ((n, proj) : pjs) =
         do env <- getEnv
            let abproj v = if v == nest env n then Just (Name n ()) else Nothing
                pjs' = map (second (fromScope . abstract abproj)) pjs
-           Arr proj <$> (toScope <$> nestPM (go₂ (B (Name n ()) : map F vs) pjs'))
+           Arr proj <$> (toScope <$> nestPM (go₂ (map F vs) pjs'))
 
 elabRecProj :: Monad m
-            => ConId            -- Type con
-            -> TermRefId        -- Type con type
-            -> [Id]             -- Projection names
-            -> (Id, TermRefId)  -- Current projection
+            => ConId                       -- Type con
+            -> TermRefId                   -- Type con type
+            -> [Id   ]                     -- Projection names
+            -> (Id, Scope Int TermRef Id)  -- Current projection
             -> KMonadT Id m (Id, TermRefId)
 elabRecProj tyc tycty projns (n, proj) =
     do let projty = runElabM (go [] tycty)
@@ -324,14 +323,16 @@ elabRecProj tyc tycty projns (n, proj) =
            let fixprojs v = if v `elem` map (nest env') projns
                             then app [V v, V (B (Name "x" ()))]
                             else V v
-               proj' = foldr dischargeProj (nest env' <$> proj) (map F vs)
-           return (fixprojs =<< proj')
+           return (fixprojs =<< (instProj (map F vs) (nest env' <$> proj)))
 
-dischargeProj :: (Show a, Show r) => a -> Term r a -> Term r a
-dischargeProj v t@(Arr (Ty _) s) = trace (show t) (instantiate1 (V v) s)
--- TODO should this really be a 'normal' error, since we report erros if the
--- type constructor does not return Ty, for example?
-dischargeProj _ t = trace (show t) (IMPOSSIBLE("Got malformed projection"))
+instProj :: [v] -> Scope Int TermRef v  -> TermRef v
+instProj vs s = instantiate inst s
+  where
+    inst i = if i < length vs then V (vs !! i)
+             else IMPOSSIBLE("Out of bound index in projection")
+
+instProjs :: [v] -> [(Id, Scope Int TermRef v)] -> [(Id, TermRef v)]
+instProjs vs = map (second (instProj vs))
 
 buildRecRewr :: [Id] -> Id -> Rewr
 buildRecRewr projs pr [Data (RecCon _) ts]
