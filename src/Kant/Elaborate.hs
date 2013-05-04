@@ -305,25 +305,26 @@ elabRecProj :: Monad m
             -> (Id, Scope Int TermRef Id)  -- Current projection
             -> KMonadT Id m (Id, TermRefId)
 elabRecProj tyc tycty projns (n, proj) =
-    do let projty = runElabM (go [] tycty)
+    do let projty = runElabM (go B0 tycty)
        tyInferNH projty
        addFreeM n projty Nothing
        return (n, projty)
   where
-    go :: VarC v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go :: VarC v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
-           Arr (app (map V (nest env tyc : vs))) . toScope <$> nestPM (returnTy vs)
+           let vs' = toList vs
+           Arr (app (map V (nest env tyc : vs'))) . toScope <$> nestPM (returnTy vs')
 
     returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TermRef (Var (NameId ()) v))
-    returnTy vs =
+    returnTy (map F -> vs) =
         do env' <- getEnv
            let fixprojs v = if v `elem` map (nest env') projns
-                            then app [V v, V (B (Name "x" ()))]
+                            then app (map V (v : vs ++ [B (Name "x" ())]))
                             else V v
-           return (fixprojs =<< (instProj (map F vs) (nest env' <$> proj)))
+           return (fixprojs =<< (instProj vs (nest env' <$> proj)))
 
 instProj :: [v] -> Scope Int TermRef v  -> TermRef v
 instProj vs s = instantiate inst s
