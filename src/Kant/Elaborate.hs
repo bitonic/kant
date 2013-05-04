@@ -75,12 +75,12 @@ instance r ~ Ref => Elaborate (Decl r) where
            let projns = map fst projs
            -- Note that it is important to add the projections in this order, so
            -- that we typecheck them with regards to the previous fields only.
---           projsty <- mapM (elabRecProj tyc tycty projns) projs
+           projtys <- mapM (elabRecProj tyc tycty projns) projs
            -- Finally, add the data constructor
            elabRecCon tyc dc tycty projs
            [] <$ addRecM tyc Record{ recName  = tyc
                                    , recTy    = tycty
-                                   , recProjs = []
+                                   , recProjs = projtys
                                    , recRewr  = buildRecRewr projns }
 returnsTy :: TermRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
@@ -252,24 +252,24 @@ instDummy s = instantiate1 (V "dummy") s
 -- | Provided with a @(x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(x1 : S1) -> ... -> (xn : Sn) -> f [x1..xn]@.
 telescope :: Eq v
-          => (forall a. Eq a => [a] -> ElabM a (TermRef a))
+          => (forall a. Eq a => Bwd a -> ElabM a (TermRef a))
           -> TermRef v -> ElabM v (TermRef v)
 telescope f = go B0
   where
     go :: Eq v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr ty s) =
         Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
-    go vs _ = f (toList vs)
+    go vs _ = f vs
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(\x1 .. xn  => f [x1..xn]) : A@.
-typedLam :: (forall a. [TermRef a] -> TermRef a) -> TermRefId -> TermRefId
+typedLam :: (forall a. Bwd (TermRef a) -> TermRef a) -> TermRefId -> TermRefId
 typedLam f ty = Ann ty (runElabM (go B0 ty))
   where
     go :: Eq v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr _ s) =
         Lam <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
-    go vs _ = return (f (map V (toList vs)))
+    go vs _ = return (f (bmap V vs))
 
 elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs Ref -> KMonadT Id m ()
 elabRecCon tyc dc tycty projs =
@@ -277,7 +277,7 @@ elabRecCon tyc dc tycty projs =
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
-       addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
+       addFreeM dc dcty (Just (typedLam (Data (RecCon dc) . toList) dcty))
   where
     go₁ :: VarC v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go₁ vs (Arr ty s) =
@@ -305,25 +305,26 @@ elabRecProj :: Monad m
             -> (Id, Scope Int TermRef Id)  -- Current projection
             -> KMonadT Id m (Id, TermRefId)
 elabRecProj tyc tycty projns (n, proj) =
-    do let projty = runElabM (go [] tycty)
+    do let projty = runElabM (go B0 tycty)
        tyInferNH projty
        addFreeM n projty Nothing
        return (n, projty)
   where
-    go :: VarC v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go :: VarC v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
-           Arr (app (map V (nest env tyc : vs))) . toScope <$> nestPM (returnTy vs)
+           Arr (app (map V (nest env tyc : toList vs))) . toScope <$> nestPM (returnTy vs)
 
-    returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TermRef (Var (NameId ()) v))
+    returnTy :: VarC v
+             => Bwd v -> ElabM (Var (NameId ()) v) (TermRef (Var (NameId ()) v))
     returnTy vs =
         do env' <- getEnv
            let fixprojs v = if v `elem` map (nest env') projns
                             then app [V v, V (B (Name "x" ()))]
                             else V v
-           return (fixprojs =<< (instProj (map F vs) (nest env' <$> proj)))
+           return (fixprojs =<< (instProj (map F (toList vs)) (nest env' <$> proj)))
 
 instProj :: [v] -> Scope Int TermRef v  -> TermRef v
 instProj vs s = instantiate inst s

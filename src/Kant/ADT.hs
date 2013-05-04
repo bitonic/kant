@@ -23,6 +23,6 @@ data ADT = ADT
 data Record = Record
     { recName  :: ConId
     , recTy    :: TermRefId
-    , recProjs :: Projs Ref
+    , recProjs :: [(Id, TermRefId)]
     , recRewr  :: Id -> Rewr
     }

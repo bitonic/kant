@@ -42,8 +42,9 @@ module Kant.Term
     , VarC
     ) where
 
-import           Data.Foldable (Foldable)
+import           Data.Foldable (Foldable, foldl1)
 import           Data.Traversable (Traversable)
+import           Prelude hiding (foldl1)
 
 import           Control.Monad.Identity (runIdentity)
 
@@ -119,7 +120,7 @@ arr :: Maybe Id -> TermId r -> TermId r -> TermId r
 arr Nothing  ty t = Arr ty (toScope (F <$> t))
 arr (Just v) ty t = Arr ty (abstract1Name v t)
 
-app :: [Term r v] -> Term r v
+app :: Foldable t => t (Term r v) -> Term r v
 app = foldl1 App
 
 appV :: Term r v -> (Term r v, [Term r v])
