@@ -18,6 +18,7 @@ import           Bound.Name
 import qualified Data.HashSet as HashSet
 import           Data.Proxy
 
+import           Data.Bwd
 import           Kant.ADT
 import           Kant.Common
 import           Kant.Cursor
@@ -94,11 +95,11 @@ elabCon :: Monad m
 elabCon tyc dc ty =
     do checkDup dc
        tyInferNH ty -- The type of the datacon is well typed
-       fromKMonadP (goodTy [] ty) -- ...and well formed
+       fromKMonadP (goodTy B0 ty) -- ...and well formed
        let t = typedLam (Data (ADTCon dc)) ty -- Function that forms the 'ADTCon'
        addFreeM dc ty (Just t)
   where
-    goodTy :: (VarC v, Monad m) => [v] -> TermRef v -> KMonadP v m ()
+    goodTy :: (VarC v, Monad m) => Bwd v -> TermRef v -> KMonadP v m ()
     goodTy vs (Arr arg s) =
         do -- If the type constructor appears in the type, then it must be at
            -- the top level.
@@ -106,13 +107,13 @@ elabCon tyc dc ty =
            let fvs  = freeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
-           nestPM (goodTy (B dummyN : map F vs) (fromScope s))
+           nestPM (goodTy (bmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
         -- tycon must be applied to the parameters, in order.
         do env <- getEnv
            unless (arg == V (nest env tyc) &&
-                   and (zipWith (==) pars (map V (reverse vs))))
+                   and (zipWith (==) pars (map V (toList vs))))
                   (expectingTypeData dc tyc ty)
 
 type ElabM v a = KMonad (Cursor Proxy) v Identity a
@@ -253,50 +254,49 @@ instDummy s = instantiate1 (V "dummy") s
 telescope :: Eq v
           => (forall a. Eq a => [a] -> ElabM a (TermRef a))
           -> TermRef v -> ElabM v (TermRef v)
-telescope f = go []
+telescope f = go B0
   where
-    go :: Eq v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go :: Eq v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
-    go vs _ = f (reverse vs)
+        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+    go vs _ = f (toList vs)
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(\x1 .. xn  => f [x1..xn]) : A@.
 typedLam :: (forall a. [TermRef a] -> TermRef a) -> TermRefId -> TermRefId
-typedLam f ty = Ann ty (runElabM (go [] ty))
+typedLam f ty = Ann ty (runElabM (go B0 ty))
   where
-    go :: Eq v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go :: Eq v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go vs (Arr _ s) =
-        Lam <$> (toScope <$> nestPM (go (B (bindingN s) : map F vs) (fromScope s)))
-    go vs _ = return (f (map V (reverse vs)))
+        Lam <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+    go vs _ = return (f (map V (toList vs)))
 
 elabRecCon :: Monad m => ConId -> ConId -> TermRefId -> Projs Ref -> KMonadT Id m ()
 elabRecCon tyc dc tycty projs =
-    do let dcty = runElabM (go₁ [] tycty)
+    do let dcty = runElabM (go₁ B0 tycty)
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
        addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
   where
-    go₁ :: VarC v => [v] -> TermRef v -> ElabM v (TermRef v)
+    go₁ :: VarC v => Bwd v -> TermRef v -> ElabM v (TermRef v)
     go₁ vs (Arr ty s) =
         let par = B (bindingN s)
         in  Arr ty <$>
-            (toScope <$> nestPM (go₁ (par : map F vs) (fromScope s)))
+            (toScope <$> nestPM (go₁ (bmap F vs :< par) (fromScope s)))
     go₁ vs _ =
         do env <- getEnv
-           let vs' = reverse vs
-           go₂ vs' (instProjs vs' (map (second (fmap (nest env))) projs))
+           go₂ vs (instProjs (toList vs) (map (second (fmap (nest env))) projs))
 
-    go₂ :: VarC v => [v] -> [(Id, TermRef v)] -> ElabM v (TermRef v)
+    go₂ :: VarC v => Bwd v -> [(Id, TermRef v)] -> ElabM v (TermRef v)
     go₂ vs [] =
         do env <- getEnv
-           return (app (V (nest env tyc) : map V vs))
+           return (app (V (nest env tyc) : map V (toList vs)))
     go₂ vs ((n, proj) : pjs) =
         do env <- getEnv
            let abproj v = if v == nest env n then Just (Name n ()) else Nothing
                pjs' = map (second (fromScope . abstract abproj)) pjs
-           Arr proj <$> (toScope <$> nestPM (go₂ (map F vs) pjs'))
+           Arr proj <$> (toScope <$> nestPM (go₂ (bmap F vs) pjs'))
 
 elabRecProj :: Monad m
             => ConId                       -- Type con

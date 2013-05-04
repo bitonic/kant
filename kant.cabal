@@ -40,7 +40,8 @@ Library
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
     Extensions:       CPP
 
-    Exposed-Modules:  Data.Constraint,
+    Exposed-Modules:  Data.Bwd,
+                      Data.Constraint,
                       Data.LGraph,
                       Kant.ADT,
                       Kant.Cursor,
