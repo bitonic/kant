@@ -81,7 +81,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            [] <$ addRecM tyc Record{ recName  = tyc
                                    , recTy    = tycty
                                    , recProjs = projtys
-                                   , recRewr  = buildRecRewr projns }
+                                   , recRewr  = buildRecRewr (arrLen tycty) projns }
 returnsTy :: TermRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True
@@ -307,7 +307,7 @@ elabRecProj :: Monad m
 elabRecProj tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
-       addFreeM n projty Nothing
+       addFreeM n projty (Just (typedLam (\vs -> Data (RecProj tyc n) [last vs]) projty))
        return (n, projty)
   where
     go :: VarC v => Bwd v -> TermRef v -> ElabM v (TermRef v)
@@ -335,16 +335,17 @@ instProj vs s = instantiate inst s
 instProjs :: [v] -> [(Id, Scope Int TermRef v)] -> [(Id, TermRef v)]
 instProjs vs = map (second (instProj vs))
 
-buildRecRewr :: [Id] -> Id -> Rewr
-buildRecRewr projs pr [Data (RecCon _) ts]
-    | Just ix <- ixm, length projs == length ts = Just (ts !! ix)
+buildRecRewr :: Int             -- Number of type parameters
+             -> [Id] -> Id -> Rewr
+buildRecRewr pars projs pr [Data (RecCon _) ts]
+    | Just ix <- ixm, length projs + pars == length ts = Just (ts !! (pars + ix))
     | Nothing <- ixm = IMPOSSIBLE("projection not present: " ++ pr)
     | otherwise = IMPOSSIBLE("wrong number of record arguments")
   where ixm = elemIndex pr projs
-buildRecRewr _ _ [_] = Nothing
+buildRecRewr _ _ _ [_] = Nothing
 -- TODO could it be that ill-typed expressions can lead to this?  In which case
 -- it might be better not to throw an error.
-buildRecRewr _ _ _ = IMPOSSIBLE("got more than one argument")
+buildRecRewr _ _ _ _ = IMPOSSIBLE("got more than one argument")
 
 instance r ~ Ref => Elaborate (Module r) where
     elaborate = go [] . unModule
