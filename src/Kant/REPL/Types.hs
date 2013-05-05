@@ -5,8 +5,8 @@ module Kant.REPL.Types
 import           Kant.Term
 
 data Output
-    = OTyCheck TermRefId [HoleCtx] -- Type of term
-    | OPretty TermRefId            -- PPrinted term
+    = OTyCheck TmRefId [HoleCtx] -- Type of term
+    | OPretty TmRefId            -- PPrinted term
     | OHoles [HoleCtx]
     | OOK
     | OQuit

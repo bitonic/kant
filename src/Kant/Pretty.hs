@@ -23,10 +23,10 @@ putPretty = putStrLn . show . pretty
 instance IsString Doc where
     fromString = pretty
 
-instance (v ~ Id) => Pretty (Term r v) where
+instance (v ~ Id) => Pretty (Tm r v) where
     pretty = pretty . distill
 
-instance Pretty (STerm r) where
+instance Pretty (STm r) where
     pretty (SV v) = pretty v
     pretty (STy _) = "*"
     pretty (SArr pars ty) = prettyPis pars <+> pretty ty
@@ -45,14 +45,14 @@ nest' = nest 2
 gnest :: Doc -> Doc
 gnest = group . nest'
 
-singleTerm :: STerm r -> Bool
-singleTerm (SV _)      = True
-singleTerm (STy _)     = True
-singleTerm (SHole _ _) = True
-singleTerm _           = False
+singleTm :: STm r -> Bool
+singleTm (SV _)      = True
+singleTm (STy _)     = True
+singleTm (SHole _ _) = True
+singleTm _           = False
 
-singleParens :: STerm r -> Doc
-singleParens t = if singleTerm t then pt else "(" <> align pt <> ")"
+singleParens :: STm r -> Doc
+singleParens t = if singleTm t then pt else "(" <> align pt <> ")"
   where pt = pretty t
 
 -- TODO Group equal types in `prettyPis' and `prettyPar'
@@ -111,12 +111,12 @@ instance Pretty KError where
         group (nest' ("Recursive occurrence of" <+> pretty tyc <+>
                       "in wrong position in data constructor" <+> pretty dc <+>
                       "of type" <$> pretty ty))
-    pretty (UntypedTerm ty) =
+    pretty (UntypedTm ty) =
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
     pretty CyclicTypes = "Cyclic types."
     pretty (CmdParse err) = gnest ("Error parsing command:" <$> pretty (show err))
-    pretty (TermParse s)  = gnest ("Error parsing code:" <$> pretty s)
+    pretty (TmParse s)  = gnest ("Error parsing code:" <$> pretty s)
     pretty (IOError err)  = gnest ("IO error:" <$> pretty (show err))
 
 instance Pretty Output where

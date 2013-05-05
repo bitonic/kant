@@ -17,7 +17,7 @@ import           Kant.Cursor
 import           Kant.Monad
 import           Kant.Term
 
-tyInfer :: (VarC v, Monad m) => TermRef v -> KMonadT v m (TermRef v, [HoleCtx])
+tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
     do (ty, holes) <- mapKMonad run (tyInfer' t)
        return (ty, reverse holes)
@@ -28,7 +28,7 @@ tyInfer t =
                             Right (y, env)  -> Right ((y, hs), env)
 
 -- TODO this should be never necessary, I should allow holes in data decls
-tyInferNH :: (VarC v, Monad m) => TermRef v -> KMonadT v m (TermRef v)
+tyInferNH :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v)
 tyInferNH t =
     do (ty, holes) <- tyInfer t
        case holes of
@@ -37,15 +37,15 @@ tyInferNH t =
 
 type TyMonad f v m = KMonadE f v (WriterT [HoleCtx] m)
 type TyMonadP v m = TyMonad Proxy v m
-type TyMonadT v m = TyMonad TermRef v m
+type TyMonadT v m = TyMonad TmRef v m
 
 addHole :: Monad m => HoleCtx -> TyMonad f v m ()
 addHole hole = lift (tell [hole])
 
-tyInfer' :: (VarC v, Monad m) => TermRef v -> TyMonadT v m (TermRef v)
+tyInfer' :: (VarC v, Monad m) => TmRef v -> TyMonadT v m (TmRef v)
 tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
 tyInfer' (V v) = constrIfTy =<< lookupTy v
-tyInfer' t@(Lam _) = untypedTerm t
+tyInfer' t@(Lam _) = untypedTm t
 tyInfer' (Arr ty₁ s) =
     do tyty₁ <- tyInfer' ty₁
        tyty₁' <- whnfM tyty₁
@@ -67,20 +67,20 @@ tyInfer' (App t₁ t₂) =
            _         -> expectingFunction t₁ tyt₁
 tyInfer' (Data d ts) = do env <- getEnv; tyInfer' (app (V (nest env (dataId d)) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
-tyInfer' t@(Hole _ _) = untypedTerm t
+tyInfer' t@(Hole _ _) = untypedTm t
 
-constrIfTy :: (VarC v, Monad m) => TermRef v -> KMonadE f v m (Term Ref v)
+constrIfTy :: (VarC v, Monad m) => TmRef v -> KMonadE f v m (Tm Ref v)
 constrIfTy ty =
     do ty' <- whnfM ty
        case ty' of
            Ty r -> Ty <$> addConstr' (r :<=:)
            _    -> return ty
 
-tyCheck :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
+tyCheck :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
 tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
   where
     -- TODO try to iteratively get the whnf, instead the nf at once
-    go :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadT v m ()
+    go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
     go (Lam s₁) (Arr ty s₂) = nestM ty (go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
@@ -91,7 +91,7 @@ tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
            unless eq (mismatch ty t tyt)
 
 -- TODO maybe find a way to eliminate the explicit recursion?
-eqRefs :: (VarC v, Monad m) => TermRef v -> TermRef v -> TyMonadP v m Bool
+eqRefs :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
 eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
 eqRefs (Ty r₁) (Ty r₂) = do addConstrs [r₁ :==: r₂]; return True
 eqRefs (Lam s₁) (Lam s₂) = nestPM (eqRefs (fromScope s₁) (fromScope s₂))
@@ -105,5 +105,5 @@ eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
-isProp :: (VarC v, Monad m) => TermRef v -> TyMonadT v m Bool
+isProp :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
 isProp = undefined

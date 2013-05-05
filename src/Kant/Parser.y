@@ -7,7 +7,7 @@ module Kant.Parser
     , parseModule
     , parseFile
     , parseDecl
-    , parseTerm
+    , parseTm
     ) where
 
 import           Control.Applicative ((<$>))
@@ -25,7 +25,7 @@ import           Kant.Term
 
 %name parseModule_
 %name parseDecl_ Decl
-%name parseTerm_ Term
+%name parseTm_ Tm
 
 %tokentype { Token }
 
@@ -79,7 +79,7 @@ Module : Seq0(Decl)                          { SModule $1 }
 
 Decl :: { SDeclSyn }
 Decl : Val                                   { $1 }
-     | 'postulate' name ':' SingleTerm       { SPostulate $2 $4}
+     | 'postulate' name ':' SingleTm       { SPostulate $2 $4}
      | Data                                  { $1 }
      | Record                                { $1 }
 
@@ -93,33 +93,33 @@ Record
        {% do pars <- tyConPars (fst $4); return (SRecord $2 pars $6 $8) }
 
 Val :: { SDeclSyn }
-Val : name Seq0(Pi) ':' Term '=>' SingleTerm { SVal $1 (concat $2) $4 $6 }
+Val : name Seq0(Pi) ':' Tm '=>' SingleTm { SVal $1 (concat $2) $4 $6 }
 
 DataCon :: { SConstr () }
-DataCon : name ':' Term                      { ($1, $3) }
+DataCon : name ':' Tm                      { ($1, $3) }
 
-RecProj :: { (Id, STermSyn) }
-RecProj : name ':' Term                      { ($1, $3) }
+RecProj :: { (Id, STmSyn) }
+RecProj : name ':' Tm                      { ($1, $3) }
 
 
 
-Term :: { STermSyn }
-Term
-    : '\\' Seq(Binder) '=>' Term             { SLam $2 $4 }
-    | '\\' Seq0(LamParam) ':' Term '=>' Term { SAnn $2 $4 $6 }
+Tm :: { STmSyn }
+Tm
+    : '\\' Seq(Binder) '=>' Tm             { SLam $2 $4 }
+    | '\\' Seq0(LamParam) ':' Tm '=>' Tm { SAnn $2 $4 $6 }
     | Arr                                    { uncurry SArr $1 }
 
-SingleTerm :: { STermSyn }
-SingleTerm
+SingleTm :: { STmSyn }
+SingleTm
     : name                                   { SV $1 }
     | Type                                   { $1 }
     | Hole                                   { $1 }
-    | '(' Term ')'                           { $2 }
+    | '(' Tm ')'                           { $2 }
 
-Type :: { STermSyn }
+Type :: { STmSyn }
 Type : '*'                                   { STy () }
 
-Arr :: { ([SParam ()], STermSyn) }
+Arr :: { ([SParam ()], STmSyn) }
 Arr : Arr1(App)                              { $1 }
 
 Arr1(X)
@@ -128,10 +128,10 @@ Arr1(X)
     | X                                      { ([], $1) }
 
 Pi  :: { [SParam ()] }
-Pi  : '[' Seq(Binder) ':' Term ']'           { zip $2 (repeat $4) }
+Pi  : '[' Seq(Binder) ':' Tm ']'           { zip $2 (repeat $4) }
 
-App :: { STermSyn }
-App : Seq(SingleTerm)                        { foldl1 SApp $1 }
+App :: { STmSyn }
+App : Seq(SingleTm)                        { foldl1 SApp $1 }
 
 Binder :: { Maybe Id }
 Binder
@@ -140,10 +140,10 @@ Binder
 
 LamParam :: { SParam () }
 LamParam
-    : '[' Binder ':' Term ']'                { ($2, $4) }
+    : '[' Binder ':' Tm ']'                { ($2, $4) }
 
-Hole :: { STermSyn }
-Hole : '{!' name Seq0(SingleTerm) '!}'       { SHole $2 $3 }
+Hole :: { STmSyn }
+Hole : '{!' name Seq0(SingleTm) '!}'       { SHole $2 $3 }
 
 {
 
@@ -160,7 +160,7 @@ parseErr err =
 happyError :: Alex a
 happyError = parseErr "."
 
-tyConPars :: [SParam ()] -> Alex [(Id, STermSyn)]
+tyConPars :: [SParam ()] -> Alex [(Id, STmSyn)]
 tyConPars pars = maybe happyError return
                        (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
 
@@ -175,8 +175,8 @@ parseModule s = desugar <$> runAlex s parseModule_
 parseDecl :: String -> ParseResult DeclSyn
 parseDecl s = desugar <$> runAlex s parseDecl_
 
-parseTerm :: String -> ParseResult TermSyn
-parseTerm s = desugar <$> runAlex s parseTerm_
+parseTm :: String -> ParseResult TmSyn
+parseTm s = desugar <$> runAlex s parseTm_
 
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO ModuleSyn

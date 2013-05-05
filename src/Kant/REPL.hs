@@ -66,11 +66,11 @@ parseInput =
 replInput :: MonadIO m => Input -> REPL m Output
 replInput c =
    case c of
-       ITyCheck s -> do t <- putRef =<< parseTermM s
+       ITyCheck s -> do t <- putRef =<< parseTmM s
                         (ty, holes) <- tyInfer t
                         ty' <- nfM ty
                         return (OTyCheck ty' holes)
-       IEval s    -> do t <- putRef =<< parseTermM s
+       IEval s    -> do t <- putRef =<< parseTmM s
                         tyInfer t
                         OPretty <$> nfM t
        IDecl s    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s)
@@ -78,7 +78,7 @@ replInput c =
                         s <- readSafe fp
                         m <- putRef =<< parseModuleM s
                         OHoles <$> elaborate m
-       IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTermM s)
+       IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTmM s)
        IQuit      -> return OQuit
        ISkip      -> return OSkip
   where

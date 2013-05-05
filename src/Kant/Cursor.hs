@@ -38,8 +38,8 @@ data Cursor f v = Cursor
     , cursCtx    :: Ctx f v
     }
 
-type CursorT = Cursor TermRef
-type CursorId = Cursor TermRef Id
+type CursorT = Cursor TmRef
+type CursorId = Cursor TmRef Id
 type CursorP = Cursor Proxy
 
 cursFree :: Eq v => Cursor f v -> v -> Bool
@@ -101,7 +101,7 @@ free t = cursFree (getCurs t)
 free' :: (Eq v, IsCursor c) => c f v -> v -> Maybe Id
 free' c v = if free c v then Just (pull c v) else Nothing
 
-freeVs :: (Eq v, IsCursor c, Foldable f) => c f v -> TermRef v -> HashSet Id
+freeVs :: (Eq v, IsCursor c, Foldable f) => c f v -> TmRef v -> HashSet Id
 freeVs c = foldMap (\v -> if free c v
                           then HashSet.singleton (pull c v)
                           else HashSet.empty)

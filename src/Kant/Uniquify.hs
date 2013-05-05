@@ -20,7 +20,7 @@ import           Kant.Term
 
 type FreshMonad v = State (HashMap v Id, HashMap Id Integer)
 
-collectFree :: VarC v => CursorP v -> Term r v -> FreshMonad v ()
+collectFree :: VarC v => CursorP v -> Tm r v -> FreshMonad v ()
 collectFree env t = void (mapM go t)
   where go v = when (free env v) (addVar env v)
 
@@ -41,7 +41,7 @@ addVar' n ixs = (n', HashMap.insert n (ix+1) ixs)
 freshVar :: VarC v => CursorP v -> v -> HashMap v Id -> v
 freshVar env v names = cursRename env v (const HMBANG(v, names))
 
-uniquify :: VarC v => CursorP v -> Term r v -> FreshMonad v (Term r v)
+uniquify :: VarC v => CursorP v -> Tm r v -> FreshMonad v (Tm r v)
 uniquify env t =
     do collectFree env t
        mapM (addVar env) t
@@ -58,7 +58,7 @@ uniquify env t =
     go (Ann ty t')  = Ann <$> go ty <*> go t'
     go (Hole hn ts) = Hole hn <$> mapM go ts
 
-    goScope :: VarC v => TermScope r v -> State (HashMap Id Integer) (TermScope r v)
+    goScope :: VarC v => TmScope r v -> State (HashMap Id Integer) (TmScope r v)
     goScope s =
         case binding s of
             Nothing -> toScope <$> go (fromScope s)
@@ -69,11 +69,11 @@ uniquify env t =
                    put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
                             <* put ixs
 
-slam' :: VarC v => CursorP v -> Term r v -> FreshMonad v (TermId r)
+slam' :: VarC v => CursorP v -> Tm r v -> FreshMonad v (TmId r)
 slam' env t = (cursPull env <$>) <$> uniquify env t
 
 formHole' :: VarC v
-          => CursorP v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+          => CursorP v -> Ref -> HoleId -> TmRef v -> [(TmRef v, TmRef v)]
           -> FreshMonad v (HoleCtx)
 formHole' env ref hn goal ts =
     do hctx <- sequence [(,) <$> slam' env t <*> slam' env ty | (t, ty) <- ts]
@@ -83,10 +83,10 @@ formHole' env ref hn goal ts =
 runFresh :: FreshMonad v a -> a
 runFresh s = evalState s (HashMap.empty, HashMap.empty)
 
-slam :: (VarC v, IsCursor c) => c f v -> Term r v -> TermId r
+slam :: (VarC v, IsCursor c) => c f v -> Tm r v -> TmId r
 slam env t = runFresh (slam' (toP (getCurs env)) t)
 
 formHole :: (VarC v, IsCursor c)
-         => c f v -> Ref -> HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+         => c f v -> Ref -> HoleId -> TmRef v -> [(TmRef v, TmRef v)]
          -> HoleCtx
 formHole env ref hn goal ts = runFresh (formHole' (toP (getCurs env)) ref hn goal ts)

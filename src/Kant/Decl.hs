@@ -12,12 +12,12 @@ import           Bound
 import           Kant.Term
 #include "../impossible.h"
 
-type Cons r = [(ConId, TermId r)]
-type Projs r = [(Id, Scope Int (Term r) Id)]
+type Cons r = [(ConId, TmId r)]
+type Projs r = [(Id, Scope Int (Tm r) Id)]
 
 data Decl r
-    = Val Id (TermId r)
-    | Postulate Id (TermId r)
+    = Val Id (TmId r)
+    | Postulate Id (TmId r)
     | ADTD (Constr r) [Constr r]
     | RecD (Constr r)         -- Tycon
            ConId              -- Data con
@@ -28,7 +28,7 @@ data Decl r
                               -- uniform.
     deriving (Eq, Show)
 
-type Constr r = (ConId, TermId r)
+type Constr r = (ConId, TmId r)
 
 type DeclSyn = Decl ()
 

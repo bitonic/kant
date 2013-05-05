@@ -40,7 +40,7 @@ module Kant.Monad
     , expectingFunction
     , expectingTypeData
     , wrongRecTypePos
-    , untypedTerm
+    , untypedTm
     , unexpectedHole
     , cyclicTypes
     , expectingTypeCon
@@ -48,7 +48,7 @@ module Kant.Monad
       -- * Parsing
     , parseModuleM
     , parseDeclM
-    , parseTermM
+    , parseTmM
     ) where
 
 import           Control.Applicative (Applicative)
@@ -77,18 +77,18 @@ import           Kant.Uniquify
 data KError
     = OutOfBounds Id
     | DuplicateName Id
-    | Mismatch TermRefId TermRefId TermRefId
-    | ExpectingFunction TermRefId TermRefId
-    | ExpectingType TermRefId TermRefId
-    | ExpectingTypeCon ConId TermRefId
-    | ExpectingTypeData ConId ConId TermRefId
-    | WrongRecTypePos ConId ConId TermRefId
-    | UntypedTerm TermRefId
+    | Mismatch TmRefId TmRefId TmRefId
+    | ExpectingFunction TmRefId TmRefId
+    | ExpectingType TmRefId TmRefId
+    | ExpectingTypeCon ConId TmRefId
+    | ExpectingTypeData ConId ConId TmRefId
+    | WrongRecTypePos ConId ConId TmRefId
+    | UntypedTm TmRefId
     | UnexpectedHole HoleId
     | CyclicTypes               -- TODO more descriptive
       -- REPL errors
     | CmdParse Parsec.ParseError
-    | TermParse ParseError
+    | TmParse ParseError
     | IOError IOError
     deriving (Show)
 
@@ -97,7 +97,7 @@ instance Error KError
 newtype KMonad f v m a = KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
     deriving (Functor, Applicative, Monad)
 type KMonadP = KMonad (Env Proxy)
-type KMonadT = KMonad (Env TermRef)
+type KMonadT = KMonad (Env TmRef)
 type KMonadE f = KMonad (Env f)
 
 instance MonadTrans (KMonad f v) where
@@ -137,14 +137,14 @@ nestPM :: (Monad m, IsCursor c)
        => KMonad (c Proxy) (Var (NameId ()) v) m a -> KMonad (c Proxy) v m a
 nestPM = nestM Proxy
 
-lookupTy :: (VarC v, Monad m) => v -> KMonadT v m (TermRef v)
+lookupTy :: (VarC v, Monad m) => v -> KMonadT v m (TmRef v)
 lookupTy v =
     do env <- getEnv
        case envType env v of
            Nothing -> KMonad (throwError (OutOfBounds (pull env v)))
            Just ty -> return ty
 
-addFreeM :: (VarC v, Monad m) => Id -> TermRefId -> Maybe TermRefId -> KMonadT v m ()
+addFreeM :: (VarC v, Monad m) => Id -> TmRefId -> Maybe TmRefId -> KMonadT v m ()
 addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)
 
 addADTM :: (Monad m) => ConId -> ADT -> KMonadT v m ()
@@ -168,17 +168,17 @@ addConstrs' f = do r <- freshRef; addConstrs (f r); return r
 addConstr' :: (Monad m) => (Ref -> ConstrRef) -> KMonadE f v m Ref
 addConstr' f = addConstrs' (return . f)
 
-whnfM :: (Monad m, VarC v) => TermRef v -> KMonadE f v m (TermRef v)
+whnfM :: (Monad m, VarC v) => TmRef v -> KMonadE f v m (TmRef v)
 whnfM t = (`whnf` t) <$> getEnv
 
-nfM :: (Monad m, VarC v) => TermRef v -> KMonadE f v m (TermRef v)
+nfM :: (Monad m, VarC v) => TmRef v -> KMonadE f v m (TmRef v)
 nfM t = (`nf` t) <$> getEnv
 
-slamM :: (VarC v, IsCursor c, Monad m) => Term r v -> KMonad (c f) v m (TermId r)
+slamM :: (VarC v, IsCursor c, Monad m) => Tm r v -> KMonad (c f) v m (TmId r)
 slamM t = flip slam t <$> getEnv
 
 formHoleM :: (VarC v, Monad m)
-          => HoleId -> TermRef v -> [(TermRef v, TermRef v)]
+          => HoleId -> TmRef v -> [(TmRef v, TmRef v)]
           -> KMonadE f v m HoleCtx
 formHoleM hn goal ts =
     do env <- getEnv
@@ -186,28 +186,28 @@ formHoleM hn goal ts =
        return (formHole (envCurs env) r hn goal ts)
 
 mismatch :: (VarC v, Monad m, IsCursor c)
-         => TermRef v -> TermRef v -> TermRef v -> KMonad (c f) v m a
+         => TmRef v -> TmRef v -> TmRef v -> KMonad (c f) v m a
 mismatch t₁ t₂ t₃ =
     throwKError =<< Mismatch <$> slamM t₁ <*> slamM t₂ <*> slamM t₃
 
 expectingType :: (VarC v, Monad m, IsCursor c)
-              => TermRef v -> TermRef v -> KMonad (c f) v m a
+              => TmRef v -> TmRef v -> KMonad (c f) v m a
 expectingType t₁ t₂ = throwKError =<< ExpectingType <$> slamM t₁ <*> slamM t₂
 
 expectingFunction :: (VarC v, Monad m, IsCursor c)
-                  => TermRef v -> TermRef v -> KMonad (c f) v m a
+                  => TmRef v -> TmRef v -> KMonad (c f) v m a
 expectingFunction t₁ t₂ = throwKError =<< ExpectingFunction <$> slamM t₁ <*> slamM t₂
 
 expectingTypeData :: (VarC v, Monad m, IsCursor c)
-                  => ConId -> ConId -> TermRefId -> KMonad (c f) v m a
+                  => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
 expectingTypeData dc tyc ty = throwKError (ExpectingTypeData dc tyc ty)
 
 wrongRecTypePos :: (VarC v, Monad m, IsCursor c)
-                => ConId -> ConId -> TermRefId -> KMonad (c f) v m a
+                => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
 wrongRecTypePos dc tyc ty = throwKError (WrongRecTypePos dc tyc ty)
 
-untypedTerm :: (VarC v, Monad m, IsCursor c) => TermRef v -> KMonad (c f) v m a
-untypedTerm t = throwKError =<< UntypedTerm <$> slamM t
+untypedTm :: (VarC v, Monad m, IsCursor c) => TmRef v -> KMonad (c f) v m a
+untypedTm t = throwKError =<< UntypedTm <$> slamM t
 
 unexpectedHole :: (Monad m) => HoleId -> KMonad f v m a
 unexpectedHole hid = throwKError (UnexpectedHole hid)
@@ -216,17 +216,17 @@ cyclicTypes :: (Monad m) => KMonad f v m a
 cyclicTypes = throwKError CyclicTypes
 
 expectingTypeCon :: (VarC v, IsCursor c, Monad m)
-                 => ConId -> TermRef v -> KMonad (c f) v m a
+                 => ConId -> TmRef v -> KMonad (c f) v m a
 expectingTypeCon dc t = throwKError =<< ExpectingTypeCon dc <$> slamM t
 
 duplicateName :: (Monad m) => Id -> KMonad f v m a
 duplicateName = throwKError . DuplicateName
 
 parseModuleM :: (Monad m) => String -> KMonad f v m ModuleSyn
-parseModuleM = either (throwKError . TermParse) return . parseModule
+parseModuleM = either (throwKError . TmParse) return . parseModule
 
 parseDeclM :: (Monad m) => String -> KMonad f v m DeclSyn
-parseDeclM = either (throwKError . TermParse) return . parseDecl
+parseDeclM = either (throwKError . TmParse) return . parseDecl
 
-parseTermM :: (Monad m) => String -> KMonad f v m TermSyn
-parseTermM = either (throwKError . TermParse) return . parseTerm
+parseTmM :: (Monad m) => String -> KMonad f v m TmSyn
+parseTmM = either (throwKError . TmParse) return . parseTm

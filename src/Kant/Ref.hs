@@ -13,8 +13,8 @@ class PutRef a where
     type WithRef a :: *
     putRef :: Monad m => a -> KMonadE f v m (WithRef a)
 
-instance r ~ () => PutRef (Term r v) where
-    type WithRef (Term r v) = TermRef v
+instance r ~ () => PutRef (Tm r v) where
+    type WithRef (Tm r v) = TmRef v
     putRef = mapRef (const freshRef)
 
 instance r ~ () => PutRef (Decl r) where

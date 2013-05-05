@@ -9,7 +9,7 @@ import           Kant.Cursor
 import           Kant.Env
 import           Kant.Term
 
-type Reducer = forall v. VarC v => EnvP v -> TermRef v -> TermRef v
+type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
 
 reduce :: Reducer -> Reducer
 reduce r env t@(V v) =
@@ -35,11 +35,11 @@ reduce r env (Data d ts) = Data d (map (reduce r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
-reduceScope :: VarC v => Reducer -> EnvP v -> TermScopeRef v -> TermScopeRef v
+reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
 reduceScope r env s = (toScope (r (nestC env Proxy) (fromScope s)))
 
-whnf :: VarC v => Env f v -> TermRef v -> TermRef v
+whnf :: VarC v => Env f v -> TmRef v -> TmRef v
 whnf env = reduce (\_ t -> t) (toP env)
 
-nf :: VarC v => Env f v -> TermRef v -> TermRef v
+nf :: VarC v => Env f v -> TmRef v -> TmRef v
 nf env = reduce nf (toP env)

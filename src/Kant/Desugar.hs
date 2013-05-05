@@ -14,8 +14,8 @@ class Desugar a where
     type Core a :: *
     desugar :: a -> Core a
 
-instance r ~ () => Desugar (STerm r) where
-    type Core (STerm r) = TermSyn
+instance r ~ () => Desugar (STm r) where
+    type Core (STm r) = TmSyn
 
     desugar (SV n) = V n
     desugar (STy ()) = Ty ()

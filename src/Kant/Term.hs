@@ -9,15 +9,15 @@ module Kant.Term
     , HoleId
     , NameId
     , Ref
-    , TermScope
-    , TermScopeRef
-    , Term(..)
+    , TmScope
+    , TmScopeRef
+    , Tm(..)
     , Data(..)
     , dataId
-    , TermRef
-    , TermId
-    , TermRefId
-    , TermSyn
+    , TmRef
+    , TmId
+    , TmRefId
+    , TmSyn
       -- * Smart constructors
     , lam
     , arr
@@ -64,21 +64,21 @@ type NameId = Name Id
 
 type Ref = Integer
 
-type TermScope r = Scope (NameId ()) (Term r)
-type TermScopeRef = TermScope Ref
+type TmScope r = Scope (NameId ()) (Tm r)
+type TmScopeRef = TmScope Ref
 
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
 -- terms...
 -- TODO merge 'Canon' and 'Rewr'.
-data Term r v
+data Tm r v
     = V v
     | Ty r
-    | Lam (TermScope r v)
-    | Arr (Term r v) (TermScope r v)
-    | App (Term r v) (Term r v)
-    | Ann (Term r v) (Term r v)
-    | Data Data [Term r v]
-    | Hole HoleId [Term r v]
+    | Lam (TmScope r v)
+    | Arr (Tm r v) (TmScope r v)
+    | App (Tm r v) (Tm r v)
+    | Ann (Tm r v) (Tm r v)
+    | Data Data [Tm r v]
+    | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecProj ConId Id
@@ -90,17 +90,17 @@ dataId (ADTRewr c)   = c
 dataId (RecCon c)    = c
 dataId (RecProj _ p) = p
 
-type TermRef = Term Ref
-type TermId r = Term r Id
-type TermRefId = TermRef Id
-type TermSyn = Term () Id
+type TmRef = Tm Ref
+type TmId r = Tm r Id
+type TmRefId = TmRef Id
+type TmSyn = Tm () Id
 
-instance (Eq r)   => Eq1 (Term r)   where (==#)      = (==)
-instance (Ord r)  => Ord1 (Term r)  where compare1   = compare
-instance (Show r) => Show1 (Term r) where showsPrec1 = showsPrec
-instance (Read r) => Read1 (Term r) where readsPrec1 = readsPrec
+instance (Eq r)   => Eq1 (Tm r)   where (==#)      = (==)
+instance (Ord r)  => Ord1 (Tm r)  where compare1   = compare
+instance (Show r) => Show1 (Tm r) where showsPrec1 = showsPrec
+instance (Read r) => Read1 (Tm r) where readsPrec1 = readsPrec
 
-instance Monad (Term r) where
+instance Monad (Tm r) where
     return = V
 
     V v        >>= f = f v
@@ -112,30 +112,30 @@ instance Monad (Term r) where
     Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
     Hole hn ts >>= f = Hole hn (map (>>= f) ts)
 
-lam :: Maybe Id -> TermId r -> TermId r
+lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
 lam (Just v) t = Lam (abstract1Name v t)
 
-arr :: Maybe Id -> TermId r -> TermId r -> TermId r
+arr :: Maybe Id -> TmId r -> TmId r -> TmId r
 arr Nothing  ty t = Arr ty (toScope (F <$> t))
 arr (Just v) ty t = Arr ty (abstract1Name v t)
 
-app :: Foldable t => t (Term r v) -> Term r v
+app :: Foldable t => t (Tm r v) -> Tm r v
 app = foldl1 App
 
-appV :: Term r v -> (Term r v, [Term r v])
+appV :: Tm r v -> (Tm r v, [Tm r v])
 appV (App t₁ t₂) = (t, ts ++ [t₂]) where (t, ts) = appV t₁
 appV t = (t, [])
 
-appHead :: Term r v -> Term r v
+appHead :: Tm r v -> Tm r v
 appHead (appV -> (t, _)) = t
 
-binding :: TermScope r v -> Maybe (NameId ())
+binding :: TmScope r v -> Maybe (NameId ())
 binding s = case bindings s of
                 []      -> Nothing
                 (n : _) -> Just n
 
-bindingN :: TermScope r v -> NameId ()
+bindingN :: TmScope r v -> NameId ()
 bindingN s = case bindings s of
                  []      -> dummyN
                  (n : _) -> n
@@ -143,24 +143,24 @@ bindingN s = case bindings s of
 dummyN :: NameId ()
 dummyN = Name "$" ()
 
-scopeV :: TermScope r v -> (NameId () -> Term r v) -> (Maybe (NameId ()), Term r v)
+scopeV :: TmScope r v -> (NameId () -> Tm r v) -> (Maybe (NameId ()), Tm r v)
 scopeV s f =
     case bindings s of
         []      -> (Nothing, instantiate1 IMPOSSIBLE("the impossible happened") s)
         (n : _) -> (Just n, instantiate1 (f n) s)
 
-scopeN :: TermScope r Id -> (Maybe Id, TermId r)
+scopeN :: TmScope r Id -> (Maybe Id, TmId r)
 scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
 
-arrLen :: Term r v -> Int
+arrLen :: Tm r v -> Int
 arrLen (Arr _ s) = 1 + arrLen (fromScope s)
 arrLen _         = 0
 
-annV :: Term r t -> Term r t
+annV :: Tm r t -> Tm r t
 annV (Ann _ t) = t
 annV t         = t
 
-mapRef :: (Monad m)  => (r₁ -> m r₂) -> Term r₁ v -> m (Term r₂ v)
+mapRef :: (Monad m)  => (r₁ -> m r₂) -> Tm r₁ v -> m (Tm r₂ v)
 mapRef _ (V v)       = return (V v)
 mapRef f (Ty r)      = Ty <$> f r
 mapRef f (Lam s)     = Lam . toScope <$> mapRef f (fromScope s)
@@ -170,18 +170,18 @@ mapRef f (Ann ty t)  = Ann <$> mapRef f ty <*> mapRef f t
 mapRef f (Data d ts) = Data d <$> mapM (mapRef f) ts
 mapRef f (Hole h ts) = Hole h <$> mapM (mapRef f) ts
 
-unRef :: Term r v -> Term () v
+unRef :: Tm r v -> Tm () v
 unRef = runIdentity . mapRef (const (return ()))
 
-isHole :: Term r v -> Bool
+isHole :: Tm r v -> Bool
 isHole (Hole _ _) = True
 isHole _          = False
 
 data HoleCtx = HoleCtx
     { holeRef  :: Ref
     , holeName :: HoleId
-    , holeGoal :: TermRefId
-    , holeCtx  :: [(TermRefId, TermRefId)]
+    , holeGoal :: TmRefId
+    , holeCtx  :: [(TmRefId, TmRefId)]
     }
 
 class (Hashable v, Ord v, Show v) => VarC v
