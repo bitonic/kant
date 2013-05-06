@@ -69,7 +69,6 @@ type TmScopeRef = TmScope Ref
 
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
 -- terms...
--- TODO merge 'Canon' and 'Rewr'.
 data Tm r v
     = V v
     | Ty r
