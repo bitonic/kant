@@ -19,6 +19,7 @@ module Kant.Monad
     , nestM
     , nestPM
     , lookupTy
+    , isRecM
     , addFreeM
     , addADTM
     , addRecM
@@ -143,6 +144,9 @@ lookupTy v =
        case envType env v of
            Nothing -> KMonad (throwError (OutOfBounds (pull env v)))
            Just ty -> return ty
+
+isRecM :: (VarC v, Monad m) => v -> KMonadT v m Bool
+isRecM v = do env <- getEnv; return (isRec env v)
 
 addFreeM :: (VarC v, Monad m) => Id -> TmRefId -> Maybe TmRefId -> KMonadT v m ()
 addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)

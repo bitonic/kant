@@ -5,7 +5,6 @@ module Kant.TyCheck
     ) where
 
 import           Control.Monad (unless, (>=>))
-import           Data.Maybe (isJust)
 
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Writer (WriterT(..), MonadWriter(..))
@@ -108,15 +107,14 @@ eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
-isProp :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
-isProp = whnfM >=> go
+isProp :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m Bool
+isProp t₀ (Ty _) = go =<< whnfM t₀
   where
-    go (Arr ty s) = nestM ty (isProp (fromScope s))
+    go :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
+    go (Arr ty s) = nestM ty (go =<< whnfM (fromScope s))
     go (appV -> (t, pars)) =
         do t' <- whnfM t
            case t' of
-               V v -> do env <- getEnv
-                         if free env v && isJust (envRec' env (pull env v))
-                             then and <$> mapM isProp pars
-                             else return False
+               V v -> (&&) <$> isRecM v <*> (and <$> mapM (whnfM >=> go) pars)
                _   -> return False
+isProp _ _ = return False

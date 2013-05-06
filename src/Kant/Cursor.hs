@@ -108,3 +108,4 @@ freeVs c = foldMap (\v -> if free c v
 
 ctx :: IsCursor c => c f v -> Ctx f v
 ctx = cursCtx . getCurs
+

@@ -10,8 +10,8 @@ module Kant.Env
     , envType
     , envBody
     , envADT
-    , envRec'
     , envRec
+    , isRec
     , newEnv
     , addFree
     , addADT
@@ -19,6 +19,7 @@ module Kant.Env
     ) where
 
 import           Control.Monad (join)
+import           Data.Maybe (isJust)
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -76,6 +77,9 @@ envRec env v =
     case envRec' env v of
         Nothing  -> IMPOSSIBLE("lookinp up non-existant record")
         Just rec -> rec
+
+isRec :: Eq v => Env f v -> v -> Bool
+isRec env v = free env v && isJust (envRec' env (pull env v))
 
 type EnvId = EnvT Id
 
