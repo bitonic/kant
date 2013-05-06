@@ -15,7 +15,6 @@ import           Data.Proxy
 import           Data.Constraint (Constr(..))
 import           Kant.Common
 import           Kant.Cursor
-import           Kant.Env
 import           Kant.Monad
 import           Kant.Term
 
