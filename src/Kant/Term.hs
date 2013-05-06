@@ -80,14 +80,14 @@ data Tm r v
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecProj ConId Id
+data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecRewr ConId Id
     deriving (Eq, Ord, Show, Read)
 
 dataId :: Data -> ConId
 dataId (ADTCon c)    = c
 dataId (ADTRewr c)   = c
 dataId (RecCon c)    = c
-dataId (RecProj _ p) = p
+dataId (RecRewr _ p) = p
 
 type TmRef = Tm Ref
 type TmId r = Tm r Id
@@ -187,4 +187,3 @@ class (Hashable v, Ord v, Show v) => VarC v
 instance (Hashable a, Ord a, Show a) => VarC [a]
 instance (Hashable a, Ord a, Show a, Show n) => VarC (Name n a)
 instance (VarC b, VarC a) => VarC (Var b a)
-

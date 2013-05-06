@@ -75,7 +75,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            let projns = map fst projs
            -- Note that it is important to add the projections in this order, so
            -- that we typecheck them with regards to the previous fields only.
-           projtys <- mapM (elabRecProj tyc tycty projns) projs
+           projtys <- mapM (elabRecRewr tyc tycty projns) projs
            -- Finally, add the data constructor
            elabRecCon tyc dc tycty projs
            [] <$ addRecM tyc Record{ recName  = tyc
@@ -298,16 +298,16 @@ elabRecCon tyc dc tycty projs =
                pjs' = map (second (fromScope . abstract abproj)) pjs
            Arr proj <$> (toScope <$> nestPM (go₂ (bmap F vs) pjs'))
 
-elabRecProj :: Monad m
+elabRecRewr :: Monad m
             => ConId                       -- Type con
             -> TmRefId                   -- Type con type
             -> [Id   ]                     -- Projection names
             -> (Id, Scope Int TmRef Id)  -- Current projection
             -> KMonadT Id m (Id, TmRefId)
-elabRecProj tyc tycty projns (n, proj) =
+elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
-       addFreeM n projty (Just (typedLam (\vs -> Data (RecProj tyc n) [last vs]) projty))
+       addFreeM n projty (Just (typedLam (\vs -> Data (RecRewr tyc n) [last vs]) projty))
        return (n, projty)
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)

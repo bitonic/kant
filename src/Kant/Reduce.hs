@@ -26,9 +26,9 @@ reduce r env (Data (ADTRewr c) ts) =
         Nothing -> Data (ADTRewr c) ts'
         Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
-reduce r env (Data (RecProj c n) ts) =
+reduce r env (Data (RecRewr c n) ts) =
     case recRewr (envRec env c) n ts' of
-        Nothing -> Data (RecProj c n) ts'
+        Nothing -> Data (RecRewr c n) ts'
         Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
 reduce r env (Data d ts) = Data d (map (reduce r env) ts)
