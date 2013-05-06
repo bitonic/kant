@@ -10,6 +10,7 @@ module Kant.Env
     , envType
     , envBody
     , envADT
+    , envRec'
     , envRec
     , newEnv
     , addFree
@@ -67,9 +68,12 @@ envADT Env{envADTs = adts} v =
         Nothing  -> IMPOSSIBLE("looking up non-existant ADT")
         Just adt -> adt
 
+envRec' :: Eq v => Env f v -> ConId -> Maybe Record
+envRec' Env{envRecs = recs} v = HashMap.lookup v recs
+
 envRec :: Eq v => Env f v -> ConId -> Record
-envRec Env{envRecs = recs} v =
-    case HashMap.lookup v recs of
+envRec env v =
+    case envRec' env v of
         Nothing  -> IMPOSSIBLE("lookinp up non-existant record")
         Just rec -> rec
 

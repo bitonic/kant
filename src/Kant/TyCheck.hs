@@ -1,9 +1,11 @@
+{-# LANGUAGE ViewPatterns #-}
 module Kant.TyCheck
     ( tyInfer
     , tyInferNH
     ) where
 
-import           Control.Monad (unless)
+import           Control.Monad (unless, (>=>))
+import           Data.Maybe (isJust)
 
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Writer (WriterT(..), MonadWriter(..))
@@ -14,6 +16,7 @@ import           Data.Proxy
 import           Data.Constraint (Constr(..))
 import           Kant.Common
 import           Kant.Cursor
+import           Kant.Env
 import           Kant.Monad
 import           Kant.Term
 
@@ -106,4 +109,14 @@ eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
 isProp :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
-isProp = undefined
+isProp = whnfM >=> go
+  where
+    go (Arr ty s) = nestM ty (isProp (fromScope s))
+    go (appV -> (t, pars)) =
+        do t' <- whnfM t
+           case t' of
+               V v -> do env <- getEnv
+                         if free env v && isJust (envRec' env (pull env v))
+                             then and <$> mapM isProp pars
+                             else return False
+               _   -> return False
