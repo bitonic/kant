@@ -40,6 +40,7 @@ type SParam r = (Maybe Id, STm r)
 type SConstr r = (ConId, STm r)
 
 -- TODO add let bindings
+-- TODO Maybe use a GADTs to have 'SPrim' only when distilling...
 -- | A term matching what we parse, which can be 'desugar'ed and 'distill'ed
 --   into a 'Tm'.
 data STm r
@@ -50,6 +51,7 @@ data STm r
     | SApp (STm r) (STm r)
     | SArr [SParam r] (STm r)
     | SHole HoleId [STm r]
+    | SPrim Id
     deriving (Show)
 type STmSyn = STm ()
 type STmRef = STm Ref

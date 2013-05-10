@@ -21,10 +21,14 @@ distill' t₁@(Lam _) = SLam vs (distill' t₂)
 distill' t₁@(Arr _ _) = SArr (map (second distill) pars) (distill' t₂)
   where (pars, t₂) = unrollArr t₁
 distill' (App t₁ t₂) = SApp (distill' t₁) (distill' t₂)
-distill' (Data (dataId -> n) ts) = distill' (app (V n : ts))
+distill' (Data (RecRewr _ n) ts) = sapp (SPrim n : map distill' ts)
+distill' (Data (dataId -> n) ts) = sapp (SPrim n : map distill' ts)
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
 distill' (Hole hn ts) = SHole hn (map distill ts)
+
+sapp :: [STm r] -> STm r
+sapp = foldl1 SApp
 
 unrollArr :: TmId r -> ([(Maybe Id, TmId r)], TmId r)
 unrollArr (Arr ty s) = ((n, ty) : pars, t₂)

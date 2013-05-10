@@ -9,6 +9,7 @@ import           Bound
 import           Kant.Decl
 import           Kant.Sugar
 import           Kant.Term
+#include "../impossible.h"
 
 class Desugar a where
     type Core a :: *
@@ -28,6 +29,7 @@ instance r ~ () => Desugar (STm r) where
     desugar (SAnn pars ty t) =
         Ann (desugar (SArr pars ty)) (desugar (SLam (map fst pars) t))
     desugar (SHole hn ts) = Hole hn (map desugar ts)
+    desugar (SPrim _) = IMPOSSIBLE("Got primitive to desugar")
 
 instance r ~ () => Desugar (SDecl r) where
     type Core (SDecl r) = DeclSyn
