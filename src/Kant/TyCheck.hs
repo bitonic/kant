@@ -4,7 +4,7 @@ module Kant.TyCheck
     , tyInferNH
     ) where
 
-import           Control.Monad (unless, (>=>))
+import           Control.Monad (unless, join)
 
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Writer (WriterT(..), MonadWriter(..))
@@ -78,7 +78,7 @@ constrIfTy ty =
            _    -> return ty
 
 tyCheck :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
-tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
+tyCheck = whnf₂ go
   where
     -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
@@ -87,7 +87,7 @@ tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
         do tys <- mapM tyInfer' ts
            addHole =<< formHoleM hn ty (zip ts tys)
     go t ty =
-        do tyt <- nfM =<< tyInfer' t
+        do tyt <- whnfM =<< tyInfer' t
            eq <- fromKMonadP (eqRefs ty tyt)
            unless eq (mismatch ty t tyt)
 
@@ -95,10 +95,10 @@ tyCheck t₀ ty₀ = go t₀ =<< nfM ty₀
 eqRefs :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
 eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
 eqRefs (Ty r₁) (Ty r₂) = do addConstrs [r₁ :==: r₂]; return True
-eqRefs (Lam s₁) (Lam s₂) = nestPM (eqRefs (fromScope s₁) (fromScope s₂))
+eqRefs (Lam s₁) (Lam s₂) = nestPM (eqRefs' (fromScope s₁) (fromScope s₂))
 eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
     (&&) <$> eqRefs ty₁ ty₂
-         <*> nestPM (eqRefs (fromScope s₁) (fromScope s₂))
+         <*> nestPM (eqRefs' (fromScope s₁) (fromScope s₂))
 eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs t'₁ t'₂
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
 eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
@@ -106,14 +106,24 @@ eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
+eqRefs' :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
+eqRefs' = whnf₂ eqRefs'
+
 isProp :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m Bool
-isProp t₀ (Ty _) = go =<< whnfM t₀
+isProp t₀ (Ty _) = whnf₁ go t₀
   where
     go :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
-    go (Arr ty s) = nestM ty (go =<< whnfM (fromScope s))
+    go (Arr ty s) = nestM ty (whnf₁ go (fromScope s))
     go (appV -> (t, pars)) =
         do t' <- whnfM t
            case t' of
-               V v -> (&&) <$> isRecM v <*> (and <$> mapM (whnfM >=> go) pars)
+               V v -> (&&) <$> isRecM v <*> (and <$> mapM (whnf₁ go) pars)
                _   -> return False
 isProp _ _ = return False
+
+whnf₂ :: (Monad m, VarC v) => (TmRef v -> TmRef v -> TyMonad f v m a)
+      -> TmRef v -> TmRef v -> TyMonad f v m a
+whnf₂ m t₁ t₂ = join (m <$> whnfM t₁ <*> whnfM t₂)
+whnf₁ :: (Monad m, VarC v) => (TmRef v -> TyMonad f v m a)
+      -> TmRef v -> TyMonad f v m a
+whnf₁ m t = m =<< whnfM t
