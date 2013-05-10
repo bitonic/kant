@@ -140,7 +140,7 @@ bindingN s = case bindings s of
                  (n : _) -> n
 
 dummyN :: NameId ()
-dummyN = Name "$" ()
+dummyN = Name "x" ()
 
 scopeV :: TmScope r v -> (NameId () -> Tm r v) -> (Maybe (NameId ()), Tm r v)
 scopeV s f =
