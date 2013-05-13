@@ -3,46 +3,48 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
-module Kant.Term
-    ( Id
-    , ConId
-    , HoleId
-    , NameId
-    , Ref
-    , TmScope
-    , TmScopeRef
-    , Tm(..)
-    , Data(..)
-    , dataId
-    , TmRef
-    , TmId
-    , TmRefId
-    , TmSyn
-      -- * Smart constructors
-    , lam
-    , arr
-    , app
-      -- * Smart destructors
-    , appV
-    , appHead
-    , binding
-    , bindingN
-    , dummyN
-    , scopeV
-    , scopeN
-    , arrLen
-    , annV
-      -- * Utils
-    , mapRef
-    , unRef
-      -- * Holes
-    , isHole
-    , HoleCtx(..)
-      -- * Variables
-    , VarC
-    ) where
+module Kant.Term where
+    -- ( Id
+    -- , ConId
+    -- , HoleId
+    -- , NameId
+    -- , Ref
+    -- , TmScope
+    -- , TmScopeRef
+    -- , Tm(..)
+    -- , Data(..)
+    -- , dataId
+    -- , TmRef
+    -- , TmId
+    -- , TmRefId
+    -- , TmSyn
+    --   -- * Smart constructors
+    -- , lam
+    -- , arr
+    -- , app
+    --   -- * Smart destructors
+    -- , appV
+    -- , appHead
+    -- , binding
+    -- , bindingN
+    -- , dummyN
+    -- , scopeV
+    -- , scopeN
+    -- , arrLen
+    -- , annV
+    --   -- * Utils
+    -- , mapRef
+    -- , unRef
+    --   -- * Holes
+    -- , isHole
+    -- , HoleCtx(..)
+    --   -- * Variables
+    -- , VarC
+    -- ) where
 
+import           Control.Arrow ((***), (+++))
 import           Data.Foldable (Foldable, foldl1)
+import           Data.Monoid (Monoid(..))
 import           Data.Traversable (Traversable)
 import           Prelude hiding (foldl1)
 
@@ -54,6 +56,7 @@ import           Bound.Scope
 import           Data.Hashable (Hashable)
 import           Prelude.Extras
 
+import           Data.Bwd
 import           Kant.Common
 #include "../impossible.h"
 
@@ -70,7 +73,7 @@ type TmScopeRef = TmScope Ref
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
 -- terms...
 data Tm r v
-    = V v
+    = V (V v)
     | Ty r
     | Lam (TmScope r v)
     | Arr (Tm r v) (TmScope r v)
@@ -79,6 +82,19 @@ data Tm r v
     | Data Data [Tm r v]
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data V v = Twin v Twin | M v
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+getV :: V v -> v
+getV (Twin v _) = v
+getV (M v)      = v
+
+onlyV :: v -> Tm r v
+onlyV v = V (Twin v Only)
+
+data Twin = Only | TwinL | TwinR
+    deriving (Eq, Ord, Show, Read)
 
 data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecRewr ConId Id
     deriving (Eq, Ord, Show, Read)
@@ -93,16 +109,18 @@ type TmRef = Tm Ref
 type TmId r = Tm r Id
 type TmRefId = TmRef Id
 type TmSyn = Tm () Id
+type Ty = Tm
+type TyRef = Ty Ref
 
-instance (Eq r)   => Eq1 (Tm r)   where (==#)      = (==)
-instance (Ord r)  => Ord1 (Tm r)  where compare1   = compare
+instance (Eq r)   => Eq1   (Tm r) where (==#)      = (==)
+instance (Ord r)  => Ord1  (Tm r) where compare1   = compare
 instance (Show r) => Show1 (Tm r) where showsPrec1 = showsPrec
 instance (Read r) => Read1 (Tm r) where readsPrec1 = readsPrec
 
 instance Monad (Tm r) where
-    return = V
+    return v = V (Twin v Only)
 
-    V v        >>= f = f v
+    V v        >>= f = f (getV v)
     Ty r       >>= _ = Ty r
     Lam s      >>= f = Lam (s >>>= f)
     Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
@@ -142,6 +160,8 @@ bindingN s = case bindings s of
 dummyN :: NameId ()
 dummyN = Name "x" ()
 
+-- TODO is it bad here that I can extract a twin variable and then replace it
+-- with a normal one, for example in 'scopeN'?
 scopeV :: TmScope r v -> (NameId () -> Tm r v) -> (Maybe (NameId ()), Tm r v)
 scopeV s f =
     case bindings s of
@@ -149,7 +169,7 @@ scopeV s f =
         (n : _) -> (Just n, instantiate1 (f n) s)
 
 scopeN :: TmScope r Id -> (Maybe Id, TmId r)
-scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> V n)
+scopeN s = (name <$> mn, t) where (mn, t) = scopeV s (\(Name n _) -> return n)
 
 arrLen :: Tm r v -> Int
 arrLen (Arr _ s) = 1 + arrLen (fromScope s)
@@ -187,3 +207,39 @@ class (Hashable v, Ord v, Show v) => VarC v
 instance (Hashable a, Ord a, Show a) => VarC [a]
 instance (Hashable a, Ord a, Show a, Show n) => VarC (Name n a)
 instance (VarC b, VarC a) => VarC (Var b a)
+
+data Problem v = All (Param v) (TmScopeRef v)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data Param v = P (TyRef v) | Twins (TyRef v) (TyRef v)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data Equation v = Eqn (TmRef v) (TyRef v) (TmRef v) (TyRef v)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data Dec v = HOLE | DEFN (TmRef v)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+type ProbRef = Ref
+
+data ProblemState = Blocked | Active | Pending [ProbRef] | Solved | Failed
+    deriving (Eq, Ord, Show, Read)
+
+data Entry v = MV v (TyRef v) (Dec v)
+             | Prob ProbRef (Problem v) ProblemState
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+type Subs v = [(v, TmRef v)]
+
+data MCtx v = MCtx
+    { mLeft  :: Bwd (Entry v)
+    , mRight :: [Either (Subs v) (Entry v)]
+    } deriving (Eq, Ord, Show, Read)
+
+instance Monoid (MCtx v) where
+    mempty = MCtx mempty mempty
+    MCtx l₁ r₁ `mappend` MCtx l₂ r₂ = MCtx (l₁ `mappend` l₂) (r₁ `mappend` r₂)
+
+instance Functor MCtx where
+    fmap f (MCtx l r) = MCtx (fmap (fmap f) l) (map (map (f *** fmap f) +++ fmap f) r)
+

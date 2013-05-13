@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Reduce (nf, whnf) where
 
 import           Bound
@@ -12,7 +13,7 @@ import           Kant.Term
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
 
 reduce :: Reducer -> Reducer
-reduce r env t@(V v) =
+reduce r env t@(V (getV -> v)) =
     maybe t (reduce r env) (envBody env v)
 reduce _ _ (Ty r) = (Ty r)
 reduce r env (Lam s)    = Lam (reduceScope r env s)

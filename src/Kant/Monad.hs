@@ -18,7 +18,7 @@ module Kant.Monad
     , putEnv
     , nestM
     , nestPM
-    , lookupTy
+    , lookupVar
     , isRecM
     , addFreeM
     , addADTM
@@ -95,10 +95,11 @@ data KError
 
 instance Error KError
 
-newtype KMonad f v m a = KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
+newtype KMonad f v m a =
+    KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
     deriving (Functor, Applicative, Monad)
-type KMonadP = KMonad (Env Proxy)
-type KMonadT = KMonad (Env TmRef)
+type KMonadP = KMonad EnvP
+type KMonadT = KMonad EnvT
 type KMonadE f = KMonad (Env f)
 
 instance MonadTrans (KMonad f v) where
@@ -138,15 +139,16 @@ nestPM :: (Monad m, IsCursor c)
        => KMonad (c Proxy) (Var (NameId ()) v) m a -> KMonad (c Proxy) v m a
 nestPM = nestM Proxy
 
-lookupTy :: (VarC v, Monad m) => v -> KMonadT v m (TmRef v)
-lookupTy v =
+lookupVar :: (VarC v, Monad m) => v -> Twin -> KMonadT v m (TmRef v)
+lookupVar v w =
     do env <- getEnv
-       case envType env v of
+       case envVar env v w of
            Nothing -> KMonad (throwError (OutOfBounds (pull env v)))
            Just ty -> return ty
 
-isRecM :: (VarC v, Monad m) => v -> KMonadT v m Bool
-isRecM v = do env <- getEnv; return (isRec env v)
+isRecM :: (VarC v, Monad m) => V v -> KMonadT v m Bool
+isRecM (Twin v _) = do env <- getEnv; return (isRec env v)
+isRecM _          = return False
 
 addFreeM :: (VarC v, Monad m) => Id -> TmRefId -> Maybe TmRefId -> KMonadT v m ()
 addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)

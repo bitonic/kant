@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 module Kant.Distill (distill) where
 
 import           Control.Arrow (second)

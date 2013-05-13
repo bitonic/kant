@@ -38,20 +38,20 @@ tyInferNH t =
 
 type TyMonad f v m = KMonadE f v (WriterT [HoleCtx] m)
 type TyMonadP v m = TyMonad Proxy v m
-type TyMonadT v m = TyMonad TmRef v m
+type TyMonadT v m = TyMonad Param v m
 
 addHole :: Monad m => HoleCtx -> TyMonad f v m ()
 addHole hole = lift (tell [hole])
 
 tyInfer' :: (VarC v, Monad m) => TmRef v -> TyMonadT v m (TmRef v)
 tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
-tyInfer' (V v) = constrIfTy =<< lookupTy v
+tyInfer' (V (Twin v w)) = constrIfTy =<< lookupVar v w
 tyInfer' t@(Lam _) = untypedTm t
 tyInfer' (Arr ty₁ s) =
     do tyty₁ <- tyInfer' ty₁
        tyty₁' <- whnfM tyty₁
        case tyty₁' of
-           Ty r₁ -> nestM ty₁ $
+           Ty r₁ -> nestM (P ty₁) $
                     do let ty₂ = fromScope s
                        tyty₂ <- tyInfer' ty₂
                        tyty₂' <- whnfM tyty₂
@@ -66,7 +66,9 @@ tyInfer' (App t₁ t₂) =
        case tyt₁' of
            Arr ty₁ s -> do tyCheck t₂ ty₁; constrIfTy (instantiate1 t₂ s)
            _         -> expectingFunction t₁ tyt₁
-tyInfer' (Data d ts) = do env <- getEnv; tyInfer' (app (V (nest env (dataId d)) : ts))
+tyInfer' (Data d ts) =
+    do env <- getEnv
+       tyInfer' (app (onlyV (nest env (dataId d)) : ts))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
@@ -82,7 +84,7 @@ tyCheck = whnf₂ go
   where
     -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
-    go (Lam s₁) (Arr ty s₂) = nestM ty (go (fromScope s₁) (fromScope s₂))
+    go (Lam s₁) (Arr ty s₂) = nestM (P ty) (go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
            addHole =<< formHoleM hn ty (zip ts tys)
@@ -113,7 +115,7 @@ isProp :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m Bool
 isProp t₀ (Ty _) = whnf₁ go t₀
   where
     go :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
-    go (Arr ty s) = nestM ty (whnf₁ go (fromScope s))
+    go (Arr ty s) = nestM (P ty) (whnf₁ go (fromScope s))
     go (appV -> (t, pars)) =
         do t' <- whnfM t
            case t' of

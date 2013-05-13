@@ -9,7 +9,6 @@ module Kant.Elaborate (Elaborate(..)) where
 import           Control.Arrow ((***), second)
 import           Control.Monad (when, unless)
 import           Data.List (elemIndex)
-import           Data.Maybe (isJust)
 
 import           Control.Monad.Identity (Identity, runIdentity)
 
@@ -105,15 +104,15 @@ elabCon tyc dc ty =
            -- the top level.
            env <- getEnv
            let fvs  = freeVs env arg
-           unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
+           unless (not (HashSet.member tyc fvs) || appHead arg == onlyV (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
-           nestPM (goodTy (bmap F vs :< B dummyN) (fromScope s))
+           nestPM (goodTy (fmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
         -- tycon must be applied to the parameters, in order.
         do env <- getEnv
-           unless (arg == V (nest env tyc) &&
-                   and (zipWith (==) pars (map V (toList vs))))
+           unless (arg == onlyV (nest env tyc) &&
+                   and (zipWith (==) pars (map onlyV (toList vs))))
                   (expectingTypeData dc tyc ty)
 
 type ElabM v a = KMonad (Cursor Proxy) v Identity a
@@ -136,16 +135,16 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
         -- Then scope a "motive", which is a predicate on D, so we need to scope
         -- again all the parameters plus an instance of D with those parameters.
         do curs <- getEnv
-           let targs   = map V args
-               motive  = nestt (mkArr (app (V (nest curs tyc) : targs)) (Ty ref))
+           let targs   = map onlyV args
+               motive  = nestt (mkArr (app (onlyV (nest curs tyc) : targs)) (Ty ref))
                -- The variable that will refer to the motive
-               motiveV = V (B (Name "P" ()))
+               motiveV = onlyV (B (Name "P" ()))
                -- The arguments to the result of the functions, which will be `P
                -- args x' where args are the arguments for D and x is the instance
                -- of D. Note that the variable refers to the thing scoped just
                -- before the motive: `x'.
-               target  = V (F (B (Name "x" ())))
-           mkArr (app (V (nest curs tyc) : targs)) <$>
+               target  = onlyV (F (B (Name "x" ())))
+           mkArr (app (onlyV (nest curs tyc) : targs)) <$>
                  (mkArr motive <$>
                   nestPM (nestPM (methods (map (F . F) args) motiveV target cons)))
 
@@ -162,8 +161,8 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
 
     -- I can't use `telescope' because I need to bump the motiveV each time
     method :: Eq v
-           => [v]               -- Arguments to the tycon
-           -> ConId             -- Data con
+           => [v]             -- Arguments to the tycon
+           -> ConId           -- Data con
            -> TmRefId         -- Data con type
            -> TmRef v         -- Quantifiend motive `P'
            -> ElabM v (TmRef v)
@@ -182,13 +181,13 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
             go motiveV tyargs args (appV -> _) =
                 do curs <- getEnv
                    hyps dc motiveV
-                        (app (V (nest curs dc) : map V tyargs ++ map (V . fst) args))
+                        (app (onlyV (nest curs dc) : map onlyV tyargs ++ map (onlyV . fst) args))
                         args
         in do curs <- getEnv
               go motiveV₀ args₀ [] (discharge args₀ (nest curs <$> dcty))
 
     discharge [] dcty = dcty
-    discharge (arg : args) (Arr _ s) = discharge args (instantiate1 (V arg) s)
+    discharge (arg : args) (Arr _ s) = discharge args (instantiate1 (onlyV arg) s)
     discharge _ _ = IMPOSSIBLE("collected arguments don't match type")
 
     hyps :: Eq v
@@ -200,8 +199,8 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
     hyps _ motiveV motiveArg [] = return (app [motiveV, motiveArg])
     hyps dc motiveV motiveArg ((argv, (appV -> (tyh, _))) : args) =
         do curs <- getEnv
-           if tyh == V (cursNest curs tyc)
-             then mkArr (app [motiveV, V argv]) <$>
+           if tyh == onlyV (cursNest curs tyc)
+             then mkArr (app [motiveV, onlyV argv]) <$>
                         nestPM (hyps dc (nestt motiveV) (nestt motiveArg)
                                      (map (F *** nestt) args))
              else hyps dc motiveV motiveArg args
@@ -225,7 +224,7 @@ buildRewr i tyc dcs (ts :: [TmRef v]) =
 
     recs :: Int -> [TmRef v] -> TmRefId -> [TmRef v]
     recs n args (Arr (appV -> (tyHead, _)) s) =
-        (if tyHead == V tyc then [recuRewr (args !! n)] else []) ++
+        (if tyHead == onlyV tyc then [recuRewr (args !! n)] else []) ++
          -- It doesn't matter what we instantiate here
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
@@ -238,7 +237,7 @@ elimName tyc = tyc ++ "-Elim"
 checkDup :: (VarC v, Monad m) => Id -> KMonadT v m ()
 checkDup v =
     do env <- getEnv
-       when (isJust (envType env (nest env v))) (duplicateName v)
+       when (envDup env v) (duplicateName v)
 
 nestt :: Functor f => f a -> f (Var b a)
 nestt = fmap F
@@ -247,7 +246,7 @@ mkArr :: TmRef v -> TmRef (Var (NameId ()) v) -> TmRef v
 mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 
 instDummy :: TmScopeRef Id -> TmRefId
-instDummy s = instantiate1 (V "dummy") s
+instDummy s = instantiate1 (onlyV "dummy") s
 
 -- | Provided with a @(x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
 --   @(x1 : S1) -> ... -> (xn : Sn) -> f [x1..xn]@.
@@ -258,7 +257,7 @@ telescope f = go B0
   where
     go :: Eq v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = f (toList vs)
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
@@ -268,8 +267,8 @@ typedLam f ty = Ann ty (runElabM (go B0 ty))
   where
     go :: Eq v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr _ s) =
-        Lam <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
-    go vs _ = return (f (map V (toList vs)))
+        Lam <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
+    go vs _ = return (f (map onlyV (toList vs)))
 
 elabRecCon :: Monad m => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m ()
 elabRecCon tyc dc tycty projs =
@@ -283,7 +282,7 @@ elabRecCon tyc dc tycty projs =
     go₁ vs (Arr ty s) =
         let par = B (bindingN s)
         in  Arr ty <$>
-            (toScope <$> nestPM (go₁ (bmap F vs :< par) (fromScope s)))
+            (toScope <$> nestPM (go₁ (fmap F vs :< par) (fromScope s)))
     go₁ vs _ =
         do env <- getEnv
            go₂ vs (instProjs (toList vs) (map (second (fmap (nest env))) projs))
@@ -291,12 +290,12 @@ elabRecCon tyc dc tycty projs =
     go₂ :: VarC v => Bwd v -> [(Id, TmRef v)] -> ElabM v (TmRef v)
     go₂ vs [] =
         do env <- getEnv
-           return (app (V (nest env tyc) : map V (toList vs)))
+           return (app (onlyV (nest env tyc) : map onlyV (toList vs)))
     go₂ vs ((n, proj) : pjs) =
         do env <- getEnv
            let abproj v = if v == nest env n then Just (Name n ()) else Nothing
                pjs' = map (second (fromScope . abstract abproj)) pjs
-           Arr proj <$> (toScope <$> nestPM (go₂ (bmap F vs) pjs'))
+           Arr proj <$> (toScope <$> nestPM (go₂ (fmap F vs) pjs'))
 
 elabRecRewr :: Monad m
             => ConId                       -- Type con
@@ -312,24 +311,24 @@ elabRecRewr tyc tycty projns (n, proj) =
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
            let vs' = toList vs
-           Arr (app (map V (nest env tyc : vs'))) . toScope <$> nestPM (returnTy vs')
+           Arr (app (map onlyV (nest env tyc : vs'))) . toScope <$> nestPM (returnTy vs')
 
     returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TmRef (Var (NameId ()) v))
     returnTy (map F -> vs) =
         do env' <- getEnv
            let fixprojs v = if v `elem` map (nest env') projns
-                            then app (map V (v : vs ++ [B (Name "x" ())]))
-                            else V v
+                            then app (map onlyV (v : vs ++ [B (Name "x" ())]))
+                            else onlyV v
            return (fixprojs =<< (instProj vs (nest env' <$> proj)))
 
 instProj :: [v] -> Scope Int TmRef v  -> TmRef v
 instProj vs s = instantiate inst s
   where
-    inst i = if i < length vs then V (vs !! i)
+    inst i = if i < length vs then onlyV (vs !! i)
              else IMPOSSIBLE("Out of bound index in projection")
 
 instProjs :: [v] -> [(Id, Scope Int TmRef v)] -> [(Id, TmRef v)]

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 -- TODO I seem to override global names, check.
 module Kant.Uniquify (slam, formHole) where
 

@@ -7,7 +7,7 @@ module Kant.Env
     , EnvT
     , EnvP
     , EnvId
-    , envType
+    , envVar
     , envBody
     , envADT
     , envRec
@@ -16,6 +16,7 @@ module Kant.Env
     , addFree
     , addADT
     , addRec
+    , envDup
     ) where
 
 import           Control.Monad (join)
@@ -45,18 +46,23 @@ data Env f v = Env
     , envCurs    :: Cursor f v
     , envRef     :: Ref
     }
-type EnvT = Env TmRef
+type EnvT = Env Param
 type EnvP = Env Proxy
 
 instance IsCursor Env where
     getCurs = envCurs
     putCurs c env = env{envCurs = c}
 
-envType :: Eq v => EnvT v -> v -> Maybe (TmRef v)
-envType env@Env{envDefs = defs} v =
+envVar :: Eq v => EnvT v -> v -> Twin -> Maybe (TmRef v)
+envVar env@Env{envDefs = defs} v w =
     case free' env v of
         Just n  -> fmap (nest env) . fst <$> HashMap.lookup n defs
-        Nothing -> Just (ctx env v)
+        Nothing -> case (ctx env v, w) of
+                       (P ty,        Only ) -> Just ty
+                       (Twins ty _ , TwinL) -> Just ty
+                       (Twins _  ty, TwinR) -> Just ty
+                       -- TODO maybe dedicated error or crash in this case?
+                       _                    -> Nothing
 
 envBody :: Eq v => Env f v -> v -> Maybe (TmRef v)
 envBody env@Env{envDefs = defs} v =
@@ -100,3 +106,6 @@ addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}
 
 addRec :: EnvT v -> Id -> Record -> EnvT v
 addRec env@Env{envRecs = recs} n rec = env{envRecs = HashMap.insert n rec recs}
+
+envDup :: Env f v -> Id -> Bool
+envDup Env{envDefs = defs} n = HashMap.member n defs

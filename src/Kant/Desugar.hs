@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (first, second)

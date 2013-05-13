@@ -19,6 +19,7 @@ module Kant.Cursor
 
 import           Control.Applicative ((<$>))
 import           Data.Foldable (Foldable, foldMap)
+import           Data.Monoid (mempty)
 
 import           Bound
 import           Bound.Name
@@ -36,10 +37,11 @@ data Cursor f v = Cursor
     , cursNest   :: Id -> v
     , cursRename :: v -> (Id -> Id) -> v
     , cursCtx    :: Ctx f v
+    , cursMCtx   :: MCtx v
     }
 
-type CursorT = Cursor TmRef
-type CursorId = Cursor TmRef Id
+type CursorT = Cursor Param
+type CursorId = Cursor Param Id
 type CursorP = Cursor Proxy
 
 cursFree :: Eq v => Cursor f v -> v -> Bool
@@ -49,28 +51,26 @@ newCurs :: Cursor f Id
 newCurs = Cursor{ cursPull   = id
                 , cursNest   = id
                 , cursRename = flip ($)
-                , cursCtx    = const IMPOSSIBLE("looking up an empty ctx") }
+                , cursCtx    = const IMPOSSIBLE("looking up an empty ctx")
+                , cursMCtx   = mempty }
 
-nestCurs :: Functor f => Cursor f v -> f v -> Cursor f (Var (Name Id ()) v)
+nestCurs :: (Functor f) => Cursor f v -> f v -> Cursor f (Var (Name Id ()) v)
 nestCurs Cursor{ cursPull   = pull_
                , cursNest   = nest_
                , cursRename = rename
-               , cursCtx    = ctx_ } t =
+               , cursCtx    = ctx_
+               , cursMCtx   = mctx_ } t =
     Cursor{ cursPull   = \v -> case v of B n -> name n; F v' -> pull_ v'
           , cursNest   = F . nest_
           , cursRename = \v f -> case v of B (Name n ()) -> B (Name (f n) ())
                                            F v'          -> F (rename v' f)
           , cursCtx    = \v -> case v of B _  -> F <$> t
                                          F v' -> F <$> ctx_ v'
+          , cursMCtx   = F <$> mctx_
           }
 
 toCursP :: Cursor f v -> CursorP v
-toCursP Cursor{cursPull = pull_, cursNest = nest_, cursRename = rename} =
-    Cursor{ cursPull   = pull_
-          , cursNest   = nest_
-          , cursRename = rename
-          , cursCtx    = const Proxy
-          }
+toCursP curs = curs{ cursCtx = const Proxy }
 
 class IsCursor c where
     getCurs :: c f v -> Cursor f v
