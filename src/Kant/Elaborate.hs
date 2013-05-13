@@ -107,7 +107,7 @@ elabCon tyc dc ty =
            let fvs  = freeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
-           nestPM (goodTy (bmap F vs :< B dummyN) (fromScope s))
+           nestPM (goodTy (fmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
         -- tycon must be applied to the parameters, in order.
@@ -258,7 +258,7 @@ telescope f = go B0
   where
     go :: Eq v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = f (toList vs)
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
@@ -268,7 +268,7 @@ typedLam f ty = Ann ty (runElabM (go B0 ty))
   where
     go :: Eq v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr _ s) =
-        Lam <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+        Lam <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = return (f (map V (toList vs)))
 
 elabRecCon :: Monad m => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m ()
@@ -283,7 +283,7 @@ elabRecCon tyc dc tycty projs =
     go₁ vs (Arr ty s) =
         let par = B (bindingN s)
         in  Arr ty <$>
-            (toScope <$> nestPM (go₁ (bmap F vs :< par) (fromScope s)))
+            (toScope <$> nestPM (go₁ (fmap F vs :< par) (fromScope s)))
     go₁ vs _ =
         do env <- getEnv
            go₂ vs (instProjs (toList vs) (map (second (fmap (nest env))) projs))
@@ -296,7 +296,7 @@ elabRecCon tyc dc tycty projs =
         do env <- getEnv
            let abproj v = if v == nest env n then Just (Name n ()) else Nothing
                pjs' = map (second (fromScope . abstract abproj)) pjs
-           Arr proj <$> (toScope <$> nestPM (go₂ (bmap F vs) pjs'))
+           Arr proj <$> (toScope <$> nestPM (go₂ (fmap F vs) pjs'))
 
 elabRecRewr :: Monad m
             => ConId                       -- Type con
@@ -312,7 +312,7 @@ elabRecRewr tyc tycty projns (n, proj) =
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (bmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
            let vs' = toList vs
