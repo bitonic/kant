@@ -180,9 +180,9 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
                            (fromScope s))
             go motiveV tyargs args (appV -> _) =
                 do curs <- getEnv
-                   hyps dc motiveV
-                        (app (onlyV (nest curs dc) : map onlyV tyargs ++ map (onlyV . fst) args))
-                        args
+                   let args' = app (onlyV (nest curs dc) :
+                                    map onlyV tyargs ++ map (onlyV . fst) args)
+                   hyps dc motiveV args' args
         in do curs <- getEnv
               go motiveV₀ args₀ [] (discharge args₀ (nest curs <$> dcty))
 
