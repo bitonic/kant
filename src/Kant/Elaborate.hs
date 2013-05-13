@@ -329,7 +329,7 @@ elabRecRewr tyc tycty projns (n, proj) =
            let fixprojs v = if v `elem` map (nest env') projns
                             then app (map onlyV (v : vs ++ [B (Name "x" ())]))
                             else onlyV v
-           return (fixprojs =<< (instProj vs (nest env' <$> proj)))
+           return (fixprojs =<< instProj vs (nest env' <$> proj))
 
 instProj :: [v] -> Scope Int TmRef v  -> TmRef v
 instProj vs s = instantiate inst s
