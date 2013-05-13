@@ -104,7 +104,8 @@ elabCon tyc dc ty =
            -- the top level.
            env <- getEnv
            let fvs  = freeVs env arg
-           unless (not (HashSet.member tyc fvs) || appHead arg == onlyV (nest env tyc))
+           unless (not (HashSet.member tyc fvs) ||
+                   appHead arg == onlyV (nest env tyc))
                   (wrongRecTypePos dc tyc ty)
            nestPM (goodTy (fmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
@@ -257,7 +258,8 @@ telescope f = go B0
   where
     go :: Eq v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$>
+        (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = f (toList vs)
 
 -- | Provided with a @A = (x1 : S1) -> ... -> (xn : Sn) -> T@ returns a
@@ -306,18 +308,22 @@ elabRecRewr :: Monad m
 elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
-       addFreeM n projty (Just (typedLam (\vs -> Data (RecRewr tyc n) [last vs]) projty))
+       addFreeM n projty
+                (Just (typedLam (\vs -> Data (RecRewr tyc n) [last vs]) projty))
        return (n, projty)
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$>
+        (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
            let vs' = toList vs
-           Arr (app (map onlyV (nest env tyc : vs'))) . toScope <$> nestPM (returnTy vs')
+           Arr (app (map onlyV (nest env tyc : vs'))) . toScope <$>
+               nestPM (returnTy vs')
 
-    returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TmRef (Var (NameId ()) v))
+    returnTy :: VarC v
+             => [v] -> ElabM (Var (NameId ()) v) (TmRef (Var (NameId ()) v))
     returnTy (map F -> vs) =
         do env' <- getEnv
            let fixprojs v = if v `elem` map (nest env') projns
