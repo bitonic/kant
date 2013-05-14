@@ -139,9 +139,6 @@ whnf₁ :: (Monad m, VarC v) => (TmRef v -> TyMonad f v m a)
       -> TmRef v -> TyMonad f v m a
 whnf₁ m t = m =<< whnfM t
 
-simplify :: ProbRef -> Problem v -> [Problem v] -> TyMonadT v m ()
-simplify = undefined
-
 unify :: (VarC v, Monad m) => ProbRef -> Equation v -> TyMonadT v m ()
 unify n q@(Eqn (Arr a b) f (Arr s t) g) =
     do let x        = B dummyN
@@ -152,3 +149,27 @@ unify n q@(Eqn (Arr a b) f (Arr s t) g) =
        r <- freshRef
        simplify n (Unify q)
                 [Unify (Eqn (Ty r) a (Ty r) s), All (Twins a s) (Unify eqn)]
+unify n q@(Eqn (Data (tyc₁, TyCon Rec) tys₁) a (Data (tyc₂, TyCon Rec) tys₂) b)
+    | tyc₁ == tyc₂ = undefined
+unify n q@(Eqn _ (appV -> (V (Meta _), _)) _ (appV -> (V (Meta _), _))) =
+    tryPrune n q (tryPrune n (sym q) (flexFlex n q))
+unify n q@(Eqn _ (appV -> (V (Meta _), _)) _ (appV -> (V (Twin _ _), _))) =
+    tryPrune n q (flexRigid [] n q)
+unify n q@(Eqn _ (appV -> (V (Twin _ _), _)) _ (appV -> (V (Meta _), _))) =
+    tryPrune n (sym q) (flexRigid [] n (sym q))
+unify n q = rigidRigid q >>= simplify n (Unify q) . map Unify
+
+simplify :: ProbRef -> Problem v -> [Problem v] -> TyMonadT v m ()
+simplify n q rs = undefined
+
+flexFlex ::  ProbRef -> Equation v -> TyMonadT v m ()
+flexFlex n q = undefined
+
+flexRigid ::  [Entry v] -> ProbRef -> Equation v -> TyMonadT v m ()
+flexRigid xi n q = undefined
+
+tryPrune ::  ProbRef -> Equation v -> TyMonadT v m () -> TyMonadT v m ()
+tryPrune n q = undefined
+
+rigidRigid :: Equation v -> TyMonadT v m [Equation v]
+rigidRigid q = undefined

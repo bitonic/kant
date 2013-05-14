@@ -83,12 +83,12 @@ data Tm r v
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-data V v = Twin v Twin | M v
+data V v = Twin v Twin | Meta v
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 getV :: V v -> v
 getV (Twin v _) = v
-getV (M v)      = v
+getV (Meta v)   = v
 
 onlyV :: v -> Tm r v
 onlyV v = V (Twin v Only)
@@ -218,6 +218,9 @@ data Param v
 -- INVARIANT: Terms are always stored in WHNF here.
 data Equation v = Eqn (TmRef v) (TyRef v) (TmRef v) (TyRef v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+sym :: Equation v -> Equation v
+sym (Eqn ty₁ t₁ ty₂ t₂) = Eqn ty₂ t₂ ty₁ t₁
 
 data Dec v = HOLE | DEFN (TmRef v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
