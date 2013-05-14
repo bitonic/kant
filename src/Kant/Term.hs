@@ -63,11 +63,11 @@ import           Kant.Common
 type Id = String
 type ConId = Id
 type HoleId = String
-type NameId = Name Id
+type NameId = Name Id ()
 
 type Ref = Integer
 
-type TmScope r = Scope (NameId ()) (Tm r)
+type TmScope r = Scope NameId (Tm r)
 type TmScopeRef = TmScope Ref
 
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
@@ -147,22 +147,22 @@ appV t = (t, [])
 appHead :: Tm r v -> Tm r v
 appHead (appV -> (t, _)) = t
 
-binding :: TmScope r v -> Maybe (NameId ())
+binding :: TmScope r v -> Maybe NameId
 binding s = case bindings s of
                 []      -> Nothing
                 (n : _) -> Just n
 
-bindingN :: TmScope r v -> NameId ()
+bindingN :: TmScope r v -> NameId
 bindingN s = case bindings s of
                  []      -> dummyN
                  (n : _) -> n
 
-dummyN :: NameId ()
+dummyN :: NameId
 dummyN = Name "x" ()
 
 -- TODO is it bad here that I can extract a twin variable and then replace it
 -- with a normal one, for example in 'scopeN'?
-scopeV :: TmScope r v -> (NameId () -> Tm r v) -> (Maybe (NameId ()), Tm r v)
+scopeV :: TmScope r v -> (NameId -> Tm r v) -> (Maybe NameId, Tm r v)
 scopeV s f =
     case bindings s of
         []      -> (Nothing, instantiate1 IMPOSSIBLE("the impossible happened") s)

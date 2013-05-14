@@ -131,12 +131,12 @@ putEnv env = KMonad (put env)
 -- | Enters a scope with a certain value and type, runs an action on that new
 --   scope, and returns back to the outer scope.
 nestM :: (Monad m, IsCursor c, Functor f)
-      => f v -> KMonad (c f) (Var (NameId ()) v) m a -> KMonad (c f) v m a
+      => f v -> KMonad (c f) (Var NameId v) m a -> KMonad (c f) v m a
 nestM ty (KMonad m) =
     KMonad (StateT (\env -> second (restoreC env) <$> runStateT m (nestC env ty)))
 
 nestPM :: (Monad m, IsCursor c)
-       => KMonad (c Proxy) (Var (NameId ()) v) m a -> KMonad (c Proxy) v m a
+       => KMonad (c Proxy) (Var NameId v) m a -> KMonad (c Proxy) v m a
 nestPM = nestM Proxy
 
 lookupVar :: (VarC v, Monad m) => v -> Twin -> KMonadT v m (TmRef v)
