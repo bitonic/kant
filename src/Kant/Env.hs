@@ -75,7 +75,7 @@ envRec' Env{envRecs = recs} v = HashMap.lookup v recs
 envRec :: Eq v => Env f v -> ConId -> Record
 envRec env v =
     case envRec' env v of
-        Nothing  -> IMPOSSIBLE("lookinp up non-existant record")
+        Nothing  -> IMPOSSIBLE("looking up non-existant record")
         Just rec -> rec
 
 isRec :: Eq v => Env f v -> v -> Bool

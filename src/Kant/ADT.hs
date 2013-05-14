@@ -15,14 +15,16 @@ type Rewr = forall v. VarC v => [TmRef v] -> Maybe (TmRef v)
 --   checked for well formedness.  Moreover, the 'Rewrite'.
 data ADT = ADT
     { adtName :: ConId
-    , adtTy   :: TmRefId
-    , adtRewr :: Rewr
-    , adtCons :: Cons Ref
+    , adtTy   :: TmRefId        -- ^ Type of the tycon
+    , adtElim :: TmRefId        -- ^ Type of the eliminator
+    , adtRewr :: Rewr           -- ^ Rewrite rule for the eliminator
+    , adtCons :: Cons Ref       -- ^ Constructor types
     }
 
 data Record = Record
     { recName  :: ConId
-    , recTy    :: TmRefId
-    , recProjs :: [(Id, TmRefId)]
-    , recRewr  :: Id -> Rewr
+    , recTy    :: TmRefId          -- ^ Type of the tycon
+    , recCon   :: (ConId, TmRefId) -- ^ Constructor
+    , recProjs :: [(Id, TmRefId)]  -- ^ Types of the projections
+    , recRewr  :: Id -> Rewr       -- ^ Rewrite rules for the projections
     }

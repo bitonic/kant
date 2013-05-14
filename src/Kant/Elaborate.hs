@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 -- | This is largely ripped off fig. 9 of 'The View from the Left'.
-module Kant.Elaborate (Elaborate(..)) where
+module Kant.Elaborate (Elaborate(..), elimName) where
 
 import           Control.Arrow ((***), second)
 import           Control.Monad (when, unless)
@@ -49,38 +49,48 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Check that the type constructor returns a type
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the type of the tycon to scope
-           addFreeM tyc tycty Nothing
+           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon ADT_)) tycty))
            -- Create the functions that will form 'ADTCon's
            mapM (\(dc, dcty) -> elabCon tyc dc dcty) dcs
            eltyR <- freshRef
            let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
                eln   = elimName tyc                          -- D-elim name
                -- Function that will form the 'ADTRewr's
-               elfun = typedLam (Data (ADTRewr tyc)) elty
+               elfun = typedLam (Data (tyc, ADTRewr)) elty
            addFreeM eln elty (Just elfun)
            -- Add the actual ADT
            [] <$ addADTM tyc ADT{ adtName = tyc
                                 , adtTy   = tycty
+                                , adtElim = elty
                                 , adtRewr = buildRewr (arrLen tycty) tyc dcs
                                 , adtCons = dcs }
     elaborate (RecD (tyc, tycty) dc projs) =
+        -- This is a bit tricky, since we need the 'Record' in the env to
+        -- typecheck the projections, if we add the bodies of the tycon and the
+        -- projs themselves.  Thus, we first add the tycon and projections
+        -- abstractly, and then add the bodies.
         do checkDup tyc
            -- Tycheck type con
            tyInferNH tycty
            -- Returns a type...
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
-           -- Add the tycon
-           addFreeM tyc tycty Nothing
+           -- Add the tycon (no body)
+           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon Rec)) tycty))
            -- Add the projections types
            let projns = map fst projs
            -- Note that it is important to add the projections in this order, so
            -- that we typecheck them with regards to the previous fields only.
-           projtys <- mapM (elabRecRewr tyc tycty projns) projs
+           -- Also, we don't add the bodies yet.
+           elprojs <- mapM (elabRecRewr tyc tycty projns) projs
+           -- Now add the body of the tycon and projs.
+           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon Rec)) tycty))
+           sequence_ [addFreeM pr ty (Just t) | (pr, ty, t) <- elprojs]
            -- Finally, add the data constructor
-           elabRecCon tyc dc tycty projs
+           dcty <- elabRecCon tyc dc tycty projs
            [] <$ addRecM tyc Record{ recName  = tyc
                                    , recTy    = tycty
-                                   , recProjs = projtys
+                                   , recCon   = (dc, dcty)
+                                   , recProjs = [(pr, ty) | (pr, ty, _) <- elprojs]
                                    , recRewr  = buildRecRewr (arrLen tycty) projns }
 returnsTy :: TmRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
@@ -96,7 +106,8 @@ elabCon tyc dc ty =
     do checkDup dc
        tyInferNH ty -- The type of the datacon is well typed
        fromKMonadP (goodTy B0 ty) -- ...and well formed
-       let t = typedLam (Data (ADTCon dc)) ty -- Function that forms the 'ADTCon'
+       -- Function that forms the 'ADTCon'
+       let t = typedLam (Data (tyc, DataCon ADT_ dc)) ty
        addFreeM dc ty (Just t)
   where
     goodTy :: (VarC v, Monad m) => Bwd v -> TmRef v -> KMonadP v m ()
@@ -215,10 +226,10 @@ buildRewr i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
 buildRewr i tyc dcs (ts :: [TmRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
-        Data (ADTCon dc) args | Just j <- elemIndex dc (map fst dcs) ->
+        Data (_, DataCon ADT_ dc) args | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
             in Just (app (method : drop i args ++ recs 0 args dcty))
-        Data (ADTCon dc) _ -> IMPOSSIBLE("constructor not present: " ++ dc)
+        Data (_, DataCon ADT_ dc) _ -> IMPOSSIBLE("constructor not present: " ++ dc)
         _ -> Nothing
   where
     (pars, (t : motive : methods)) = splitAt i ts
@@ -230,7 +241,7 @@ buildRewr i tyc dcs (ts :: [TmRef v]) =
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
-    recuRewr x = Data (ADTRewr tyc) (pars ++ [x, motive] ++ methods)
+    recuRewr x = Data (tyc, ADTRewr) (pars ++ [x, motive] ++ methods)
 
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"
@@ -271,13 +282,15 @@ typedLam f ty = Ann ty (runElabM (go B0 ty))
         Lam <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = return (f (map V (toList vs)))
 
-elabRecCon :: Monad m => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m ()
+elabRecCon :: Monad m
+           => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m TmRefId
 elabRecCon tyc dc tycty projs =
     do let dcty = runElabM (go₁ B0 tycty)
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
-       addFreeM dc dcty (Just (typedLam (Data (RecCon dc)) dcty))
+       addFreeM dc dcty (Just (typedLam (Data (tyc, DataCon Rec dc)) dcty))
+       return dcty
   where
     go₁ :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go₁ vs (Arr ty s) =
@@ -299,16 +312,16 @@ elabRecCon tyc dc tycty projs =
            Arr proj <$> (toScope <$> nestPM (go₂ (fmap F vs) pjs'))
 
 elabRecRewr :: Monad m
-            => ConId                       -- Type con
+            => ConId                     -- Type con
             -> TmRefId                   -- Type con type
-            -> [Id   ]                     -- Projection names
+            -> [Id   ]                   -- Projection names
             -> (Id, Scope Int TmRef Id)  -- Current projection
-            -> KMonadT Id m (Id, TmRefId)
+            -> KMonadT Id m (Id, TmRefId, TmRefId)
 elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
-       addFreeM n projty (Just (typedLam (\vs -> Data (RecRewr tyc n) [last vs]) projty))
-       return (n, projty)
+       addFreeM n projty Nothing
+       return (n, projty, typedLam (\vs -> Data (tyc, RecRewr n) [last vs]) projty)
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
@@ -337,7 +350,7 @@ instProjs vs = map (second (instProj vs))
 
 buildRecRewr :: Int             -- Number of type parameters
              -> [Id] -> Id -> Rewr
-buildRecRewr pars projs pr [Data (RecCon _) ts]
+buildRecRewr pars projs pr [Data (_, DataCon Rec _) ts]
     | Just ix <- ixm, length projs + pars == length ts = Just (ts !! (pars + ix))
     | Nothing <- ixm = IMPOSSIBLE("projection not present: " ++ pr)
     | otherwise = IMPOSSIBLE("wrong number of record arguments")
