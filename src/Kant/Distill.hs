@@ -7,6 +7,7 @@ import           Control.Arrow (second)
 import           Bound
 
 import           Kant.Cursor
+import           Kant.Elaborate
 import           Kant.Sugar
 import           Kant.Term
 import           Kant.Uniquify
@@ -22,8 +23,10 @@ distill' t₁@(Lam _) = SLam vs (distill' t₂)
 distill' t₁@(Arr _ _) = SArr (map (second distill) pars) (distill' t₂)
   where (pars, t₂) = unrollArr t₁
 distill' (App t₁ t₂) = SApp (distill' t₁) (distill' t₂)
-distill' (Data (RecRewr _ n) ts) = sapp (SPrim n : map distill' ts)
-distill' (Data (dataId -> n) ts) = sapp (SPrim n : map distill' ts)
+distill' (Data (n, TyCon _) ts)      = sapp (SPrim n : map distill' ts)
+distill' (Data (_, DataCon _ dc) ts) = sapp (SPrim dc : map distill' ts)
+distill' (Data (tyc, ADTRewr) ts)    = sapp (SPrim (elimName tyc) : map distill' ts)
+distill' (Data (_, RecRewr n) ts)    = sapp (SPrim n : map distill' ts)
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
 distill' (Hole hn ts) = SHole hn (map distill ts)

@@ -79,7 +79,7 @@ data Tm r v
     | Arr (Tm r v) (TmScope r v)
     | App (Tm r v) (Tm r v)
     | Ann (Tm r v) (Tm r v)
-    | Data Data [Tm r v]
+    | Data (ConId, Data) [Tm r v]
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
@@ -96,14 +96,11 @@ onlyV v = V (Twin v Only)
 data Twin = Only | TwinL | TwinR
     deriving (Eq, Ord, Show, Read)
 
-data Data = ADTCon ConId | ADTRewr ConId | RecCon ConId | RecRewr ConId Id
+data Data = TyCon ADTRec | DataCon ADTRec ConId | ADTRewr | RecRewr Id
     deriving (Eq, Ord, Show, Read)
 
-dataId :: Data -> ConId
-dataId (ADTCon c)    = c
-dataId (ADTRewr c)   = c
-dataId (RecCon c)    = c
-dataId (RecRewr _ p) = p
+data ADTRec = ADT_ | Rec
+    deriving (Eq, Ord, Show, Read)
 
 type TmRef = Tm Ref
 type TmId r = Tm r Id

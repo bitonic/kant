@@ -19,6 +19,10 @@ module Kant.Monad
     , nestM
     , nestPM
     , lookupVar
+    , lookupDataTy
+    , lookupDataCon
+    , lookupElim
+    , lookupProj
     , isRecM
     , addFreeM
     , addADTM
@@ -54,6 +58,7 @@ module Kant.Monad
 
 import           Control.Applicative (Applicative)
 import           Control.Arrow (second)
+import           Data.Maybe (fromMaybe)
 
 import           Control.Monad.Error (Error, ErrorT(..), throwError, mapErrorT)
 import           Control.Monad.IO.Class (MonadIO(..))
@@ -74,12 +79,17 @@ import           Kant.Parser
 import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify
+#include "../impossible.h"
 
 data KError
     = OutOfBounds Id
     | DuplicateName Id
     | Mismatch TmRefId TmRefId TmRefId
-    | ExpectingFunction TmRefId TmRefId
+      -- TODO this could be made better.
+      -- ^ The 'Maybe' is there because sometimes we need to invoke this error
+      -- while working with primitive types and we don't really have anything to
+      -- show.
+    | ExpectingFunction (Maybe TmRefId) TmRefId
     | ExpectingType TmRefId TmRefId
     | ExpectingTypeCon ConId TmRefId
     | ExpectingTypeData ConId ConId TmRefId
@@ -146,6 +156,40 @@ lookupVar v w =
            Nothing -> KMonad (throwError (OutOfBounds (pull env v)))
            Just ty -> return ty
 
+doADTRec :: (VarC v, Monad m)
+         => ADTRec -> ConId -> (ADT -> a) -> (Record -> a) -> KMonadE f v m a
+doADTRec ADT_ tyc f _ = (f . (`envADT` tyc)) <$> getEnv
+doADTRec Rec  tyc _ f = (f . (`envRec` tyc)) <$> getEnv
+
+lookupDataTy :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (TmRef v)
+lookupDataTy dt tyc =
+    do env <- getEnv
+       fmap (nest env) <$> doADTRec dt tyc adtTy recTy
+
+lookupDataCon :: (VarC v, Monad m)
+              => ADTRec -> ConId -> ConId -> KMonadE f v m (TmRef v)
+lookupDataCon dt tyc dc =
+    do env <- getEnv
+       let err = IMPOSSIBLE("Constructor " ++ dc ++ " for " ++ tyc ++ " not present")
+       dcty <- doADTRec dt tyc
+                        (\adt -> fromMaybe err (lookup dc (adtCons adt)))
+                        (\rec -> case recCon rec of
+                                     (dc', ty) | dc == dc' -> ty
+                                     _ -> err)
+       return (nest env <$> dcty)
+
+lookupElim :: (VarC v, Monad m) => ConId -> KMonadE f v m (TmRef v)
+lookupElim tyc =
+    do env <- getEnv
+       return (nest env <$> adtElim (envADT env tyc))
+
+lookupProj :: (VarC v, Monad m) => ConId -> Id -> KMonadE f v m (TmRef v)
+lookupProj tyc pr =
+    do env <- getEnv
+       return $ case lookup pr (recProjs (envRec env tyc)) of
+                    Nothing -> IMPOSSIBLE("Projection not present")
+                    Just ty -> nest env <$> ty
+
 isRecM :: (VarC v, Monad m) => V v -> KMonadT v m Bool
 isRecM (Twin v _) = do env <- getEnv; return (isRec env v)
 isRecM _          = return False
@@ -201,8 +245,10 @@ expectingType :: (VarC v, Monad m, IsCursor c)
 expectingType t₁ t₂ = throwKError =<< ExpectingType <$> slamM t₁ <*> slamM t₂
 
 expectingFunction :: (VarC v, Monad m, IsCursor c)
-                  => TmRef v -> TmRef v -> KMonad (c f) v m a
-expectingFunction t₁ t₂ = throwKError =<< ExpectingFunction <$> slamM t₁ <*> slamM t₂
+                  => Maybe (TmRef v) -> TmRef v -> KMonad (c f) v m a
+expectingFunction tm t =
+    do tm' <- case tm of Nothing -> return Nothing; Just t' -> Just <$> slamM t'
+       throwKError =<< ExpectingFunction tm' <$> slamM t
 
 expectingTypeData :: (VarC v, Monad m, IsCursor c)
                   => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
