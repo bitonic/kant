@@ -243,7 +243,7 @@ checkDup v =
 nestt :: Functor f => f a -> f (Var b a)
 nestt = fmap F
 
-mkArr :: TmRef v -> TmRef (Var (NameId ()) v) -> TmRef v
+mkArr :: TmRef v -> TmRef (Var NameId v) -> TmRef v
 mkArr  t₁ t₂ = Arr t₁ (toScope t₂)
 
 instDummy :: TmScopeRef Id -> TmRefId
@@ -318,7 +318,7 @@ elabRecRewr tyc tycty projns (n, proj) =
            let vs' = toList vs
            Arr (app (map V (nest env tyc : vs'))) . toScope <$> nestPM (returnTy vs')
 
-    returnTy :: VarC v => [v] -> ElabM (Var (NameId ()) v) (TmRef (Var (NameId ()) v))
+    returnTy :: VarC v => [v] -> ElabM (Var NameId v) (TmRef (Var NameId v))
     returnTy (map F -> vs) =
         do env' <- getEnv
            let fixprojs v = if v `elem` map (nest env') projns
