@@ -51,6 +51,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon ADT_)) tycty))
            -- Create the functions that will form 'ADTCon's
            mapM (\(dc, dcty) -> elabCon tyc dc dcty) dcs
+           -- The eliminator types
            eltyR <- freshRef
            let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
                eln   = elimName tyc                          -- D-elim name

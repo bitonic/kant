@@ -138,3 +138,17 @@ whnf₂ m t₁ t₂ = join (m <$> whnfM t₁ <*> whnfM t₂)
 whnf₁ :: (Monad m, VarC v) => (TmRef v -> TyMonad f v m a)
       -> TmRef v -> TyMonad f v m a
 whnf₁ m t = m =<< whnfM t
+
+simplify :: ProbRef -> Problem v -> [Problem v] -> TyMonadT v m ()
+simplify = undefined
+
+unify :: (VarC v, Monad m) => ProbRef -> Equation v -> TyMonadT v m ()
+unify n q@(Eqn (Arr a b) f (Arr s t) g) =
+    do let x        = B dummyN
+           (xl, xr) = (V (Twin x TwinL), V (Twin x TwinR))
+       eqn <- fromKMonadP $ nestPM $
+              Eqn <$> whnfM (fromScope b) <*> whnfM (App (F <$> f) xl)
+                  <*> whnfM (fromScope t) <*> whnfM (App (F <$> g) xr)
+       r <- freshRef
+       simplify n (Unify q)
+                [Unify (Eqn (Ty r) a (Ty r) s), All (Twins a s) (Unify eqn)]

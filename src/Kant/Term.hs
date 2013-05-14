@@ -205,12 +205,17 @@ instance (Hashable a, Ord a, Show a) => VarC [a]
 instance (Hashable a, Ord a, Show a, Show n) => VarC (Name n a)
 instance (VarC b, VarC a) => VarC (Var b a)
 
-data Problem v = All (Param v) (TmScopeRef v)
+data Problem v
+    = All (Param v) (Problem (Var NameId v))
+    | Unify (Equation v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-data Param v = P (TyRef v) | Twins (TyRef v) (TyRef v)
+data Param v
+    = P (TyRef v)
+    | Twins (TyRef v) (TyRef v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
+-- INVARIANT: Terms are always stored in WHNF here.
 data Equation v = Eqn (TmRef v) (TyRef v) (TmRef v) (TyRef v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
@@ -222,8 +227,9 @@ type ProbRef = Ref
 data ProblemState = Blocked | Active | Pending [ProbRef] | Solved | Failed
     deriving (Eq, Ord, Show, Read)
 
-data Entry v = MV v (TyRef v) (Dec v)
-             | Prob ProbRef (Problem v) ProblemState
+data Entry v
+    = MV v (TyRef v) (Dec v)
+    | Prob ProbRef (Problem v) ProblemState
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 type Subs v = [(v, TmRef v)]
@@ -238,5 +244,5 @@ instance Monoid (MCtx v) where
     MCtx l₁ r₁ `mappend` MCtx l₂ r₂ = MCtx (l₁ `mappend` l₂) (r₁ `mappend` r₂)
 
 instance Functor MCtx where
-    fmap f (MCtx l r) = MCtx (fmap (fmap f) l) (map (map (f *** fmap f) +++ fmap f) r)
-
+    fmap f (MCtx l r) =
+        MCtx (fmap (fmap f) l) (map (map (f *** fmap f) +++ fmap f) r)
