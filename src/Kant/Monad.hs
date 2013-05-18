@@ -157,9 +157,9 @@ lookupVar v w =
            Just ty -> return ty
 
 doADTRec :: (VarC v, Monad m)
-         => ADTRec -> ConId -> (ADT -> a) -> (Record -> a) -> KMonadE f v m a
+         => ADTRec -> ConId -> (ADT -> a) -> (Rec -> a) -> KMonadE f v m a
 doADTRec ADT_ tyc f _ = (f . (`envADT` tyc)) <$> getEnv
-doADTRec Rec  tyc _ f = (f . (`envRec` tyc)) <$> getEnv
+doADTRec Rec_  tyc _ f = (f . (`envRec` tyc)) <$> getEnv
 
 lookupDataTy :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (TmRef v)
 lookupDataTy dt tyc =
@@ -200,7 +200,7 @@ addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)
 addADTM :: (Monad m) => ConId -> ADT -> KMonadT v m ()
 addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
 
-addRecM :: (Monad m) => ConId -> Record -> KMonadT v m ()
+addRecM :: (Monad m) => ConId -> Rec -> KMonadT v m ()
 addRecM n rec = do env <- getEnv; putEnv (addRec env n rec)
 
 freshRef :: (Monad m) => KMonadE f v m Ref

@@ -22,17 +22,17 @@ reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
         Lam s -> reduce r env (instantiate1 t₂ s)
         t₁'   -> App t₁' (reduce r env t₂)
-reduce r env (Data (c, ADTRewr) ts) =
+reduce r env (Rewr c (Elim ts)) =
     case adtRewr (envADT env c) ts' of
-        Nothing -> Data (c, ADTRewr) ts'
+        Nothing -> Rewr c (Elim ts')
         Just t  -> reduce r env t
   where ts' = map (reduce r env) ts
-reduce r env (Data (c, RecRewr n) ts) =
-    case recRewr (envRec env c) n ts' of
-        Nothing -> Data (c, RecRewr n) ts'
-        Just t  -> reduce r env t
-  where ts' = map (reduce r env) ts
-reduce r env (Data d ts) = Data d (map (reduce r env) ts)
+reduce r env (Rewr c (Proj n t)) =
+    case recRewr (envRec env c) n [t'] of
+        Nothing  -> Rewr c (Proj n t')
+        Just t'' -> reduce r env t''
+  where t' = reduce r env t
+reduce r env (Data ar c ct ts) = Data ar c ct (map (reduce r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 

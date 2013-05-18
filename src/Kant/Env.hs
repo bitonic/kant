@@ -41,7 +41,7 @@ type ConstrsRef = Constrs Ref
 data Env f v = Env
     { envDefs    :: HashMap Id (TmRefId, Maybe TmRefId)
     , envADTs    :: HashMap ConId ADT
-    , envRecs    :: HashMap ConId Record
+    , envRecs    :: HashMap ConId Rec
     , envConstrs :: ConstrsRef
     , envCurs    :: Cursor f v
     , envRef     :: Ref
@@ -75,10 +75,10 @@ envADT Env{envADTs = adts} v =
         Nothing  -> IMPOSSIBLE("looking up non-existant ADT")
         Just adt -> adt
 
-envRec' :: Eq v => Env f v -> ConId -> Maybe Record
+envRec' :: Eq v => Env f v -> ConId -> Maybe Rec
 envRec' Env{envRecs = recs} v = HashMap.lookup v recs
 
-envRec :: Eq v => Env f v -> ConId -> Record
+envRec :: Eq v => Env f v -> ConId -> Rec
 envRec env v =
     case envRec' env v of
         Nothing  -> IMPOSSIBLE("looking up non-existant record")
@@ -104,7 +104,7 @@ addFree env@Env{envDefs = defs} v ty mt =
 addADT :: EnvT v -> Id -> ADT -> EnvT v
 addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}
 
-addRec :: EnvT v -> Id -> Record -> EnvT v
+addRec :: EnvT v -> Id -> Rec -> EnvT v
 addRec env@Env{envRecs = recs} n rec = env{envRecs = HashMap.insert n rec recs}
 
 envDup :: Env f v -> Id -> Bool

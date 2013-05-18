@@ -60,10 +60,10 @@ tyInfer' (Arr ty₁ s) =
                            _       -> expectingType ty₂ tyty₂
            _ -> expectingType ty₁ tyty₁
 tyInfer' (App t₁ t₂) = do tyt₁ <- tyInfer' t₁; checkApp (Just t₁) tyt₁ [t₂]
-tyInfer' (Data (tyc, TyCon dt) ts)      = dataInfer ts =<< lookupDataTy dt tyc
-tyInfer' (Data (tyc, DataCon dt dc) ts) = dataInfer ts =<< lookupDataCon dt tyc dc
-tyInfer' (Data (tyc, ADTRewr) ts)       = dataInfer ts =<< lookupElim tyc
-tyInfer' (Data (tyc, RecRewr n) ts)     = dataInfer ts =<< lookupProj tyc n
+tyInfer' (Data ar tyc TyCon ts)       = dataInfer ts  =<< lookupDataTy ar tyc
+tyInfer' (Data ar tyc (DataCon c) ts) = dataInfer ts  =<< lookupDataCon ar tyc c
+tyInfer' (Rewr tyc (Elim ts))         = dataInfer ts  =<< lookupElim tyc
+tyInfer' (Rewr tyc (Proj n t))        = dataInfer [t] =<< lookupProj tyc n
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
@@ -112,8 +112,9 @@ eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
          <*> nestPM (eqRefs' (fromScope s₁) (fromScope s₂))
 eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs t'₁ t'₂
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
-eqRefs (Data d₁ ts₁) (Data d₂ ts₂) =
-    ((d₁ == d₂ &&) . and) <$> mapM (uncurry eqRefs) (zip ts₁ ts₂)
+eqRefs (Data ar₁ tyc₁ ct₁ ts₁) (Data ar₂ tyc₂ ct₂ ts₂) =
+    (((ar₁, tyc₁, ct₁) == (ar₂, tyc₂, ct₂) &&) . and) <$>
+    mapM (uncurry eqRefs) (zip ts₁ ts₂)
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 
@@ -149,7 +150,7 @@ unify n q@(Eqn (Arr a b) f (Arr s t) g) =
        r <- freshRef
        simplify n (Unify q)
                 [Unify (Eqn (Ty r) a (Ty r) s), All (Twins a s) (Unify eqn)]
-unify n q@(Eqn (Data (tyc₁, TyCon Rec) tys₁) a (Data (tyc₂, TyCon Rec) tys₂) b)
+unify n q@(Eqn (Data Rec_ tyc₁ TyCon tys₁) a (Data Rec_ tyc₂ TyCon tys₂) b)
     | tyc₁ == tyc₂ = undefined
 unify n q@(Eqn _ (appV -> (V (Meta _), _)) _ (appV -> (V (Meta _), _))) =
     tryPrune n q (tryPrune n (sym q) (flexFlex n q))
