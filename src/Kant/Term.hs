@@ -12,7 +12,9 @@ module Kant.Term
     , TmScope
     , TmScopeRef
     , Tm(..)
-    , Data(..)
+    , Con(..)
+    , Rewr(..)
+    , mapRewr
     , ADTRec(..)
     , TmRef
     , TmId
@@ -76,15 +78,23 @@ data Tm r v
     | Arr (Tm r v) (TmScope r v)
     | App (Tm r v) (Tm r v)
     | Ann (Tm r v) (Tm r v)
-    | Data (ConId, Data) [Tm r v]
+    | Data ADTRec ConId Con [Tm r v]
+    | Rewr ConId (Rewr r v)
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
-data Data = TyCon ADTRec | DataCon ADTRec ConId | ADTRewr | RecRewr Id
+data Con = TyCon | DataCon ConId
     deriving (Eq, Ord, Show, Read)
 
-data ADTRec = ADT_ | Rec
+data ADTRec = ADT_ | Rec_
     deriving (Eq, Ord, Show, Read)
+
+data Rewr r v = Elim [Tm r v] | Proj Id (Tm r v)
+    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+mapRewr :: Monad m => (Tm r₁ v₁ -> m (Tm r₂ v₂)) -> Rewr r₁ v₁ -> m (Rewr r₂ v₂)
+mapRewr f (Elim ts)  = Elim <$> mapM f ts
+mapRewr f (Proj n t) = Proj n <$> f t
 
 type TmRef = Tm Ref
 type TmId r = Tm r Id
@@ -99,14 +109,15 @@ instance (Read r) => Read1 (Tm r) where readsPrec1 = readsPrec
 instance Monad (Tm r) where
     return = V
 
-    V v        >>= f = f v
-    Ty r       >>= _ = Ty r
-    Lam s      >>= f = Lam (s >>>= f)
-    Arr ty s   >>= f = Arr (ty >>= f) (s >>>= f)
-    App t₁ t₂  >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Data d ts  >>= f = Data d (map (>>= f) ts)
-    Ann ty t   >>= f = Ann (ty >>= f) (t >>= f)
-    Hole hn ts >>= f = Hole hn (map (>>= f) ts)
+    V v             >>= f = f v
+    Ty r            >>= _ = Ty r
+    Lam s           >>= f = Lam (s >>>= f)
+    Arr ty s        >>= f = Arr (ty >>= f) (s >>>= f)
+    App t₁ t₂       >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Data ar c ct ts >>= f = Data ar c ct (map (>>= f) ts)
+    Rewr c re       >>= f = Rewr c (runIdentity (mapRewr (return . (>>= f)) re))
+    Ann ty t        >>= f = Ann (ty >>= f) (t >>= f)
+    Hole hn ts      >>= f = Hole hn (map (>>= f) ts)
 
 lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
@@ -157,14 +168,16 @@ annV (Ann _ t) = t
 annV t         = t
 
 mapRef :: (Monad m)  => (r₁ -> m r₂) -> Tm r₁ v -> m (Tm r₂ v)
-mapRef _ (V v)       = return (V v)
-mapRef f (Ty r)      = Ty <$> f r
-mapRef f (Lam s)     = Lam . toScope <$> mapRef f (fromScope s)
-mapRef f (Arr t s)   = Arr <$> mapRef f t <*> (toScope <$> mapRef f (fromScope s))
-mapRef f (App t₁ t₂) = App <$> mapRef f t₁ <*> mapRef f t₂
-mapRef f (Ann ty t)  = Ann <$> mapRef f ty <*> mapRef f t
-mapRef f (Data d ts) = Data d <$> mapM (mapRef f) ts
-mapRef f (Hole h ts) = Hole h <$> mapM (mapRef f) ts
+mapRef _ (V v)             = return (V v)
+mapRef f (Ty r)            = Ty <$> f r
+mapRef f (Lam s)           = Lam . toScope <$> mapRef f (fromScope s)
+mapRef f (Arr t s)         = Arr <$> mapRef f t
+                                 <*> (toScope <$> mapRef f (fromScope s))
+mapRef f (App t₁ t₂)       = App <$> mapRef f t₁ <*> mapRef f t₂
+mapRef f (Ann ty t)        = Ann <$> mapRef f ty <*> mapRef f t
+mapRef f (Data ar c ct ts) = Data ar c ct <$> mapM (mapRef f) ts
+mapRef f (Rewr c re)       = Rewr c <$> mapRewr (mapRef f) re
+mapRef f (Hole h ts)       = Hole h <$> mapM (mapRef f) ts
 
 unRef :: Tm r v -> Tm () v
 unRef = runIdentity . mapRef (const (return ()))

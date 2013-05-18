@@ -49,14 +49,14 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Check that the type constructor returns a type
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the type of the tycon to scope
-           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon ADT_)) tycty))
+           addFreeM tyc tycty (Just (typedLam (Data ADT_ tyc TyCon) tycty))
            -- Create the functions that will form 'ADTCon's
            mapM (\(dc, dcty) -> elabCon tyc dc dcty) dcs
            eltyR <- freshRef
            let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
                eln   = elimName tyc                          -- D-elim name
-               -- Function that will form the 'ADTRewr's
-               elfun = typedLam (Data (tyc, ADTRewr)) elty
+               -- Function that will form the 'Elim's
+               elfun = typedLam (Rewr tyc . Elim) elty
            addFreeM eln elty (Just elfun)
            -- Add the actual ADT
            [] <$ addADTM tyc ADT{ adtName = tyc
@@ -75,7 +75,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Returns a type...
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the tycon (no body)
-           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon Rec)) tycty))
+           addFreeM tyc tycty (Just (typedLam (Data Rec_ tyc TyCon) tycty))
            -- Add the projections types
            let projns = map fst projs
            -- Note that it is important to add the projections in this order, so
@@ -83,15 +83,15 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Also, we don't add the bodies yet.
            elprojs <- mapM (elabRecRewr tyc tycty projns) projs
            -- Now add the body of the tycon and projs.
-           addFreeM tyc tycty (Just (typedLam (Data (tyc, TyCon Rec)) tycty))
+           addFreeM tyc tycty (Just (typedLam (Data Rec_ tyc TyCon) tycty))
            sequence_ [addFreeM pr ty (Just t) | (pr, ty, t) <- elprojs]
            -- Finally, add the data constructor
            dcty <- elabRecCon tyc dc tycty projs
-           [] <$ addRecM tyc Record{ recName  = tyc
-                                   , recTy    = tycty
-                                   , recCon   = (dc, dcty)
-                                   , recProjs = [(pr, ty) | (pr, ty, _) <- elprojs]
-                                   , recRewr  = buildRecRewr (arrLen tycty) projns }
+           [] <$ addRecM tyc Rec{ recName  = tyc
+                                , recTy    = tycty
+                                , recCon   = (dc, dcty)
+                                , recProjs = [(pr, ty) | (pr, ty, _) <- elprojs]
+                                , recRewr  = buildRecRewr (arrLen tycty) projns }
 returnsTy :: TmRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True
@@ -107,7 +107,7 @@ elabCon tyc dc ty =
        tyInferNH ty -- The type of the datacon is well typed
        fromKMonadP (goodTy B0 ty) -- ...and well formed
        -- Function that forms the 'ADTCon'
-       let t = typedLam (Data (tyc, DataCon ADT_ dc)) ty
+       let t = typedLam (Data ADT_ tyc (DataCon dc)) ty
        addFreeM dc ty (Just t)
   where
     goodTy :: (VarC v, Monad m) => Bwd v -> TmRef v -> KMonadP v m ()
@@ -217,7 +217,7 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
                                      (map (F *** nestt) args))
              else hyps dc motiveV motiveArg args
 
-buildRewr :: Int -> ConId -> [(ConId, TmRefId)] -> Rewr
+buildRewr :: Int -> ConId -> [(ConId, TmRefId)] -> Rewr_
 -- The `i' is the number of parameters for the tycon, the first 1 for the
 -- motive, the second for the target, the third for the number of
 -- constructors.
@@ -226,10 +226,10 @@ buildRewr i _ dcs ts | length ts /= i + 1 + 1 + length dcs =
 buildRewr i tyc dcs (ts :: [TmRef v]) =
     case t of
         -- TODO should we assert that the arguments are of the right number?
-        Data (_, DataCon ADT_ dc) args | Just j <- elemIndex dc (map fst dcs) ->
+        Data ADT_ _ (DataCon dc) args | Just j <- elemIndex dc (map fst dcs) ->
             let method = methods !! j; dcty = snd (dcs !! j)
             in Just (app (method : drop i args ++ recs 0 args dcty))
-        Data (_, DataCon ADT_ dc) _ -> IMPOSSIBLE("constructor not present: " ++ dc)
+        Data ADT_ _ (DataCon dc) _ -> IMPOSSIBLE("constructor not present: " ++ dc)
         _ -> Nothing
   where
     (pars, (t : motive : methods)) = splitAt i ts
@@ -241,7 +241,7 @@ buildRewr i tyc dcs (ts :: [TmRef v]) =
         recs (n+1) args (instDummy s)
     recs _ _ _ = []
 
-    recuRewr x = Data (tyc, ADTRewr) (pars ++ [x, motive] ++ methods)
+    recuRewr x = Rewr tyc (Elim (pars ++ [x, motive] ++ methods))
 
 elimName :: ConId -> Id
 elimName tyc = tyc ++ "-Elim"
@@ -289,7 +289,7 @@ elabRecCon tyc dc tycty projs =
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
-       addFreeM dc dcty (Just (typedLam (Data (tyc, DataCon Rec dc)) dcty))
+       addFreeM dc dcty (Just (typedLam (Data Rec_ tyc (DataCon dc)) dcty))
        return dcty
   where
     go₁ :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
@@ -321,7 +321,7 @@ elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
        addFreeM n projty Nothing
-       return (n, projty, typedLam (\vs -> Data (tyc, RecRewr n) [last vs]) projty)
+       return (n, projty, typedLam (\[v] -> Rewr tyc (Proj n v)) projty)
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
@@ -349,8 +349,8 @@ instProjs :: [v] -> [(Id, Scope Int TmRef v)] -> [(Id, TmRef v)]
 instProjs vs = map (second (instProj vs))
 
 buildRecRewr :: Int             -- Number of type parameters
-             -> [Id] -> Id -> Rewr
-buildRecRewr pars projs pr [Data (_, DataCon Rec _) ts]
+             -> [Id] -> Id -> Rewr_
+buildRecRewr pars projs pr [Data Rec_ _ (DataCon _) ts]
     | Just ix <- ixm, length projs + pars == length ts = Just (ts !! (pars + ix))
     | Nothing <- ixm = IMPOSSIBLE("projection not present: " ++ pr)
     | otherwise = IMPOSSIBLE("wrong number of record arguments")
