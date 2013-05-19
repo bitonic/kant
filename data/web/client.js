@@ -5,12 +5,65 @@ var input  = document.getElementById("input");
 var sock = new WebSocket("ws://localhost:8000/repl");
 console.log("Created socket");
 
-function processInput() {
-  var s = input.value;
-  log.innerHTML += ">>> " + s + "\n";
-  input.value = "";
-  sock.send(s);
-}
+var processInput = (function () {
+  var sendInput = function () {
+    var s = input.value;
+    log.innerHTML += ">>> " + s + "\n";
+    input.value = "";
+    sock.send(s);
+  };
+
+  var history = [];
+  var cursor;
+  var current;
+
+  var reset = function () {
+    cursor = -1;
+    current = null;
+  };
+
+  reset();
+
+  var navigateHistory = function (up) {
+    if (current === null) {
+      current = input.value;
+    }
+    if (up && cursor < history.length - 1) {
+      cursor++;
+      input.value = history[cursor];
+    } else if (!up && cursor > -1) {
+      cursor--;
+      if (cursor === -1) {
+        input.value = current;
+      } else {
+        input.value = history[cursor];
+      }
+    }
+  };
+
+  var recordInput = function() {
+    history.unshift(input.value);
+    reset();
+  };
+
+  input.onkeydown = function (event) {
+    var keyCode = ('which' in event) ? event.which : event.keyCode;
+    if (keyCode === 38 || keyCode === 40) {
+      event.preventDefault();
+    }
+    if (keyCode === 38) {
+      navigateHistory(true);
+    }
+    if (keyCode === 40) {
+      navigateHistory(false);
+    }
+  };
+
+  return function () {
+    recordInput();
+    sendInput();
+  };
+})();
 
 sock.onopen = function () {
   console.log("Socket open");
@@ -20,10 +73,9 @@ sock.onopen = function () {
 sock.onmessage = function(event) {
   var resp = JSON.parse(event.data);
   var s = resp.body;
+  var class_ = "response";
   if (s.replace(/\s+/g, "") !== "") {
-    if (resp.status === "error") {
-      s = '<span class="error">' + s + '</span>';
-    }
-    log.innerHTML += s + "\n";
+    class_ = "error";
   }
+  log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
 };
