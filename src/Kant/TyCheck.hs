@@ -17,8 +17,6 @@ import           Kant.Common
 import           Kant.Monad
 import           Kant.Term
 
-import Debug.Trace
-
 tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
 --    trace (show t) $
