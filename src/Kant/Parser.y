@@ -112,7 +112,6 @@ Tm
 SingleTm :: { STmSyn }
 SingleTm
     : name                                   { SV $1 }
-    | '_'                                    { SMeta () }
     | Type                                   { $1 }
     | Hole                                   { $1 }
     | '(' Tm ')'                             { $2 }
