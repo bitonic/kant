@@ -12,6 +12,7 @@ import           Text.PrettyPrint.Leijen
 
 import           Kant.Distill
 import           Kant.Error
+import           Kant.Monad
 import           Kant.REPL.Types
 import           Kant.Sugar
 import           Kant.Term
@@ -133,3 +134,10 @@ instance Pretty Output where
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
+    pretty OHelp               =
+        "<decl>     Declare value/data type/record" <$$>
+        ":e <term>  Normalise" <$$>
+        ":p <term>  Pretty print" <$$>
+        ":l <file>  Load file" <$$>
+        ":r <file>  Reload file (erases previous environment)" <$$>
+        ":q         Quit"

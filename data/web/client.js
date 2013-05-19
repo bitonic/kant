@@ -72,10 +72,20 @@ sock.onopen = function () {
 
 sock.onmessage = function(event) {
   var resp = JSON.parse(event.data);
-  var s = resp.body;
+  var s = escapeHtml(resp.body);
   var class_ = "response";
-  if (s.replace(/\s+/g, "") !== "") {
+  if (s.replace(/\s+/g, "") === "") {
     class_ = "error";
   }
   log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
 };
+
+// Utils
+
+function escapeHtml(unsafe) {
+  return unsafe.replace(/&/g, "&amp;")
+               .replace(/</g, "&lt;")
+               .replace(/>/g, "&gt;")
+               .replace(/"/g, "&quot;")
+               .replace(/'/g, "&#039;");
+}

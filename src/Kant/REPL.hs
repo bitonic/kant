@@ -1,4 +1,5 @@
 -- TODO write usage
+{-# LANGUAGE OverloadedStrings #-}
 module Kant.REPL
     ( Input(..)
     , Output(..)
@@ -46,6 +47,7 @@ data Input
     | IPretty String
     | IQuit
     | ISkip
+    | IHelp
 
 class Monad m => ReadFile m where
     readFile' :: FilePath -> m (Either IOError String)
@@ -69,6 +71,7 @@ parseInput =
                , ('l', ILoad False . trim <$> rest)
                , ('r', ILoad True . trim <$> rest)
                , ('q', IQuit <$ Parsec.eof)
+               , ('h', IHelp <$ Parsec.eof)
                ]
 
 replInput :: ReadFile m => Input -> REPL m Output
@@ -89,6 +92,7 @@ replInput c =
        IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTmM s)
        IQuit      -> return OQuit
        ISkip      -> return OSkip
+       IHelp      -> return OHelp
   where
     readSafe fp =
         do se <- lift (readFile' fp)

@@ -11,3 +11,4 @@ data Output
     | OOK
     | OQuit
     | OSkip
+    | OHelp
