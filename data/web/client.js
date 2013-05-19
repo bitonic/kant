@@ -73,11 +73,10 @@ sock.onopen = function () {
 sock.onmessage = function(event) {
   var resp = JSON.parse(event.data);
   var s = escapeHtml(resp.body);
-  var class_ = "response";
-  if (s.replace(/\s+/g, "") === "") {
-    class_ = "error";
+  var class_ = (resp.status === "ok") ? "response" : "error";
+  if (s.replace(/\s+/g, "") !== "") {
+    log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
   }
-  log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
 };
 
 // Utils
