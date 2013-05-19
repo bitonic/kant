@@ -11,9 +11,10 @@ import           Test.HUnit
 import           Text.PrettyPrint.Leijen ((<$$>), nest)
 
 import           Kant.Env
+import           Kant.Error
 import           Kant.Monad
-import           Kant.REPL hiding (main)
 import           Kant.Pretty
+import           Kant.REPL hiding (main)
 import           Paths_kant
 
 dataFiles :: FilePath -> IO [FilePath]

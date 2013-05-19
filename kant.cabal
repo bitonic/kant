@@ -94,7 +94,7 @@ Executable kant-web
 Test-Suite kant-tests:
     Type:             exitcode-stdio-1.0
 
-    Main-Is:          Tests.hs
+    Main-Is:          tests.hs
 
     Ghc-Options:      -Wall -O2 -fno-warn-unused-do-bind
 
