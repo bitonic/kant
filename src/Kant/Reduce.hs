@@ -13,8 +13,9 @@ import           Kant.Term
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
 
 reduce :: Reducer -> Reducer
-reduce r env t@(V (getV -> v)) =
+reduce r env t@(V v _) =
     maybe t (reduce r env) (envBody env v)
+reduce _ _ (Meta r) = Meta r
 reduce _ _ (Ty r) = (Ty r)
 reduce r env (Lam s)    = Lam (reduceScope r env s)
 reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)

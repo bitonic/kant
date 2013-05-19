@@ -1,5 +1,4 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -fdefer-type-errors #-}
 module Kant.Distill (distill) where
 
 import           Control.Arrow (second)
@@ -16,7 +15,8 @@ distill :: TmId r -> STm r
 distill = distill' . slam newCurs
 
 distill' :: TmId r -> STm r
-distill' (V v) = SV v
+distill' (V v _) = SV v
+distill' (Meta r) = SMeta r
 distill' (Ty r) = STy r
 distill' t₁@(Lam _) = SLam vs (distill' t₂)
   where (vs, t₂) = unrollLam t₁
@@ -49,6 +49,6 @@ unrollAnn (Arr ty₁ s₁) (Lam s₂) = ((vn₂, ty₁) : pars, ty, t')
   where (vn₁, ty₂) = scopeN s₁
         (vn₂, t) = case vn₁ of
                        Nothing -> scopeN s₂
-                       Just v  -> (Just v, instantiate1 (V v) s₂)
+                       Just v  -> (Just v, instantiate1 (onlyV v) s₂)
         (pars, ty, t') = unrollAnn ty₂ t
 unrollAnn ty t = ([], ty, t)

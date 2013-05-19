@@ -26,12 +26,12 @@ data SDecl r
     = SVal Id [SParam r] (STm r) (STm r)
     | SPostulate Id (STm r)
     | SData ConId               -- Tycon
-            [(Id, STm r)]     -- Tycon pars
+            [(Id, STm r)]       -- Tycon pars
             [SConstr r]         -- Data cons
     | SRecord ConId             -- Tycon
-              [(Id, STm r)]   -- Tycon pars
+              [(Id, STm r)]     -- Tycon pars
               ConId             -- Datacon.
-              [(Id, STm r)]   -- Projections
+              [(Id, STm r)]    -- Projections
     deriving (Show)
 type SDeclSyn = SDecl ()
 type SDeclRef = SDecl Ref
@@ -46,6 +46,7 @@ type SConstr r = (ConId, STm r)
 data STm r
     = SV Id
     | STy r
+    | SMeta r
     | SLam [Maybe Id] (STm r)
     | SAnn [SParam r] (STm r) (STm r)
     | SApp (STm r) (STm r)
@@ -53,6 +54,6 @@ data STm r
     | SHole HoleId [STm r]
     | SPrim Id
     deriving (Show)
+
 type STmSyn = STm ()
 type STmRef = STm Ref
-

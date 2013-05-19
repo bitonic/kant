@@ -44,7 +44,8 @@ addHole hole = lift (tell [hole])
 
 tyInfer' :: (VarC v, Monad m) => TmRef v -> TyMonadT v m (TmRef v)
 tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
-tyInfer' (V (Twin v w)) = constrIfTy =<< lookupVar v w
+tyInfer' (Meta r) = undefined
+tyInfer' (V v w) = constrIfTy =<< lookupVar v w
 tyInfer' t@(Lam _) = untypedTm t
 tyInfer' (Arr ty₁ s) =
     do tyty₁ <- tyInfer' ty₁
@@ -104,7 +105,8 @@ tyCheck = whnf₂ go
 
 -- TODO maybe find a way to eliminate the explicit recursion?
 eqRefs :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
-eqRefs (V v₁) (V v₂) = return (v₁ == v₂)
+eqRefs (V v₁ w₁) (V v₂ w₂) = return ((v₁, w₁) == (v₂, w₂))
+eqRefs (Meta r₁) (Meta r₂) = return (r₁ == r₂)
 eqRefs (Ty r₁) (Ty r₂) = do addConstrs [r₁ :==: r₂]; return True
 eqRefs (Lam s₁) (Lam s₂) = nestPM (eqRefs' (fromScope s₁) (fromScope s₂))
 eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
@@ -129,7 +131,7 @@ isProp t₀ (Ty _) = whnf₁ go t₀
     go (appV -> (t, pars)) =
         do t' <- whnfM t
            case t' of
-               V v -> (&&) <$> isRecM v <*> (and <$> mapM (whnf₁ go) pars)
+               V v _ -> (&&) <$> isRecM v <*> (and <$> mapM (whnf₁ go) pars)
                _   -> return False
 isProp _ _ = return False
 
@@ -143,20 +145,22 @@ whnf₁ m t = m =<< whnfM t
 unify :: (VarC v, Monad m) => ProbRef -> Equation v -> TyMonadT v m ()
 unify n q@(Eqn (Arr a b) f (Arr s t) g) =
     do let x        = B dummyN
-           (xl, xr) = (V (Twin x TwinL), V (Twin x TwinR))
+           (xl, xr) = (V x TwinL, V x TwinR)
        eqn <- fromKMonadP $ nestPM $
               Eqn <$> whnfM (fromScope b) <*> whnfM (App (F <$> f) xl)
                   <*> whnfM (fromScope t) <*> whnfM (App (F <$> g) xr)
        r <- freshRef
        simplify n (Unify q)
                 [Unify (Eqn (Ty r) a (Ty r) s), All (Twins a s) (Unify eqn)]
+-- TODO we could assert that the number of arguments is the same.  Same story in
+-- 'rigidRigid'.
 unify n q@(Eqn (Data Rec_ tyc₁ TyCon tys₁) a (Data Rec_ tyc₂ TyCon tys₂) b)
     | tyc₁ == tyc₂ = undefined
-unify n q@(Eqn _ (appV -> (V (Meta _), _)) _ (appV -> (V (Meta _), _))) =
+unify n q@(Eqn _ (appV -> (Meta _, _)) _ (appV -> (Meta _, _))) =
     tryPrune n q (tryPrune n (sym q) (flexFlex n q))
-unify n q@(Eqn _ (appV -> (V (Meta _), _)) _ (appV -> (V (Twin _ _), _))) =
+unify n q@(Eqn _ (appV -> (Meta _, _)) _ _) =
     tryPrune n q (flexRigid [] n q)
-unify n q@(Eqn _ (appV -> (V (Twin _ _), _)) _ (appV -> (V (Meta _), _))) =
+unify n q@(Eqn _ _ _ (appV -> (Meta _, _))) =
     tryPrune n (sym q) (flexRigid [] n (sym q))
 unify n q = rigidRigid q >>= simplify n (Unify q) . map Unify
 
@@ -172,5 +176,42 @@ flexRigid xi n q = undefined
 tryPrune ::  ProbRef -> Equation v -> TyMonadT v m () -> TyMonadT v m ()
 tryPrune n q = undefined
 
-rigidRigid :: Equation v -> TyMonadT v m [Equation v]
+rigidRigid :: (VarC v, Monad m) => Equation v -> TyMonadT v m [Equation v]
+rigidRigid (Eqn (Ty ty₁) (Ty t₁) (Ty ty₂) (Ty t₂)) =
+    [] <$ addConstrs [ty₁ :==: ty₂, t₁ :==: t₂]
+rigidRigid (Eqn (Ty r₁) (Arr a b) (Ty r₂) (Arr s t)) =
+    do addConstrs [r₁ :==: r₂]
+       tya <- Ty <$> addConstrs' (\r -> [r :<=: r₁])
+       tyb <- Ty <$> addConstrs' (\r -> [r :<=: r₁])
+       tys <- Ty <$> addConstrs' (\r -> [r :<=: r₂])
+       tyt <- Ty <$> addConstrs' (\r -> [r :<=: r₂])
+       return [Eqn tya a tys s, Eqn (a --> tyb) (Lam b) (s --> tyt) (Lam t)]
+rigidRigid (Eqn (Ty r₁) (Data dt₁ tyc₁ TyCon ts₁) (Ty r₂) (Data dt₂ tyc₂ TyCon ts₂))
+    | tyc₁ == tyc₂ && dt₁ == dt₂ = undefined
+rigidRigid (Eqn _ (Rewr tyc₁ (Elim ts₁)) _ (Rewr tyc₂ (Elim ts₂)))
+    | tyc₁ == tyc₂ = undefined
+rigidRigid (Eqn _ (appV -> (V x w, ds)) _ (appV -> (V y w', es)))
+    | x == y =
+    do q@(Eqn _ xty _ yty) <- getTwins x w w'
+       (q :) <$> matchSpine xty (V x w) ds yty (V y w') es
 rigidRigid q = undefined
+
+getTwins :: (Monad m, VarC v) => v -> Twin -> Twin -> TyMonadT v m (Equation v)
+getTwins x w w' =
+    do xty <- lookupVar x w
+       yty <- lookupVar x w'
+       xtyty <- constrIfTy xty
+       ytyty <- constrIfTy yty
+       return (Eqn xtyty xty ytyty yty)
+
+matchSpine :: (VarC v, Monad m)
+           => TmRef v -> TmRef v -> [TmRef v]
+           -> TmRef v -> TmRef v -> [TmRef v]
+           -> TyMonadT v m [Equation v]
+matchSpine (Arr a b) u (a' : ds)
+           (Arr s t) v (s' : es) =
+    (Eqn a a' s s' :) <$> join
+    (matchSpine <$> whnfM (instantiate1 a' b) <*> whnfM (App u a') <*> return ds
+                <*> whnfM (instantiate1 s' t) <*> whnfM (App v s') <*> return es)
+matchSpine _ _ _ _ _ _ = undefined
+

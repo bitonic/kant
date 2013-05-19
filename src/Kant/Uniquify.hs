@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fdefer-type-errors #-}
 -- TODO I seem to override global names, check.
 module Kant.Uniquify (slam, formHole) where
 
@@ -47,10 +46,11 @@ uniquify env t =
     do collectFree env t
        mapM (addVar env) t
        (names, ixs) <- get
-       let t' = t >>= \v -> V (freshVar env v names)
+       let t' = t >>= \v -> onlyV (freshVar env v names)
        return (evalState (go t') ixs)
   where
-    go t'@(V _)           = return t'
+    go t'@(V _ _)         = return t'
+    go t'@(Meta _)        = return t'
     go t'@(Ty _)          = return t'
     go (Arr ty s)         = Arr <$> go ty <*> goScope s
     go (Lam s)            = Lam <$> goScope s
@@ -68,8 +68,9 @@ uniquify env t =
                 do ixs <- get
                    let (n', ixs') = addVar' n ixs
                        v' = B (Name n' ())
-                   put ixs' *> (toScope <$> go (substitute v' (V v') (fromScope s)))
-                            <* put ixs
+                   put ixs'
+                       *> (toScope <$> go (substitute v' (onlyV v') (fromScope s)))
+                       <* put ixs
 
 slam' :: VarC v => CursorP v -> Tm r v -> FreshMonad v (TmId r)
 slam' env t = (cursPull env <$>) <$> uniquify env t

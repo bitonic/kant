@@ -190,9 +190,8 @@ lookupProj tyc pr =
                     Nothing -> IMPOSSIBLE("Projection not present")
                     Just ty -> nest env <$> ty
 
-isRecM :: (VarC v, Monad m) => V v -> KMonadT v m Bool
-isRecM (Twin v _) = do env <- getEnv; return (isRec env v)
-isRecM _          = return False
+isRecM :: (VarC v, Monad m) => v -> KMonadT v m Bool
+isRecM v = do env <- getEnv; return (isRec env v)
 
 addFreeM :: (VarC v, Monad m) => Id -> TmRefId -> Maybe TmRefId -> KMonadT v m ()
 addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)

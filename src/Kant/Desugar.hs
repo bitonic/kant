@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -fdefer-type-errors #-}
 module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (first, second)
@@ -19,7 +18,8 @@ class Desugar a where
 instance r ~ () => Desugar (STm r) where
     type Core (STm r) = TmSyn
 
-    desugar (SV n) = V n
+    desugar (SV n) = onlyV n
+    desugar (SMeta ()) = Meta () 
     desugar (STy ()) = Ty ()
     desugar (SLam [] t) = desugar t
     desugar (SLam (vn : vs) t) = lam vn (desugar (SLam vs t))

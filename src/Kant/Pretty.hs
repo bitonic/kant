@@ -28,6 +28,7 @@ instance (v ~ Id) => Pretty (Tm r v) where
 
 instance Pretty (STm r) where
     pretty (SV v) = pretty v
+    pretty (SMeta _) = "_"
     pretty (STy _) = "*"
     pretty (SArr pars ty) = prettyPis pars <+> pretty ty
     pretty to@(SApp _ _) = go to

@@ -73,7 +73,8 @@ type TmScopeRef = TmScope Ref
 -- TODO make the treatment of holes better---e.g. don't treat them as normal
 -- terms...
 data Tm r v
-    = V (V v)
+    = V v Twin
+    | Meta r
     | Ty r
     | Lam (TmScope r v)
     | Arr (Tm r v) (TmScope r v)
@@ -83,16 +84,6 @@ data Tm r v
     | Rewr ConId (Rewr r v)
     | Hole HoleId [Tm r v]
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
-
-data V v = Twin v Twin | Meta v
-    deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
-
-getV :: V v -> v
-getV (Twin v _) = v
-getV (Meta v)   = v
-
-onlyV :: v -> Tm r v
-onlyV v = V (Twin v Only)
 
 data Twin = Only | TwinL | TwinR
     deriving (Eq, Ord, Show, Read)
@@ -123,9 +114,10 @@ instance (Show r) => Show1 (Tm r) where showsPrec1 = showsPrec
 instance (Read r) => Read1 (Tm r) where readsPrec1 = readsPrec
 
 instance Monad (Tm r) where
-    return v = V (Twin v Only)
+    return v = V v Only
 
-    V v             >>= f = f (getV v)
+    V v _           >>= f = f v
+    Meta r          >>= _ = Meta r
     Ty r            >>= _ = Ty r
     Lam s           >>= f = Lam (s >>>= f)
     Arr ty s        >>= f = Arr (ty >>= f) (s >>>= f)
@@ -135,6 +127,9 @@ instance Monad (Tm r) where
     Ann ty t        >>= f = Ann (ty >>= f) (t >>= f)
     Hole hn ts      >>= f = Hole hn (map (>>= f) ts)
 
+onlyV :: v -> Tm r v
+onlyV = flip V Only
+
 lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
 lam (Just v) t = Lam (abstract1Name v t)
@@ -142,6 +137,9 @@ lam (Just v) t = Lam (abstract1Name v t)
 arr :: Maybe Id -> TmId r -> TmId r -> TmId r
 arr Nothing  ty t = Arr ty (toScope (F <$> t))
 arr (Just v) ty t = Arr ty (abstract1Name v t)
+
+(-->) :: Tm r v -> Tm r v -> Tm r v
+ty₁ --> ty₂ = Arr ty₁ (toScope (F <$> ty₂))
 
 app :: Foldable t => t (Tm r v) -> Tm r v
 app = foldl1 App
@@ -186,7 +184,8 @@ annV (Ann _ t) = t
 annV t         = t
 
 mapRef :: (Monad m)  => (r₁ -> m r₂) -> Tm r₁ v -> m (Tm r₂ v)
-mapRef _ (V v)             = return (V v)
+mapRef _ (V v w)           = return (V v w)
+mapRef f (Meta r)          = Meta <$> f r
 mapRef f (Ty r)            = Ty <$> f r
 mapRef f (Lam s)           = Lam . toScope <$> mapRef f (fromScope s)
 mapRef f (Arr t s)         = Arr <$> mapRef f t
