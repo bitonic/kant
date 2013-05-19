@@ -10,7 +10,7 @@ import           Data.String (fromString)
 import           Control.Monad.Error (strMsg)
 import           Control.Monad.Reader (ReaderT, runReaderT, ask)
 import           Control.Monad.Trans (lift, MonadIO(..))
-import           System.FilePath ((</>), takeFileName)
+import           System.FilePath ((</>), splitFileName)
 
 import           Data.Aeson (ToJSON(..), (.=))
 import qualified Data.Aeson as Aeson
@@ -40,9 +40,9 @@ runDirRead = runReaderT . unDirRead
 instance ReadFile DirRead where
     readFile' fp =
         do dir <- DirRead ask
-           if takeFileName dir == dir
-              then DirRead (lift (readFile' (dir </> "samples-good" </> fp)))
-              else return (Left (strMsg "invalid path"))
+           if snd (splitFileName fp) == fp
+              then DirRead (lift (readFile' (dir </> fp)))
+              else return (Left (strMsg ("Invalid filename `" ++ fp ++ "'")))
 
 newtype REPLResult = REPLResult (Either KError Output)
 
@@ -55,23 +55,24 @@ instance ToJSON Output where
 instance ToJSON REPLResult where
     toJSON (REPLResult res) =
         Aeson.object
-            [ "response" .= (either (const "error") (const "ok") res :: String)
-            , "body"     .= either toJSON toJSON res ]
+            [ "status" .= (either (const "error") (const "ok") res :: String)
+            , "body"   .= either toJSON toJSON res ]
 
 repl :: EnvId -> String -> DirRead (EnvId, REPLResult)
 repl env₁ input =
-    do res <- liftIO (runKMonad env₁ (replLine input))
+    do res <- runKMonad env₁ (replLine input)
        case res of
            Left err          -> return (env₁, REPLResult (Left err))
            Right (out, env₂) -> return (env₂, REPLResult (quit out))
-  where quit OQuit = Left (strMsg "close your browser, fool!")
+  where quit OQuit = Left (strMsg "Close your browser, fool!")
         quit out   = Right out
 
 dataDir :: MonadIO m => m FilePath
 dataDir = liftIO ((</> "web") <$> getDataDir)
 
 session :: WebSockets.Request -> WebSockets Hybi00 ()
-session req = do WebSockets.acceptRequest req; (`go` newEnv) =<< dataDir
+session req = do WebSockets.acceptRequest req
+                 (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
   where
     go fp env =
         do msg <- WebSockets.receiveData

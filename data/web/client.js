@@ -1,14 +1,29 @@
-sock = new WebSocket("ws://localhost:8000/repl");
+var log    = document.getElementById("log");
+var prompt = document.getElementById("prompt");
+var input  = document.getElementById("input");
+
+var sock = new WebSocket("ws://localhost:8000/repl");
 console.log("Created socket");
-log = document.getElementById("log");
+
+function processInput() {
+  var s = input.value;
+  log.innerHTML += ">>> " + s + "\n";
+  input.value = "";
+  sock.send(s);
+}
+
 sock.onopen = function () {
-  log.innerHTML += "Socket open!<br>";
-  log.innerHTML += "Sending data...<br>";
-  sock.send(":t *");
+  console.log("Socket open");
+  prompt.onsubmit = processInput;
 };
+
 sock.onmessage = function(event) {
-  log.innerHTML += "Received data: " + event.data + "<br>";
-};
-sock.onclose = function (event) {
-  log.innerHTML += "Socket close!<br>";
+  var resp = JSON.parse(event.data);
+  var s = resp.body;
+  if (s.replace(/\s+/g, "") !== "") {
+    if (resp.status === "error") {
+      s = '<span class="error">' + s + '</span>';
+    }
+    log.innerHTML += s + "\n";
+  }
 };

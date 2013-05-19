@@ -1,0 +1,8 @@
+body {
+  width: 50em;
+}
+
+.error {
+  font-weight: bold;
+  color: red;
+}
