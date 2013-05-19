@@ -13,7 +13,6 @@ Homepage:             https://github.com/bitonic/kant
 Bug-Reports:          https://github.com/bitonic/kant/issues
 Extra-Source-Files:   src/impossible.h src/containers.h
 Data-Dir:             data
-Data-Files:           frequency, search.html
 
 Source-Repository head
     Type:             git
