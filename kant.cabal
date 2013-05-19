@@ -87,7 +87,7 @@ Executable kant-web
                       mtl,
                       snap-core,
                       snap-server,
-                      text,
+                      utf8-string,
                       websockets,
                       websockets-snap
 
