@@ -1,0 +1,40 @@
+
+data And : [A B : *] -> * =>
+    { and : A -> B -> And A B }
+
+fst [A B : *] [x : And A B] : A => (
+    And-Elim A B x (\_ => A) (\a _ => a)
+)
+
+snd [A B : *] [x : And A B] : B => (
+    And-Elim A B x (\_ => B) (\_ b => b)
+)
+
+data Or : [A B : *] -> * =>
+    { inl : A -> Or A B
+    | inr : B -> Or A B
+    }
+
+case [A B C : *] [x : Or A B] [f : A -> C] [g : B -> C] : C => (
+    Or-Elim A B x
+        (\_ => [C : *] -> (A -> C) -> (B -> C) -> C)
+        (\y _ f _ => f y)
+        (\y _ _ f => f y)
+        C f g
+)
+
+data Bot : * => { }
+
+absurd [p : Bot] [A : *] : A => (
+    Bot-Elim p (\_ => A)
+)
+
+not [A : *] : * => (A -> Bot)
+
+em-dn [em : [A : *] -> Or A (not A)] [A : *] [nnA : not (not A)] : A => (
+    case A (not A) A (em A) (\a => a) (\nota => absurd (nnA nota) A)
+)
+
+dn-em [dn : [A : *] -> not (not A) -> A] [A : *] : Or A (not A) => (
+    dn (Or A (not A)) (\x => x (inr A (not A) (\y => x (inl A (not A) y))))
+)

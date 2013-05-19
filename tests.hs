@@ -40,13 +40,13 @@ assertBad (Right _) = assertFailure "Expecting the REPL to succeed"
 
 goodSamples :: IO Test
 goodSamples =
-    do goodies <- dataFiles "samples-good"
+    do goodies <- dataFiles "samples/good"
        let ts = [test (loadFile fp >>= assertGood) | fp <- goodies]
        return (TestLabel "Good samples" (TestList ts))
 
 badSamples :: IO Test
 badSamples =
-    do baddies <- dataFiles "samples-bad"
+    do baddies <- dataFiles "samples/bad"
        let ts = [test (loadFile fp >>= assertBad) | fp <- baddies]
        return (TestLabel "Bad samples" (TestList ts))
 

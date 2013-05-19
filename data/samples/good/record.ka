@@ -1,0 +1,1 @@
+record Sigma : [A : *] [B : A -> *] -> * => si {fst : A, snd : B fst}
