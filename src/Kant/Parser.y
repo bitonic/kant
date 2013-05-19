@@ -79,7 +79,7 @@ Module : Seq0(Decl)                          { SModule $1 }
 
 Decl :: { SDeclSyn }
 Decl : Val                                   { $1 }
-     | 'postulate' name ':' SingleTm       { SPostulate $2 $4}
+     | 'postulate' name ':' SingleTm         { SPostulate $2 $4}
      | Data                                  { $1 }
      | Record                                { $1 }
 
@@ -93,28 +93,29 @@ Record
        {% do pars <- tyConPars (fst $4); return (SRecord $2 pars $6 $8) }
 
 Val :: { SDeclSyn }
-Val : name Seq0(Pi) ':' Tm '=>' SingleTm { SVal $1 (concat $2) $4 $6 }
+Val : name Seq0(Pi) ':' Tm '=>' SingleTm     { SVal $1 (concat $2) $4 $6 }
 
 DataCon :: { SConstr () }
-DataCon : name ':' Tm                      { ($1, $3) }
+DataCon : name ':' Tm                        { ($1, $3) }
 
 RecProj :: { (Id, STmSyn) }
-RecProj : name ':' Tm                      { ($1, $3) }
+RecProj : name ':' Tm                        { ($1, $3) }
 
 
 
 Tm :: { STmSyn }
 Tm
-    : '\\' Seq(Binder) '=>' Tm             { SLam $2 $4 }
-    | '\\' Seq0(LamParam) ':' Tm '=>' Tm { SAnn $2 $4 $6 }
+    : '\\' Seq(Binder) '=>' Tm               { SLam $2 $4 }
+    | '\\' Seq0(LamParam) ':' Tm '=>' Tm     { SAnn $2 $4 $6 }
     | Arr                                    { uncurry SArr $1 }
 
 SingleTm :: { STmSyn }
 SingleTm
     : name                                   { SV $1 }
+    | '_'                                    { SMeta () }
     | Type                                   { $1 }
     | Hole                                   { $1 }
-    | '(' Tm ')'                           { $2 }
+    | '(' Tm ')'                             { $2 }
 
 Type :: { STmSyn }
 Type : '*'                                   { STy () }
@@ -128,10 +129,10 @@ Arr1(X)
     | X                                      { ([], $1) }
 
 Pi  :: { [SParam ()] }
-Pi  : '[' Seq(Binder) ':' Tm ']'           { zip $2 (repeat $4) }
+Pi  : '[' Seq(Binder) ':' Tm ']'             { zip $2 (repeat $4) }
 
 App :: { STmSyn }
-App : Seq(SingleTm)                        { foldl1 SApp $1 }
+App : Seq(SingleTm)                          { foldl1 SApp $1 }
 
 Binder :: { Maybe Id }
 Binder
@@ -140,10 +141,10 @@ Binder
 
 LamParam :: { SParam () }
 LamParam
-    : '[' Binder ':' Tm ']'                { ($2, $4) }
+    : '[' Binder ':' Tm ']'                  { ($2, $4) }
 
 Hole :: { STmSyn }
-Hole : '{!' name Seq0(SingleTm) '!}'       { SHole $2 $3 }
+Hole : '{!' name Seq0(SingleTm) '!}'         { SHole $2 $3 }
 
 {
 
