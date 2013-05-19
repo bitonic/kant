@@ -11,7 +11,7 @@ import           Data.String (IsString(..))
 import           Text.PrettyPrint.Leijen
 
 import           Kant.Distill
-import           Kant.Monad
+import           Kant.Error
 import           Kant.REPL.Types
 import           Kant.Sugar
 import           Kant.Term

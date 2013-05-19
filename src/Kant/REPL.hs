@@ -2,6 +2,7 @@
 module Kant.REPL
     ( Input(..)
     , Output(..)
+    , ReadFile(..)
     , REPL
     , runKMonad
     , replInput
@@ -18,7 +19,7 @@ import           Control.Monad (msum, when, (>=>))
 import           Prelude hiding (catch)
 # endif
 
-import           Control.Monad.IO.Class (MonadIO(..))
+import           Control.Monad.Trans (lift, MonadIO(..))
 import qualified Text.Parsec as Parsec
 import           Text.Parsec.Char (anyChar, char)
 
@@ -29,6 +30,7 @@ import           System.Console.Haskeline.MonadException ()
 import           Kant.Common
 import           Kant.Elaborate
 import           Kant.Env
+import           Kant.Error
 import           Kant.Monad
 import           Kant.Pretty
 import           Kant.REPL.Types
@@ -44,6 +46,12 @@ data Input
     | IPretty String
     | IQuit
     | ISkip
+
+class Monad m => ReadFile m where
+    readFile' :: FilePath -> m (Either IOError String)
+
+instance ReadFile IO where
+    readFile' fp = catch (Right <$> readFile fp) (return . Left)
 
 type REPL m = KMonadT Id m
 
@@ -63,7 +71,7 @@ parseInput =
                , ('q', IQuit <$ Parsec.eof)
                ]
 
-replInput :: MonadIO m => Input -> REPL m Output
+replInput :: ReadFile m => Input -> REPL m Output
 replInput c =
    case c of
        ITyCheck s -> do t <- putRef =<< parseTmM s
@@ -83,12 +91,12 @@ replInput c =
        ISkip      -> return OSkip
   where
     readSafe fp =
-        do se <- liftIO (catch (Right <$> readFile fp) (return . Left))
+        do se <- lift (readFile' fp)
            case se of
                Left err -> throwKError (IOError err)
                Right s  -> return s
 
-replLine :: MonadIO m => String -> REPL m Output
+replLine :: ReadFile m => String -> REPL m Output
 replLine = parseInput >=> replInput
 
 repl :: MonadIO m => EnvId -> String -> m (Maybe EnvId)

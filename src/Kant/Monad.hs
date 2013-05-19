@@ -4,8 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Kant.Monad
     ( -- * Kant 'Monad'
-      KError(..)
-    , KMonadT
+      KMonadT
     , KMonadP
     , KMonadE
     , KMonad(KMonad)
@@ -60,11 +59,10 @@ import           Control.Applicative (Applicative)
 import           Control.Arrow (second)
 import           Data.Maybe (fromMaybe)
 
-import           Control.Monad.Error (Error, ErrorT(..), throwError, mapErrorT)
+import           Control.Monad.Error (ErrorT(..), throwError, mapErrorT)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.State (StateT(..), put, get, mapStateT)
 import           Control.Monad.Trans.Class (MonadTrans(..))
-import qualified Text.Parsec as Parsec
 
 import           Bound
 import           Data.Proxy
@@ -75,35 +73,12 @@ import           Kant.Common
 import           Kant.Cursor
 import           Kant.Decl
 import           Kant.Env
+import           Kant.Error
 import           Kant.Parser
 import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify
 #include "../impossible.h"
-
-data KError
-    = OutOfBounds Id
-    | DuplicateName Id
-    | Mismatch TmRefId TmRefId TmRefId
-      -- TODO this could be made better.
-      -- ^ The 'Maybe' is there because sometimes we need to invoke this error
-      -- while working with primitive types and we don't really have anything to
-      -- show.
-    | ExpectingFunction (Maybe TmRefId) TmRefId
-    | ExpectingType TmRefId TmRefId
-    | ExpectingTypeCon ConId TmRefId
-    | ExpectingTypeData ConId ConId TmRefId
-    | WrongRecTypePos ConId ConId TmRefId
-    | UntypedTm TmRefId
-    | UnexpectedHole HoleId
-    | CyclicTypes               -- TODO more descriptive
-      -- REPL errors
-    | CmdParse Parsec.ParseError
-    | TmParse ParseError
-    | IOError IOError
-    deriving (Show)
-
-instance Error KError
 
 newtype KMonad f v m a = KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
     deriving (Functor, Applicative, Monad)

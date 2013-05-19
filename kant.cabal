@@ -51,6 +51,7 @@ Library
                       Kant.Distill,
                       Kant.Elaborate,
                       Kant.Env,
+                      Kant.Error,
                       Kant.Monad,
                       Kant.Parser
                       Kant.Pretty,
@@ -73,6 +74,23 @@ Executable kant
 
     Build-Depends:    base >= 3 && < 5,
                       kant
+
+Executable kant-web
+    Main-Is:          kant-web.hs
+
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+
+    Build-Depends:    base >= 3 && < 5,
+                      kant,
+                      aeson,
+                      bytestring,
+                      filepath,
+                      mtl,
+                      snap-core,
+                      snap-server,
+                      text,
+                      websockets,
+                      websockets-snap
 
 Test-Suite kant-tests:
     Type:             exitcode-stdio-1.0
