@@ -2,7 +2,9 @@ var log    = document.getElementById("log");
 var prompt = document.getElementById("prompt");
 var input  = document.getElementById("input");
 
-var sock = new WebSocket("ws://localhost:8000/repl");
+var sock = new WebSocket(
+  "ws://" + window.location.hostname + ":" + window.location.port + "/repl");
+
 console.log("Created socket");
 
 var processInput = (function () {
