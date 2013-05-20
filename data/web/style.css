@@ -5,17 +5,20 @@ body, html {
 body {
   margin: 0;
   padding: 0;
-  background-color: #191919;
+  background-color: white;
+  /* background-color: #f2eee6; */
+  color: black;
+  font-family: Georgia, Garamond, serif;
 }
 
 h1 {
-  display: inline;
-  margin-top: 0.5em;
+  margin: 0;
+  padding: 0;
 }
 
 .error {
   font-weight: bold;
-  color: #ec5454;
+  color: #a40000;
 }
 
 .response {
@@ -23,9 +26,11 @@ h1 {
 }
 
 #left {
-  background-color: black;
-  color: white;
-  float: left;
+  background-color: #f0f0f0;
+  color: black;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 50em;
   padding: 0;
   margin: 0 1em 0 0;
@@ -47,11 +52,11 @@ h1 {
 }
 
 .active {
-  background-color: black;
+  background-color: #f0f0f0;
 }
 
 .waiting {
-  background-color: #252525;
+  background-color: #c8c8c8;
 }
 
 #log {
@@ -62,6 +67,21 @@ h1 {
 #input {
   background-color: transparent;
   border: none;
-  color: white;
+  color: black;
   font-family: monospace;
+}
+
+#right {
+  padding: 0.5em;
+  float: left;
+  position: absolute;
+  left: 42em;
+  top: 0;
+  margin: 0;
+}
+
+#right p {
+  margin-left: 1em;
+  text-align: justify;
+  width: 30em;
 }
