@@ -1,3 +1,3 @@
 #!/bin/sh
 export kant_datadir=`pwd`/data
-./dist/build/kant/kant
+./dist/build/kant/kant "$@"
