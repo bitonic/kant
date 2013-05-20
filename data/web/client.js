@@ -65,6 +65,7 @@ var processInput = (function () {
 
   return function (event) {
     // Prevent commands being sent until this one is received
+    prompt.className = "waiting";
     prompt.onsubmit = function (event) {
       event.preventDefault();
     };
@@ -90,6 +91,7 @@ sock.onmessage = function (event) {
   input.scrollIntoView();
   // Re-allow sending of commands
   prompt.onsubmit = processInput;
+  prompt.className = "active";
 };
 
 sock.onclose = function (event) {

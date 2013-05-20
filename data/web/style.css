@@ -37,7 +37,15 @@ h1 {
 
 #prompt {
   margin: 0;
-  padding: 0 0.5em 0.5em 0.5em;
+  padding: 0.5em;
+}
+
+.active {
+  background-color: black;
+}
+
+.waiting {
+  background-color: #252525;
 }
 
 #log {
