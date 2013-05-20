@@ -61,7 +61,8 @@ var processInput = (function () {
     }
   };
 
-  return function () {
+  return function (event) {
+    event.preventDefault();
     recordInput();
     sendInput();
   };
