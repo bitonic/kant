@@ -82,6 +82,12 @@ sock.onmessage = function(event) {
   }
 };
 
+sock.onclose = function (event) {
+  prompt.innerHTML =
+    '<span class="error">Websocket error, code ' + event.code +
+    ', reason: ' + event.reason + '</span>';
+};
+
 // Utils
 
 function escapeHtml(unsafe) {
