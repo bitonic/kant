@@ -44,9 +44,7 @@ var processInput = (function () {
   };
 
   var recordInput = function() {
-    if (!onlyWhiteSpace(input.value)) {
-      history.unshift(input.value);
-    }
+    history.unshift(input.value);
     reset();
   };
 
@@ -64,15 +62,17 @@ var processInput = (function () {
   };
 
   return function (event) {
-    // Prevent commands being sent until this one is received
-    prompt.className = "waiting";
-    prompt.onsubmit = function (event) {
-      event.preventDefault();
-    };
     // Don't let the form do an action (e.g. refresh page)
     event.preventDefault();
-    recordInput();
-    sendInput();
+    if (!onlyWhiteSpace(input.value)) {
+      // Prevent commands being sent until this one is received
+      prompt.className = "waiting";
+      prompt.onsubmit = function (event) {
+        event.preventDefault();
+      };
+      recordInput();
+      sendInput();
+    }
   };
 })();
 

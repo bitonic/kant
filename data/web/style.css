@@ -3,18 +3,23 @@ body, html {
 }
 
 body {
-  font-family: monospace;
   margin: 0;
   padding: 0;
+  background-color: #191919;
 }
 
 h1 {
   display: inline;
+  margin-top: 0.5em;
 }
 
 .error {
   font-weight: bold;
   color: red;
+}
+
+.response {
+  font-weight: bold;
 }
 
 #left {
@@ -23,10 +28,12 @@ h1 {
   float: left;
   width: 50em;
   padding: 0;
-  margin: 0;
+  margin: 0 1em 0 0;
   height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
+  direction: ltr;
   overflow-x: hidden;
+  font-family: monospace;
 }
 
 #input {
