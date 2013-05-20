@@ -38,7 +38,7 @@ instance Pretty (STm r) where
     pretty (SHole hn ts) = "{!" <> pretty hn <+> hsep (map singleParens ts) <> "!}"
     pretty (SAnn pars ty t) =
         "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
-    pretty (SPrim n) = "$" <> pretty n
+    pretty (SPrim n) = pretty n
 
 nest' :: Doc -> Doc
 nest' = nest 2
