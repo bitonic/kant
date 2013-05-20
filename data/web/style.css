@@ -44,6 +44,11 @@ h1 {
   margin: 0;
   padding: 0;
   width: 80%;
+  background-color: transparent;
+  border: none;
+  color: black;
+  font-family: monospace;
+  font-size: 1em;
 }
 
 #prompt {
@@ -62,13 +67,6 @@ h1 {
 #log {
   margin: 0;
   padding: 0.5em 0.5em 0 0.5em;
-}
-
-#input {
-  background-color: transparent;
-  border: none;
-  color: black;
-  font-family: monospace;
 }
 
 #right {

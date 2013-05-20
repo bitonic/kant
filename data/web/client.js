@@ -8,10 +8,16 @@ var sock = new WebSocket(
 
 console.log("Created socket");
 
+function scrollToBottom() {
+  // Show the input prompt
+  left.scrollTop = input.offsetTop;
+}
+
 var processInput = (function () {
   var sendInput = function () {
     var s = input.value;
-    log.innerHTML += ">>> " + s + "\n";
+    log.appendChild(logSpan(">>> " + s));
+    scrollToBottom();
     input.value = "";
     sock.send(s);
   };
@@ -87,9 +93,8 @@ sock.onmessage = function (event) {
   var s = escapeHtml(resp.body);
   if (!onlyWhiteSpace(s)) {
     log.appendChild(logSpan(s, resp.status === "ok" ? "response" : "error"));
+    scrollToBottom();
   }
-  // Show the input prompt
-  left.scrollTop = input.offsetTop;
   // Re-allow sending of commands
   prompt.onsubmit = processInput;
   prompt.className = "active";
