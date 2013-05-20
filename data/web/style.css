@@ -89,9 +89,11 @@ body {
 }
 
 #right p {
-  margin-left: 1em;
+  margin-left: 0.5em;
   text-align: justify;
   width: 30em;
+  padding: 0.3em 0.5em;
+  text-indent: 1em;
 }
 
 ::-webkit-scrollbar {
