@@ -71,8 +71,9 @@ dataDir :: MonadIO m => m FilePath
 dataDir = liftIO ((</> "web") <$> getDataDir)
 
 session :: WebSockets.Request -> WebSockets Hybi00 ()
-session req = do WebSockets.acceptRequest req
-                 (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
+session req =
+    do WebSockets.acceptRequest req
+       (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
   where
     go fp env =
         do msg <- WebSockets.receiveData
@@ -81,8 +82,10 @@ session req = do WebSockets.acceptRequest req
            go fp env'
 
 app :: Snap ()
-app = Snap.path "repl" (WebSockets.runWebSocketsSnap session) <|>
-      (Snap.serveDirectory =<< dataDir)
+-- TODO maybe something more sensible for the timeout
+app = Snap.path "repl" (Snap.extendTimeout 10000 >>
+                        WebSockets.runWebSocketsSnap session)
+      <|> (Snap.serveDirectory =<< dataDir)
 
 main :: IO ()
 main = Snap.quickHttpServe app
