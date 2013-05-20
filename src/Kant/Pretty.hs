@@ -135,6 +135,7 @@ instance Pretty Output where
     pretty OSkip               = ""
     pretty OHelp               =
         "<decl>     Declare value/data type/record" <$$>
+        ":t <term>  Typecheck" <$$>
         ":e <term>  Normalise" <$$>
         ":p <term>  Pretty print" <$$>
         ":l <file>  Load file" <$$>
