@@ -1,6 +1,7 @@
 var log    = document.getElementById("log");
 var prompt = document.getElementById("prompt");
 var input  = document.getElementById("input");
+var left   = document.getElementById("left");
 
 var sock = new WebSocket(
   "ws://" + window.location.hostname + ":" + window.location.port + "/repl");
@@ -88,7 +89,7 @@ sock.onmessage = function (event) {
     log.appendChild(logSpan(s, resp.status === "ok" ? "response" : "error"));
   }
   // Show the input prompt
-  input.scrollIntoView();
+  left.scrollTop = input.offsetTop;
   // Re-allow sending of commands
   prompt.onsubmit = processInput;
   prompt.className = "active";
