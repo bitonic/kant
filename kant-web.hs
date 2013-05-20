@@ -1,3 +1,4 @@
+-- TODO More sensible timeouts
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -15,7 +16,7 @@ import           System.FilePath ((</>), splitFileName)
 import           Data.Aeson (ToJSON(..), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.UTF8 as ByteString
-import           Network.WebSockets (WebSockets, Hybi00)
+import           Network.WebSockets (WebSockets, Hybi10)
 import qualified Network.WebSockets as WebSockets
 import qualified Network.WebSockets.Snap as WebSockets
 import           Snap.Core (Snap)
@@ -70,9 +71,10 @@ repl env₁ input =
 dataDir :: MonadIO m => m FilePath
 dataDir = liftIO ((</> "web") <$> getDataDir)
 
-session :: WebSockets.Request -> WebSockets Hybi00 ()
+session :: WebSockets.Request -> WebSockets Hybi10 ()
 session req =
     do WebSockets.acceptRequest req
+       WebSockets.spawnPingThread 5
        (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
   where
     go fp env =
@@ -83,7 +85,7 @@ session req =
 
 app :: Snap ()
 -- TODO something more sensible for the timeout
-app = Snap.path "repl" (Snap.extendTimeout 10000 >>
+app = Snap.path "repl" (Snap.modifyTimeout (const 10) >>
                         WebSockets.runWebSocketsSnap session)
       <|> (Snap.serveDirectory =<< dataDir)
 
