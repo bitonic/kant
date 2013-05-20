@@ -44,7 +44,9 @@ var processInput = (function () {
   };
 
   var recordInput = function() {
-    history.unshift(input.value);
+    if (!onlyWhiteSpace(input.value)) {
+      history.unshift(input.value);
+    }
     reset();
   };
 
@@ -81,7 +83,7 @@ sock.onopen = function () {
 sock.onmessage = function (event) {
   var resp = JSON.parse(event.data);
   var s = escapeHtml(resp.body);
-  if (s.replace(/\s+/g, "") !== "") {
+  if (!onlyWhiteSpace(s)) {
     log.appendChild(logSpan(s, resp.status === "ok" ? "response" : "error"));
   }
   // Show the input prompt
@@ -114,4 +116,8 @@ function escapeHtml(unsafe) {
                .replace(/>/g, "&gt;")
                .replace(/"/g, "&quot;")
                .replace(/'/g, "&#039;");
+}
+
+function onlyWhiteSpace(s) {
+  return s.replace(/\s+/g, "") === "";
 }
