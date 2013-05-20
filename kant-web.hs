@@ -82,7 +82,7 @@ session req =
            go fp env'
 
 app :: Snap ()
--- TODO maybe something more sensible for the timeout
+-- TODO something more sensible for the timeout
 app = Snap.path "repl" (Snap.extendTimeout 10000 >>
                         WebSockets.runWebSocketsSnap session)
       <|> (Snap.serveDirectory =<< dataDir)
