@@ -16,8 +16,8 @@ var processInput = (function () {
   };
 
   var history = [];
-  var cursor;
-  var current;
+  var cursor;                   // Index in the history.
+  var current;                  // What the user has typed without submitting
 
   var reset = function () {
     cursor = -1;
@@ -62,6 +62,9 @@ var processInput = (function () {
   };
 
   return function (event) {
+    // Prevent commands being sent until this one is received
+    prompt.onsubmit = function (event) { };
+    // Don't let the form do an action (e.g. refresh page)
     event.preventDefault();
     recordInput();
     sendInput();
@@ -80,6 +83,8 @@ sock.onmessage = function(event) {
   if (s.replace(/\s+/g, "") !== "") {
     log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
   }
+  // Re-allow sending of commands
+  prompt.onsubmit = processInput;
 };
 
 sock.onclose = function (event) {
