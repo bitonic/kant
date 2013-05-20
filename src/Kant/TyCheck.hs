@@ -19,7 +19,6 @@ import           Kant.Term
 
 tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
---    trace (show t) $
     do (ty, holes) <- mapKMonad run (tyInfer' t)
        return (ty, reverse holes)
   where
