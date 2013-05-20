@@ -1,8 +1,53 @@
+body, html {
+  height: 100%;
+}
+
 body {
-  width: 50em;
+  font-family: monospace;
+  margin: 0;
+  padding: 0;
+}
+
+h1 {
+  display: inline;
 }
 
 .error {
   font-weight: bold;
   color: red;
+}
+
+#left {
+  background-color: black;
+  color: white;
+  float: left;
+  width: 50em;
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+#input {
+  margin: 0;
+  padding: 0;
+  width: 80%;
+}
+
+#prompt {
+  margin: 0;
+  padding: 0 0.5em 0.5em 0.5em;
+}
+
+#log {
+  margin: 0;
+  padding: 0.5em 0.5em 0 0.5em;
+}
+
+#input {
+  background-color: transparent;
+  border: none;
+  color: white;
+  font-family: monospace;
 }

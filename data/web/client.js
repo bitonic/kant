@@ -78,22 +78,33 @@ sock.onopen = function () {
   prompt.onsubmit = processInput;
 };
 
-sock.onmessage = function(event) {
+sock.onmessage = function (event) {
   var resp = JSON.parse(event.data);
   var s = escapeHtml(resp.body);
-  var class_ = (resp.status === "ok") ? "response" : "error";
   if (s.replace(/\s+/g, "") !== "") {
-    log.innerHTML += '<span class="' + class_ + '">' + s + '\n</span>';
+    log.appendChild(logSpan(s, resp.status === "ok" ? "response" : "error"));
   }
+  // Show the input prompt
+  input.scrollIntoView();
   // Re-allow sending of commands
   prompt.onsubmit = processInput;
 };
 
 sock.onclose = function (event) {
-  prompt.innerHTML =
-    '<span class="error">Websocket error, code ' + event.code +
-    ', reason: ' + event.reason + '</span>';
+  prompt.innerHTML = "";
+  var err = "Websocket error, code " + event.code +
+            (event.reason ? (", reason: " + event.reason) : "") + ".";
+  prompt.appendChild(logSpan(err, "error"));
 };
+
+function logSpan(s, class_) {
+  var sp = document.createElement('span');
+  if (class_) {
+    sp.setAttribute('class', class_);
+  }
+  sp.innerHTML = s + "\n";
+  return sp;
+}
 
 // Utils
 
