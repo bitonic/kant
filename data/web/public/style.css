@@ -88,12 +88,28 @@ body {
   font-family: Georgia, Garamond, serif;
 }
 
-#right p {
+#content {
   margin-left: 0.5em;
+}
+
+#content h2 {
+  font-size: 2em;
+  margin: 1em 0.5em 0.5em 0;
+}
+
+#content h3 {
+  font-size: 1.3em;
+  margin: 0.7em 0 0.3em 0.5em;
+}
+
+#content p {
   text-align: justify;
   width: 30em;
   padding: 0.3em 0.5em;
-  text-indent: 2em;
+}
+
+#content ul {
+  margin: 0.3em 0.8em;
 }
 
 ::-webkit-scrollbar {

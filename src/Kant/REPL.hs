@@ -76,23 +76,25 @@ parseInput =
 
 replInput :: ReadFile m => Input -> REPL m Output
 replInput c =
-   case c of
-       ITyCheck s -> do t <- putRef =<< parseTmM s
-                        (ty, holes) <- tyInfer t
-                        ty' <- nfM ty
-                        return (OTyCheck ty' holes)
-       IEval s    -> do t <- putRef =<< parseTmM s
-                        tyInfer t
-                        OPretty <$> nfM t
-       IDecl s    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s)
-       ILoad r fp -> do when r (putEnv newEnv)
-                        s <- readSafe fp
-                        m <- putRef =<< parseModuleM s
-                        OHoles <$> elaborate m
-       IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTmM s)
-       IQuit      -> return OQuit
-       ISkip      -> return OSkip
-       IHelp      -> return OHelp
+    -- When we typecheck we restore the old environment, so that stuff like
+    -- constraints and references don't uselessly pile up
+    case c of
+        ITyCheck s -> do t <- putRef =<< parseTmM s
+                         (ty, holes) <- restoreEnv (tyInfer t)
+                         ty' <- nfM ty
+                         return (OTyCheck ty' holes)
+        IEval s    -> do t <- putRef =<< parseTmM s
+                         restoreEnv (tyInfer t)
+                         OPretty <$> nfM t
+        IDecl s    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s)
+        ILoad r fp -> do when r (putEnv newEnv)
+                         s <- readSafe fp
+                         m <- putRef =<< parseModuleM s
+                         OHoles <$> elaborate m
+        IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTmM s)
+        IQuit      -> return OQuit
+        ISkip      -> return OSkip
+        IHelp      -> return OHelp
   where
     readSafe fp =
         do se <- lift (readFile' fp)

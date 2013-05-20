@@ -15,6 +15,7 @@ import           System.FilePath ((</>), splitFileName)
 
 import           Data.Aeson (ToJSON(..), (.=))
 import qualified Data.Aeson as Aeson
+import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.UTF8 as ByteString
 import           Network.WebSockets (WebSockets, Hybi10)
 import qualified Network.WebSockets as WebSockets
@@ -23,6 +24,7 @@ import           Snap.Core (Snap)
 import qualified Snap.Core as Snap
 import qualified Snap.Http.Server as Snap
 import qualified Snap.Util.FileServe as Snap
+import           Text.Pandoc
 
 import           Kant.Env
 import           Kant.Error
@@ -68,9 +70,6 @@ repl env₁ input =
   where quit OQuit = Left (strMsg "Close your browser, fool!")
         quit out   = Right out
 
-dataDir :: MonadIO m => m FilePath
-dataDir = liftIO ((</> "web") <$> getDataDir)
-
 session :: WebSockets.Request -> WebSockets Hybi10 ()
 session req =
     do WebSockets.acceptRequest req
@@ -83,11 +82,23 @@ session req =
            WebSockets.sendTextData (Aeson.encode res)
            go fp env'
 
-app :: Snap ()
+app :: ByteString -> Snap ()
 -- TODO something more sensible for the timeout
-app = Snap.path "repl" (Snap.modifyTimeout (const 10) >>
-                        WebSockets.runWebSocketsSnap session)
-      <|> (Snap.serveDirectory =<< dataDir)
+app ix =
+    Snap.path "repl" (Snap.modifyTimeout (const 10) >>
+                      WebSockets.runWebSocketsSnap session)
+    <|> Snap.path "" (Snap.writeLBS ix)
+    <|> (Snap.serveDirectory =<< publicDir)
+
+publicDir :: MonadIO m => m FilePath
+publicDir = liftIO ((</> "web/public") <$> getDataDir)
+
+index :: IO String
+index =
+    do dir <- getDataDir
+       tmpl <- readFile (dir </> "web/index-template.html")
+       md <- readMarkdown def <$> readFile (dir </> "docs/overview.md")
+       return (writeHtmlString def{writerStandalone = True, writerTemplate = tmpl} md)
 
 main :: IO ()
-main = Snap.quickHttpServe app
+main = Snap.quickHttpServe . app . ByteString.fromString =<< index

@@ -15,6 +15,7 @@ module Kant.Monad
       -- * Environment actions
     , getEnv
     , putEnv
+    , restoreEnv
     , nestM
     , nestPM
     , lookupTy
@@ -111,6 +112,9 @@ getEnv = KMonad get
 
 putEnv :: Monad m => f v -> KMonad f v m ()
 putEnv env = KMonad (put env)
+
+restoreEnv :: Monad m => KMonad f v m a -> KMonad f v m a
+restoreEnv m = do env <- getEnv; x <- m; putEnv env; return x
 
 -- | Enters a scope with a certain value and type, runs an action on that new
 --   scope, and returns back to the outer scope.

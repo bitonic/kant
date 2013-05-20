@@ -85,6 +85,7 @@ Executable kant-web
                       bytestring,
                       filepath,
                       mtl,
+                      pandoc,
                       snap-core,
                       snap-server,
                       utf8-string,
