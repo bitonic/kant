@@ -94,7 +94,7 @@ instance Pretty KError where
     pretty (DuplicateName n) = "Duplicate name `" <> pretty n <> "'"
     pretty (Mismatch ty₁ t ty₂) =
         group (nest' ("Expecting type" <$> pretty ty₁) <$>
-               nest' ("for term" <$> pretty (show t)) <$>
+               nest' ("for term" <$> pretty t) <$>
                nest' ("instead of" <$> pretty ty₂))
     pretty (ExpectingFunction (Just t) ty) =
         group (nest' ("Expecting function type for term" <$> pretty t) <$>
