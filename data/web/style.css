@@ -45,7 +45,7 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 50em;
+  width: 45em;
   margin: 0 1em 0 0;
   height: 100%;
   overflow: auto;
@@ -81,7 +81,7 @@ body {
 #right-wrap {
   padding: 0.5em;
   top: 0;
-  margin: 0 0 0 52em;
+  margin: 0 0 0 47em;
 }
 
 #right {
@@ -92,4 +92,16 @@ body {
   margin-left: 1em;
   text-align: justify;
   width: 30em;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.3);
 }
