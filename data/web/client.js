@@ -63,7 +63,9 @@ var processInput = (function () {
 
   return function (event) {
     // Prevent commands being sent until this one is received
-    prompt.onsubmit = function (event) { };
+    prompt.onsubmit = function (event) {
+      event.preventDefault();
+    };
     // Don't let the form do an action (e.g. refresh page)
     event.preventDefault();
     recordInput();
