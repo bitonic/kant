@@ -9,12 +9,14 @@ module Kant.REPL
     , replInput
     , replLine
     , repl
+    , banner
     , main
     ) where
 
 import           Control.Applicative ((<|>))
 import           Control.Exception (catch)
 import           Control.Monad (msum, when, (>=>))
+import           Data.Version (showVersion)
 
 # if __GLASGOW_HASKELL__ < 706
 import           Prelude hiding (catch)
@@ -38,6 +40,7 @@ import           Kant.REPL.Types
 import           Kant.Ref
 import           Kant.Term
 import           Kant.TyCheck
+import           Paths_kant
 
 data Input
     = ITyCheck String
@@ -116,23 +119,13 @@ repl env₁ input =
 
 run :: EnvId -> InputT IO ()
 run env =
-    do sm <- getInputLine "> "
+    do sm <- getInputLine ">>> "
        case sm of
            Nothing -> run env
            Just s  -> maybe (return ()) run =<< repl env s
 
 banner :: String
-banner = "      ___           ___           ___\n" ++
-         "     /__/|         /  /\\         /__/\\          ___\n" ++
-         "    |  |:|        /  /::\\        \\  \\:\\        /  /\\\n" ++
-         "    |  |:|       /  /:/\\:\\        \\  \\:\\      /  /:/\n" ++
-         "  __|  |:|      /  /:/~/::\\   _____\\__\\:\\    /  /:/\n" ++
-         " /__/\\_|:|____ /__/:/ /:/\\:\\ /__/::::::::\\  /  /::\\\n" ++
-         " \\  \\:\\/:::::/ \\  \\:\\/:/__\\/ \\  \\:\\~~\\~~\\/ /__/:/\\:\\\n" ++
-         "  \\  \\::/~~~~   \\  \\::/       \\  \\:\\  ~~~  \\__\\/  \\:\\\n" ++
-         "   \\  \\:\\        \\  \\:\\        \\  \\:\\           \\  \\:\\\n" ++
-         "    \\  \\:\\        \\  \\:\\        \\  \\:\\           \\__\\/\n" ++
-         "     \\__\\/         \\__\\/         \\__\\/"
+banner = "KANT " ++ showVersion version ++ ", made in London, year 2013."
 
 main :: IO ()
 main = do putStrLn banner; runInputT defaultSettings (run newEnv)

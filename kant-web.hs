@@ -47,7 +47,7 @@ instance ReadFile DirRead where
               then DirRead (lift (readFile' (dir </> fp)))
               else return (Left (strMsg ("Invalid filename `" ++ fp ++ "'")))
 
-newtype REPLResult = REPLResult (Either KError Output)
+newtype REPLResult a = REPLResult (Either KError a)
 
 instance ToJSON KError where
     toJSON = fromString . show . pretty
@@ -55,13 +55,13 @@ instance ToJSON KError where
 instance ToJSON Output where
     toJSON = fromString . show . pretty
 
-instance ToJSON REPLResult where
+instance ToJSON a => ToJSON (REPLResult a) where
     toJSON (REPLResult res) =
         Aeson.object
             [ "status" .= (either (const "error") (const "ok") res :: String)
             , "body"   .= either toJSON toJSON res ]
 
-repl :: EnvId -> String -> DirRead (EnvId, REPLResult)
+repl :: EnvId -> String -> DirRead (EnvId, REPLResult Output)
 repl env₁ input =
     do res <- runKMonad env₁ (replLine input)
        case res of
@@ -74,6 +74,7 @@ session :: WebSockets.Request -> WebSockets Hybi10 ()
 session req =
     do WebSockets.acceptRequest req
        WebSockets.spawnPingThread 5
+       WebSockets.sendTextData (Aeson.encode (REPLResult (Right banner)))
        (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
   where
     go fp env =
@@ -97,7 +98,8 @@ index :: IO String
 index =
     do dir <- getDataDir
        tmpl <- readFile (dir </> "web/index-template.html")
-       md <- readMarkdown def <$> readFile (dir </> "docs/overview.md")
+       md <- readMarkdown def{readerSmart = True} <$>
+             readFile (dir </> "docs/overview.md")
        return (writeHtmlString def{writerStandalone = True, writerTemplate = tmpl} md)
 
 main :: IO ()

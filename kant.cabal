@@ -64,7 +64,8 @@ Library
 
     Other-Modules:    Kant.Common,
                       Kant.Lexer,
-                      Kant.REPL.Types
+                      Kant.REPL.Types,
+                      Paths_kant
 
 Executable kant
     Main-Is:          kant.hs
