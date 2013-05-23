@@ -1,27 +1,37 @@
+// Communicates with the server specified in `kant-web.hs', which is basically a
+// Kant REPL behind a websockets proxy.
+
+// Where the past commands/responses go
 var log    = document.getElementById("log");
+// The <form>
 var prompt = document.getElementById("prompt");
+// The actual <input>
 var input  = document.getElementById("input");
+// The container <div>
 var left   = document.getElementById("left");
 
 var sock = new WebSocket(
   "ws://" + window.location.hostname + ":" + window.location.port + "/repl");
 
-console.log("Created socket");
-
+// Shows the input prompt
 function scrollToBottom() {
-  // Show the input prompt
   left.scrollTop = input.offsetTop;
 }
 
-var processInput = (function () {
-  var sendInput = function () {
-    var s = input.value;
-    log.appendChild(logSpan(">>> " + s));
-    scrollToBottom();
-    input.value = "";
-    sock.send(s);
-  };
+// Shows something in the log
+function logSpan(s, class_) {
+  var sp = document.createElement('span');
+  if (class_) {
+    sp.setAttribute('class', class_);
+  }
+  sp.innerHTML = s + "\n";
+  return sp;
+}
 
+// We setup the prompt machinery (history and sending stuff) in this closure, to
+// keep the history data private.  Returns an event handler for a websocket
+// recv.
+var processInput = (function () {
   var history = [];
   var cursor;                   // Index in the history.
   var current;                  // What the user has typed without submitting
@@ -48,6 +58,14 @@ var processInput = (function () {
         input.value = history[cursor];
       }
     }
+  };
+
+  var sendInput = function () {
+    var s = input.value;
+    log.appendChild(logSpan(">>> " + s));
+    scrollToBottom();
+    input.value = "";
+    sock.send(s);
   };
 
   var recordInput = function() {
@@ -84,10 +102,11 @@ var processInput = (function () {
 })();
 
 sock.onopen = function () {
-  console.log("Socket open");
   prompt.onsubmit = processInput;
 };
 
+// Receive messages of the type {status: 'ok' + 'error', body: String}.  See
+// also `kant-web.hs'.
 sock.onmessage = function (event) {
   var resp = JSON.parse(event.data);
   var s = escapeHtml(resp.body);
@@ -106,15 +125,6 @@ sock.onclose = function (event) {
             (event.reason ? (", reason: " + event.reason) : "") + ".";
   prompt.appendChild(logSpan(err, "error"));
 };
-
-function logSpan(s, class_) {
-  var sp = document.createElement('span');
-  if (class_) {
-    sp.setAttribute('class', class_);
-  }
-  sp.innerHTML = s + "\n";
-  return sp;
-}
 
 // Utils
 

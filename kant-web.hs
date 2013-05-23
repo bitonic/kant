@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS -fno-warn-orphans #-}
-
+-- | Takes a 'Kant.REPL' and puts it behind a WebSockets server.
 import           Control.Applicative (Applicative, (<$>), (<|>))
 import           Data.String (fromString)
 
@@ -32,8 +32,7 @@ import           Kant.Pretty
 import           Kant.REPL hiding (main, repl)
 import           Paths_kant
 
---- Types
-
+-- | 'ReadFile' that will allow only files in 'data/samples/good' to be read.
 newtype DirRead a = DirRead {unDirRead :: ReaderT FilePath IO a}
     deriving (Functor, Applicative, Monad, MonadIO)
 
@@ -47,7 +46,9 @@ instance ReadFile DirRead where
               then DirRead (lift (readFile' (dir </> fp)))
               else return (Left (strMsg ("Invalid filename `" ++ fp ++ "'")))
 
-newtype REPLResult a = REPLResult (Either KError a)
+-- | What we give back to the client, will be rendered in JSON glory as
+--   @{status: "ok" + "error", body: String}@
+newtype Message a = Message (Either KError a)
 
 instance ToJSON KError where
     toJSON = fromString . show . pretty
@@ -55,18 +56,18 @@ instance ToJSON KError where
 instance ToJSON Output where
     toJSON = fromString . show . pretty
 
-instance ToJSON a => ToJSON (REPLResult a) where
-    toJSON (REPLResult res) =
+instance ToJSON a => ToJSON (Message a) where
+    toJSON (Message res) =
         Aeson.object
             [ "status" .= (either (const "error") (const "ok") res :: String)
             , "body"   .= either toJSON toJSON res ]
 
-repl :: EnvId -> String -> DirRead (EnvId, REPLResult Output)
+repl :: EnvId -> String -> DirRead (EnvId, Message Output)
 repl env₁ input =
     do res <- runKMonad env₁ (replLine input)
        case res of
-           Left err          -> return (env₁, REPLResult (Left err))
-           Right (out, env₂) -> return (env₂, REPLResult (quit out))
+           Left err          -> return (env₁, Message (Left err))
+           Right (out, env₂) -> return (env₂, Message (quit out))
   where quit OQuit = Left (strMsg "Close your browser, fool!")
         quit out   = Right out
 
@@ -74,7 +75,7 @@ session :: WebSockets.Request -> WebSockets Hybi10 ()
 session req =
     do WebSockets.acceptRequest req
        WebSockets.spawnPingThread 5
-       WebSockets.sendTextData (Aeson.encode (REPLResult (Right banner)))
+       WebSockets.sendTextData (Aeson.encode (Message (Right banner)))
        (`go` newEnv) =<< ((</> "samples/good") <$> liftIO getDataDir)
   where
     go fp env =
@@ -84,16 +85,17 @@ session req =
            go fp env'
 
 app :: ByteString -> Snap ()
--- TODO something more sensible for the timeout
 app ix =
     Snap.path "repl" (Snap.modifyTimeout (const 10) >>
                       WebSockets.runWebSocketsSnap session)
-    <|> Snap.path "" (Snap.writeLBS ix)
+    <|> Snap.path "" (Snap.writeLBS ix) -- Index
     <|> (Snap.serveDirectory =<< publicDir)
 
 publicDir :: MonadIO m => m FilePath
 publicDir = liftIO ((</> "web/public") <$> getDataDir)
 
+-- | Pulls the index page template in, injects the markdown overview via Pandoc,
+--   returns the result.
 index :: IO String
 index =
     do dir <- getDataDir

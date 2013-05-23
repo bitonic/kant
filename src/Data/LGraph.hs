@@ -182,7 +182,7 @@ condense (Cyclic (r : rs)) Graph{grSucs = sucs, grReps = reps, grSper = sper} =
                               Just l  -> HashMap.insert r l (HashMap.delete r' hm'))
                  hm rs
 
-    bang x hm = HMBANG(x, hm) -- TODO why doesn't the macro work here on its own?
+    bang x hm = HMBANG(x, hm) -- TODO why don't macros work apostrophes?
 
     rssper = foldl' HashSet.union HashSet.empty (map (`bang` sper) rs)
     rsper  = HashSet.union rssper HMBANG(r, sper)
