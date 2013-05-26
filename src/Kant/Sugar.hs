@@ -25,12 +25,12 @@ type SModuleRef = SModule Ref
 data SDecl r
     = SVal Id [SParam r] (STm r) (STm r)
     | SPostulate Id (STm r)
-    | SData ConId               -- Tycon
+    | SData ConId             -- Tycon
             [(Id, STm r)]     -- Tycon pars
-            [SConstr r]         -- Data cons
-    | SRecord ConId             -- Tycon
+            [SConstr r]       -- Data cons
+    | SRecord ConId           -- Tycon
               [(Id, STm r)]   -- Tycon pars
-              ConId             -- Datacon.
+              ConId           -- Datacon.
               [(Id, STm r)]   -- Projections
     deriving (Show)
 type SDeclSyn = SDecl ()
@@ -55,4 +55,3 @@ data STm r
     deriving (Show)
 type STmSyn = STm ()
 type STmRef = STm Ref
-

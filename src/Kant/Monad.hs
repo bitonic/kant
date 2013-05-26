@@ -19,7 +19,7 @@ module Kant.Monad
     , nestM
     , nestPM
     , lookupTy
-    , lookupDataTy
+    , lookupTyCon
     , lookupDataCon
     , lookupElim
     , lookupProj
@@ -51,6 +51,7 @@ module Kant.Monad
     , expectingTypeCon
     , duplicateName
       -- * Parsing
+    , conDestrM
     , parseModuleM
     , parseDeclM
     , parseTmM
@@ -68,9 +69,9 @@ import           Control.Monad.Trans.Class (MonadTrans(..))
 import           Bound
 import           Data.Proxy
 
-import qualified Data.Constraint as Constr
 import           Kant.ADT
 import           Kant.Common
+import           Kant.ConDestr
 import           Kant.Cursor
 import           Kant.Decl
 import           Kant.Env
@@ -79,6 +80,7 @@ import           Kant.Parser
 import           Kant.Reduce
 import           Kant.Term
 import           Kant.Uniquify
+import qualified Data.Constraint as Constr
 #include "../impossible.h"
 
 newtype KMonad f v m a = KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
@@ -139,8 +141,8 @@ doADTRec :: (VarC v, Monad m)
 doADTRec ADT_ tyc f _ = (f . (`envADT` tyc)) <$> getEnv
 doADTRec Rec_  tyc _ f = (f . (`envRec` tyc)) <$> getEnv
 
-lookupDataTy :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (TmRef v)
-lookupDataTy dt tyc =
+lookupTyCon :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (TmRef v)
+lookupTyCon dt tyc =
     do env <- getEnv
        fmap (nest env) <$> doADTRec dt tyc adtTy recTy
 
@@ -250,6 +252,13 @@ expectingTypeCon dc t = throwKError =<< ExpectingTypeCon dc <$> slamM t
 
 duplicateName :: (Monad m) => Id -> KMonad f v m a
 duplicateName = throwKError . DuplicateName
+
+conDestrM :: (VarC v, Monad m) => TmRef v -> KMonadE f v m (TmRef v)
+conDestrM t =
+    do env <- getEnv
+       case conDestr (toP env) t of
+           Left n   -> throwKError (NotEnoughArguments n)
+           Right t' -> return t'
 
 parseModuleM :: (Monad m) => String -> KMonad f v m ModuleSyn
 parseModuleM = either (throwKError . TmParse) return . parseModule

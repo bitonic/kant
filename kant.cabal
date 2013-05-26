@@ -44,6 +44,7 @@ Library
                       Data.Constraint,
                       Data.LGraph,
                       Kant.ADT,
+                      Kant.ConDestr,
                       Kant.Cursor,
                       Kant.Decl,
                       Kant.Desugar,

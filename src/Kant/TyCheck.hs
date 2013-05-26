@@ -14,8 +14,10 @@ import           Data.Proxy
 
 import           Data.Constraint (Constr(..))
 import           Kant.Common
+import           Kant.Cursor
 import           Kant.Monad
 import           Kant.Term
+#include "../impossible.h"
 
 tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
@@ -65,20 +67,29 @@ tyInfer' (Destr ar tyc n t) =
     do tyt  <- tyInfer' t
        tyt' <- whnfM tyt
        pars <- checkTyCon tyc tyt'
-       elimTy <- lookupElim tyc
-       env <- getEnv
-       return (discharge pars elimTy)
+       destrTy <- case ar of
+                      ADT_ -> lookupElim tyc
+                      Rec_ -> lookupProj tyc n
+       return (discharge (pars ++ [tyt']) (destrTy))
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
-checkTyCon tyc (appV -> (V v, ts)) = undefined
+checkTyCon tyc (appV -> (V v, ts)) =
+    do env <- getEnv
+       -- TODO better errors
+       case free' env v of
+           Nothing -> fail "no tycon"
+           Just tyc' | tyc == tyc' -> return ts
+           Just tyc' -> fail ("no tycon " ++ tyc')
+checkTyCon _ _ = fail "no tycon"
 
-discharge :: [TmRef v] -> TmRef v -> TmRef v
-discharge = undefined
-
-dataInfer :: (Monad m, VarC v) => [TmRef v] -> TmRef v -> TyMonadT v m (TmRef v)
-dataInfer = flip (checkApp Nothing)
+-- TODO we don't bother checking that the parameters are of the right type since
+-- we already know that that's the case.  Make sure that this assumption holds.
+discharge :: VarC v => [TmRef v] -> TmRef v -> TmRef v
+discharge []       ty        = ty
+discharge (t : ts) (Arr _ s) = discharge ts (instantiate1 t s)
+discharge _        ty        = IMPOSSIBLE("Expecting arrow instead of " ++ show ty)
 
 checkApp :: (VarC v, Monad m)
          => Maybe (TmRef v) -> TmRef v -> [TmRef v] -> TyMonadT v m (TmRef v)
@@ -105,7 +116,8 @@ tyCheck = whnf₂ go
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
     go (Con ar tyc dc ts) ty =
         do pars <- checkTyCon tyc ty
-           checkDataCon ar tyc dc ts pars
+           dcty <- discharge pars <$> lookupDataCon ar tyc dc
+           checkDataCon ts dcty
     go (Lam s₁) (Arr ty s₂) = nestM ty (whnf₂ go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
@@ -115,9 +127,12 @@ tyCheck = whnf₂ go
            eq <- fromKMonadP (eqRefs ty tyt)
            unless eq (mismatch ty t tyt)
 
-checkDataCon :: (VarC v, Monad m)
-             => ADTRec -> ConId -> ConId -> [TmRef v] -> [TmRef v] -> TyMonadT v m ()
-checkDataCon = undefined
+checkDataCon :: (VarC v, Monad m) => [TmRef v] -> TmRef v -> TyMonadT v m ()
+checkDataCon [] _ = return ()
+checkDataCon (t : ts) (Arr ty s) =
+    do tyCheck t ty
+       checkDataCon ts (instantiate1 t s)
+checkDataCon _ ty = IMPOSSIBLE("Expecting arrow instead of " ++ show ty)
 
 -- TODO maybe find a way to eliminate the explicit recursion?
 eqRefs :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool

@@ -21,6 +21,7 @@ data KError
     | WrongRecTypePos ConId ConId TmRefId
     | UntypedTm TmRefId
     | UnexpectedHole HoleId
+    | NotEnoughArguments ConId
     | CyclicTypes               -- TODO more descriptive
       -- REPL errors
     | CmdParse Parsec.ParseError
