@@ -60,18 +60,18 @@ lookupFree env n =
                    ty  = case lookup n (adtCons adt) of
                        Nothing  -> IMPOSSIBLE("Non-existant datacon " ++ n)
                        Just ty' -> ty'
-               in Just (dataCon ADT_ tyc ty)
+               in Just (dataCon ADT_ tyc (adtTy adt) ty)
            DataElim tyc -> Just (destr ADT_ tyc)
            RecCon tyc ->
                -- TODO we could assert that the data constructor is the
                -- right one here.
                let rec = envRec env tyc
-               in Just (dataCon Rec_ tyc (snd (recCon rec)))
+               in Just (dataCon Rec_ tyc (recTy rec) (snd (recCon rec)))
            RecProj tyc -> Just (destr Rec_ tyc)
            _ -> Nothing
   where
-    dataCon ar tyc ty ts =
-        let pars = arrLen ty
+    dataCon ar tyc tycty ty ts =
+        let pars = arrLen ty - arrLen tycty
             (ts₁, ts₂) = splitAt (arrLen ty) ts
         in if length ts >= pars then Right (Con ar tyc n ts₁, ts₂) else Left n
 
