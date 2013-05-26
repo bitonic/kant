@@ -51,7 +51,7 @@ newCurs = Cursor{ cursPull   = id
                 , cursRename = flip ($)
                 , cursCtx    = const IMPOSSIBLE("looking up an empty ctx") }
 
-nestCurs :: Functor f => Cursor f v -> f v -> Cursor f (Var (Name Id ()) v)
+nestCurs :: Functor f => Cursor f v -> f v -> Cursor f (Var NameId v)
 nestCurs Cursor{ cursPull   = pull_
                , cursNest   = nest_
                , cursRename = rename

@@ -12,6 +12,7 @@ import           Text.PrettyPrint.Leijen
 
 import           Kant.Distill
 import           Kant.Error
+import           Kant.Env
 import           Kant.REPL.Types
 import           Kant.Sugar
 import           Kant.Term
@@ -124,6 +125,15 @@ instance Pretty KError where
     pretty (TmParse s)  = gnest ("Error parsing code:" <$> pretty s)
     pretty (IOError err)  = gnest ("IO error:" <$> pretty (show err))
 
+instance Pretty Free where
+    pretty (Abstract ty) = gnest ("Abstract variable of type" <$> pretty ty)
+    pretty (Value ty t) =
+        group (nest' ("Defined variable of type" <$> pretty ty) <$>
+               nest' ("and with body" <$> pretty t))
+    pretty (DataCon tyc) = "Data constructor for type `" <> pretty tyc <> "'"
+    pretty (DataElim tyc) = "Data eliminator for type `" <> pretty tyc <> "'"
+    pretty (RecProj tyc) = "Record projection for type `" <> pretty tyc <> "'"
+
 instance Pretty Output where
     pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty ty)
     pretty (OTyCheck ty holes) = group (nest' ("Holes:" <$> prettyList holes) <$>
@@ -131,6 +141,7 @@ instance Pretty Output where
     pretty (OPretty t)         = pretty t
     pretty (OHoles [])         = "OK"
     pretty (OHoles holes)      = gnest ("Holes:" <$> prettyList holes)
+    pretty (OInfo info)        = pretty info
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
@@ -141,4 +152,5 @@ instance Pretty Output where
         ":p <term>  Pretty print" <$$>
         ":l <file>  Load file" <$$>
         ":r <file>  Reload file (erases previous environment)" <$$>
+        ":i <name>  Info about an identifier" <$$>
         ":q         Quit"

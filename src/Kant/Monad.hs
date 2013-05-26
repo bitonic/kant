@@ -51,89 +51,33 @@ module Kant.Monad
     , expectingTypeCon
     , duplicateName
       -- * Parsing
-    , conDestrM
-    , parseModuleM
-    , parseDeclM
-    , parseTmM
+    , processModuleM
+    , processDeclM
+    , processTmM
     ) where
 
-import           Control.Applicative (Applicative)
-import           Control.Arrow (second)
 import           Data.Maybe (fromMaybe)
 
-import           Control.Monad.Error (ErrorT(..), throwError, mapErrorT)
-import           Control.Monad.IO.Class (MonadIO(..))
-import           Control.Monad.State (StateT(..), put, get, mapStateT)
-import           Control.Monad.Trans.Class (MonadTrans(..))
-
-import           Bound
-import           Data.Proxy
-
+import qualified Data.Constraint as Constr
 import           Kant.ADT
 import           Kant.Common
-import           Kant.ConDestr
 import           Kant.Cursor
 import           Kant.Decl
 import           Kant.Env
 import           Kant.Error
+import           Kant.Monad.Base
 import           Kant.Parser
 import           Kant.Reduce
+import           Kant.Ref
 import           Kant.Term
 import           Kant.Uniquify
-import qualified Data.Constraint as Constr
 #include "../impossible.h"
-
-newtype KMonad f v m a = KMonad {runKMonad' :: StateT (f v) (ErrorT KError m) a}
-    deriving (Functor, Applicative, Monad)
-type KMonadP = KMonad (Env Proxy)
-type KMonadT = KMonad (Env TmRef)
-type KMonadE f = KMonad (Env f)
-
-instance MonadTrans (KMonad f v) where
-    lift m = KMonad (lift (lift m))
-
-instance MonadIO m => MonadIO (KMonad f v m) where
-    liftIO = KMonad . liftIO
-
-runKMonad :: f v -> KMonad f v m a -> m (Either KError (a, f v))
-runKMonad env = runErrorT . (`runStateT` env) . runKMonad'
-
-mapKMonad :: (m (Either KError (a, f v)) -> n (Either KError (b, f v)))
-          -> KMonad f v m a -> KMonad f v n b
-mapKMonad f = KMonad . mapStateT (mapErrorT f) . runKMonad'
-
-fromKMonadP :: (IsCursor c, Monad m) => KMonad (c Proxy) v m a -> KMonad (c f) v m a
-fromKMonadP (KMonad (StateT f)) =
-    KMonad $ StateT $ \env -> second (restoreC env) <$> f (toP env)
-
-throwKError :: Monad m => KError -> KMonad f v m a
-throwKError = KMonad . throwError
-
-getEnv :: Monad m => KMonad f v m (f v)
-getEnv = KMonad get
-
-putEnv :: Monad m => f v -> KMonad f v m ()
-putEnv env = KMonad (put env)
-
-restoreEnv :: Monad m => KMonad f v m a -> KMonad f v m a
-restoreEnv m = do env <- getEnv; x <- m; putEnv env; return x
-
--- | Enters a scope with a certain value and type, runs an action on that new
---   scope, and returns back to the outer scope.
-nestM :: (Monad m, IsCursor c, Functor f)
-      => f v -> KMonad (c f) (Var NameId v) m a -> KMonad (c f) v m a
-nestM ty (KMonad m) =
-    KMonad (StateT (\env -> second (restoreC env) <$> runStateT m (nestC env ty)))
-
-nestPM :: (Monad m, IsCursor c)
-       => KMonad (c Proxy) (Var NameId v) m a -> KMonad (c Proxy) v m a
-nestPM = nestM Proxy
 
 lookupTy :: (VarC v, Monad m) => v -> KMonadT v m (TmRef v)
 lookupTy v =
     do env <- getEnv
        case envType env v of
-           Nothing -> KMonad (throwError (OutOfBounds (pull env v)))
+           Nothing -> throwKError (OutOfBounds (pull env v))
            Just ty -> return ty
 
 doADTRec :: (VarC v, Monad m)
@@ -181,9 +125,6 @@ addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
 
 addRecM :: (Monad m) => ConId -> Rec -> KMonadT v m ()
 addRecM n rec = do env <- getEnv; putEnv (addRec env n rec)
-
-freshRef :: (Monad m) => KMonadE f v m Ref
-freshRef = do env <- getEnv; envRef env <$ putEnv (env{envRef = envRef env + 1})
 
 addConstrs :: (Monad m) => [ConstrRef] -> KMonadE f v m ()
 addConstrs cs =
@@ -253,18 +194,11 @@ expectingTypeCon dc t = throwKError =<< ExpectingTypeCon dc <$> slamM t
 duplicateName :: (Monad m) => Id -> KMonad f v m a
 duplicateName = throwKError . DuplicateName
 
-conDestrM :: (VarC v, Monad m) => TmRef v -> KMonadE f v m (TmRef v)
-conDestrM t =
-    do env <- getEnv
-       case conDestr (toP env) t of
-           Left n   -> throwKError (NotEnoughArguments n)
-           Right t' -> return t'
+processModuleM :: (Monad m) => String -> KMonadE f Id m (Module Ref)
+processModuleM = either (throwKError . TmParse) putRef . parseModule
 
-parseModuleM :: (Monad m) => String -> KMonad f v m ModuleSyn
-parseModuleM = either (throwKError . TmParse) return . parseModule
+processDeclM :: (Monad m) => String -> KMonadE f Id m (Decl Ref)
+processDeclM = either (throwKError . TmParse) putRef . parseDecl
 
-parseDeclM :: (Monad m) => String -> KMonad f v m DeclSyn
-parseDeclM = either (throwKError . TmParse) return . parseDecl
-
-parseTmM :: (Monad m) => String -> KMonad f v m TmSyn
-parseTmM = either (throwKError . TmParse) return . parseTm
+processTmM :: (Monad m) => String -> KMonadE f Id m TmRefId
+processTmM = either (throwKError . TmParse) putRef . parseTm

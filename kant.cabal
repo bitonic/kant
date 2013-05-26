@@ -65,6 +65,7 @@ Library
 
     Other-Modules:    Kant.Common,
                       Kant.Lexer,
+                      Kant.Monad.Base,
                       Kant.REPL.Types,
                       Paths_kant
 

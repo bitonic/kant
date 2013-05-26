@@ -37,7 +37,6 @@ import           Kant.Error
 import           Kant.Monad
 import           Kant.Pretty
 import           Kant.REPL.Types
-import           Kant.Ref
 import           Kant.Term
 import           Kant.TyCheck
 import           Paths_kant
@@ -82,19 +81,19 @@ replInput c =
     -- When we typecheck we restore the old environment, so that stuff like
     -- constraints and references don't uselessly pile up
     case c of
-        ITyCheck s -> do t <- putRef =<< parseTmM s
+        ITyCheck s -> do t <- processTmM s
                          (ty, holes) <- restoreEnv (tyInfer t)
                          ty' <- nfM ty
                          return (OTyCheck ty' holes)
-        IEval s    -> do t <- putRef =<< parseTmM s
+        IEval s    -> do t <- processTmM s
                          restoreEnv (tyInfer t)
                          OPretty <$> nfM t
-        IDecl s    -> OHoles <$> (elaborate =<< putRef =<< parseDeclM s)
+        IDecl s    -> OHoles <$> (elaborate =<< processDeclM s)
         ILoad r fp -> do when r (putEnv newEnv)
                          s <- readSafe fp
-                         m <- putRef =<< parseModuleM s
+                         m <- processModuleM s
                          OHoles <$> elaborate m
-        IPretty s  -> OPretty <$> (whnfM =<< putRef =<< parseTmM s)
+        IPretty s  -> OPretty <$> (whnfM =<< processTmM s)
         IQuit      -> return OQuit
         ISkip      -> return OSkip
         IHelp      -> return OHelp
