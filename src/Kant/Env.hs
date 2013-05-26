@@ -55,10 +55,14 @@ data Free
     | DataElim ConId
     | RecProj ConId
 
-defType :: Free -> Maybe TmRefId
-defType (Abstract ty) = Just ty
-defType (Value ty _)  = Just ty
-defType _             = Nothing
+freeType :: Free -> Maybe TmRefId
+freeType (Abstract ty) = Just ty
+freeType (Value ty _)  = Just ty
+freeType _             = Nothing
+
+freeBody :: Free -> Maybe TmRefId
+freeBody (Value _ t) = Just t
+freeBody _           = Nothing
 
 instance IsCursor Env where
     getCurs = envCurs
@@ -67,13 +71,13 @@ instance IsCursor Env where
 envType :: Eq v => EnvT v -> v -> Maybe (TmRef v)
 envType env@Env{envFrees = defs} v =
     case free' env v of
-        Just n  -> fmap (nest env) <$> (defType =<< HashMap.lookup n defs)
+        Just n  -> fmap (nest env) <$> (freeType =<< HashMap.lookup n defs)
         Nothing -> Just (ctx env v)
 
 envBody :: Eq v => Env f v -> v -> Maybe (TmRef v)
 envBody env@Env{envFrees = defs} v =
     do n <- free' env v
-       fmap (nest env) <$> (defType =<< HashMap.lookup n defs)
+       fmap (nest env) <$> (freeBody =<< HashMap.lookup n defs)
 
 envADT :: Eq v => Env f v -> ConId -> ADT
 envADT Env{envADTs = adts} v =
