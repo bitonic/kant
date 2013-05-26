@@ -56,11 +56,13 @@ module Kant.Monad
     , processTmM
     ) where
 
+import           Control.Monad ((>=>))
 import           Data.Maybe (fromMaybe)
 
 import qualified Data.Constraint as Constr
 import           Kant.ADT
 import           Kant.Common
+import           Kant.ConDestr
 import           Kant.Cursor
 import           Kant.Decl
 import           Kant.Env
@@ -195,10 +197,19 @@ duplicateName :: (Monad m) => Id -> KMonad f v m a
 duplicateName = throwKError . DuplicateName
 
 processModuleM :: (Monad m) => String -> KMonadE f Id m (Module Ref)
-processModuleM = either (throwKError . TmParse) putRef . parseModule
+processModuleM = wrapParse parseModule >=> wrapConDestr conDestrModule >=> putRef
 
 processDeclM :: (Monad m) => String -> KMonadE f Id m (Decl Ref)
-processDeclM = either (throwKError . TmParse) putRef . parseDecl
+processDeclM = wrapParse parseDecl >=> wrapConDestr conDestrDecl >=> putRef
 
 processTmM :: (Monad m) => String -> KMonadE f Id m TmRefId
-processTmM = either (throwKError . TmParse) putRef . parseTm
+processTmM = wrapParse parseTm >=> wrapConDestr conDestr >=> putRef
+
+
+wrapParse :: Monad m => (a -> Either ParseError b) -> a -> KMonad f v m b
+wrapParse f = either (throwKError . TmParse) return . f
+
+wrapConDestr :: Monad m => (EnvP Id -> a -> Either Id a) -> a -> KMonadE f Id m a
+wrapConDestr f x =
+    do env <- getEnv
+       either (throwKError . NotEnoughArguments) return (f (toP env) x)
