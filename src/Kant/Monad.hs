@@ -51,7 +51,8 @@ module Kant.Monad
     , expectingTypeCon
     , duplicateName
       -- * Parsing
-    , processModuleM
+    , parseModuleM
+    , conDestrDeclM
     , processDeclM
     , processTmM
     ) where
@@ -196,15 +197,17 @@ expectingTypeCon dc t = throwKError =<< ExpectingTypeCon dc <$> slamM t
 duplicateName :: (Monad m) => Id -> KMonad f v m a
 duplicateName = throwKError . DuplicateName
 
-processModuleM :: (Monad m) => String -> KMonadE f Id m (Module Ref)
-processModuleM = wrapParse parseModule >=> wrapConDestr conDestrModule >=> putRef
+parseModuleM :: (Monad m) => String -> KMonadE f Id m (Module Ref)
+parseModuleM = wrapParse parseModule >=> putRef
 
 processDeclM :: (Monad m) => String -> KMonadE f Id m (Decl Ref)
-processDeclM = wrapParse parseDecl >=> wrapConDestr conDestrDecl >=> putRef
+processDeclM = wrapParse parseDecl >=> conDestrDeclM >=> putRef
+
+conDestrDeclM :: (Monad m) => Decl r -> KMonadE f Id m (Decl r)
+conDestrDeclM = wrapConDestr conDestrDecl
 
 processTmM :: (Monad m) => String -> KMonadE f Id m TmRefId
 processTmM = wrapParse parseTm >=> wrapConDestr conDestr >=> putRef
-
 
 wrapParse :: Monad m => (a -> Either ParseError b) -> a -> KMonad f v m b
 wrapParse f = either (throwKError . TmParse) return . f

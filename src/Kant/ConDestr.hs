@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-module Kant.ConDestr (conDestr, conDestrDecl, conDestrModule) where
+module Kant.ConDestr (conDestr, conDestrDecl) where
 
 import           Bound
 import           Data.Proxy
@@ -47,9 +47,6 @@ conDestrDecl env (RecD (tyc, tycty) dc projs) =
        RecD (tyc, tycty') dc <$>
            mapM (\(pr, prty) -> (pr,) <$> (toScope <$> conDestr env' (fromScope prty)))
                 projs
-
-conDestrModule :: EnvP Id -> Module r -> Either Id (Module r)
-conDestrModule env (Module decls) = Module <$> mapM (conDestrDecl env) decls
 
 lookupFree :: Env f v -> Id -> Maybe ([Tm r v] -> Either Id (Tm r v, [Tm r v]))
 lookupFree env n =

@@ -31,6 +31,7 @@ import           System.Console.Haskeline
 import           System.Console.Haskeline.MonadException ()
 
 import           Kant.Common
+import           Kant.Decl
 import           Kant.Elaborate
 import           Kant.Env
 import           Kant.Error
@@ -88,11 +89,10 @@ replInput c =
         IEval s    -> do t <- processTmM s
                          restoreEnv (tyInfer t)
                          OPretty <$> nfM t
-        IDecl s    -> OHoles <$> (elaborate =<< processDeclM s)
+        IDecl s    -> OHoles <$> (processDeclM s >>= elaborate)
         ILoad r fp -> do when r (putEnv newEnv)
-                         s <- readSafe fp
-                         m <- processModuleM s
-                         OHoles <$> elaborate m
+                         let elab = mapM (conDestrDeclM >=> elaborate) . unModule
+                         OHoles . concat <$> (readSafe fp >>= parseModuleM >>= elab)
         IPretty s  -> OPretty <$> (whnfM =<< processTmM s)
         IQuit      -> return OQuit
         ISkip      -> return OSkip
