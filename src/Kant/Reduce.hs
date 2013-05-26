@@ -9,6 +9,7 @@ import           Kant.ADT
 import           Kant.Cursor
 import           Kant.Env
 import           Kant.Term
+#include "../impossible.h"
 
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
 
@@ -37,6 +38,7 @@ reduce r env (App t₁ t₂) =
 reduce r env (Con ar tyc dc ts) = Con ar tyc dc (map (r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
+reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See first clause")
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
 reduceScope r env s = (toScope (r (nestC env Proxy) (fromScope s)))

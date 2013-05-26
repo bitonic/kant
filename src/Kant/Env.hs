@@ -3,6 +3,7 @@
 module Kant.Env
     ( ConstrRef
     , ConstrsRef
+    , Free(..)
     , Env(..)
     , EnvT
     , EnvP
@@ -18,7 +19,6 @@ module Kant.Env
     , addRec
     ) where
 
-import           Control.Monad (join)
 import           Data.Maybe (isJust)
 
 import           Data.HashMap.Strict (HashMap)
@@ -38,7 +38,7 @@ type ConstrsRef = Constrs Ref
 
 -- | Bringing it all together
 data Env f v = Env
-    { envDefs    :: HashMap Id (TmRefId, Maybe TmRefId)
+    { envFrees   :: HashMap Id Free
     , envADTs    :: HashMap ConId ADT
     , envRecs    :: HashMap ConId Rec
     , envConstrs :: ConstrsRef
@@ -48,20 +48,32 @@ data Env f v = Env
 type EnvT = Env TmRef
 type EnvP = Env Proxy
 
+data Free
+    = Abstract TmRefId
+    | Value TmRefId TmRefId
+    | DataCon ConId
+    | DataElim ConId
+    | RecProj ConId
+
+defType :: Free -> Maybe TmRefId
+defType (Abstract ty) = Just ty
+defType (Value ty _)  = Just ty
+defType _             = Nothing
+
 instance IsCursor Env where
     getCurs = envCurs
     putCurs c env = env{envCurs = c}
 
 envType :: Eq v => EnvT v -> v -> Maybe (TmRef v)
-envType env@Env{envDefs = defs} v =
+envType env@Env{envFrees = defs} v =
     case free' env v of
-        Just n  -> fmap (nest env) . fst <$> HashMap.lookup n defs
+        Just n  -> fmap (nest env) <$> (defType =<< HashMap.lookup n defs)
         Nothing -> Just (ctx env v)
 
 envBody :: Eq v => Env f v -> v -> Maybe (TmRef v)
-envBody env@Env{envDefs = defs} v =
+envBody env@Env{envFrees = defs} v =
     do n <- free' env v
-       fmap (nest env) <$> join (snd <$> HashMap.lookup n defs)
+       fmap (nest env) <$> (defType =<< HashMap.lookup n defs)
 
 envADT :: Eq v => Env f v -> ConId -> ADT
 envADT Env{envADTs = adts} v =
@@ -84,16 +96,16 @@ isRec env v = free env v && isJust (envRec' env (pull env v))
 type EnvId = EnvT Id
 
 newEnv :: EnvId
-newEnv = Env{ envDefs    = HashMap.empty
+newEnv = Env{ envFrees    = HashMap.empty
             , envADTs    = HashMap.empty
             , envRecs    = HashMap.empty
             , envConstrs = Constr.empty
             , envCurs    = newCurs
             , envRef     = 0 }
 
-addFree :: Eq v => EnvT v -> Id -> TmRefId -> Maybe TmRefId -> EnvT v
-addFree env@Env{envDefs = defs} v ty mt =
-    env{envDefs = HashMap.insert v (ty, mt) defs}
+addFree :: Eq v => EnvT v -> Id -> Free -> EnvT v
+addFree env@Env{envFrees = defs} v def =
+    env{envFrees = HashMap.insert v def defs}
 
 addADT :: EnvT v -> Id -> ADT -> EnvT v
 addADT env@Env{envADTs = adts} n adt = env{envADTs = HashMap.insert n adt adts}

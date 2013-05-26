@@ -36,11 +36,11 @@ instance r ~ Ref => Elaborate (Decl r) where
     elaborate (Val n t) =
         do checkDup n
            (ty, holes) <- tyInfer t
-           holes <$ addFreeM n ty (Just t)
+           holes <$ addFreeM n (Value ty t)
     elaborate (Postulate n ty) =
         do checkDup n
            (_, holes) <- tyInfer ty
-           holes <$ addFreeM n ty Nothing
+           holes <$ addFreeM n (Abstract ty)
     -- TODO normalise all types before elaborating
     elaborate (ADTD (tyc, tycty) dcs) =
         do checkDup tyc
@@ -49,11 +49,13 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Check that the type constructor returns a type
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the type of the tycon to scope
-           addFreeM tyc tycty Nothing
+           addFreeM tyc (Abstract tycty)
            -- Create the functions that will form 'ADTCon's
            mapM (\(dc, dcty) -> elabCon tyc dc dcty) dcs
            eltyR <- freshRef
-           let elty  = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
+           let elty = runElabM (elimTy tyc tycty dcs eltyR) -- D-elim type
+           -- Add the elim to the env
+           addFreeM (elimName tyc) (DataElim tyc)
            -- Add the actual ADT
            [] <$ addADTM tyc ADT{ adtName = tyc
                                 , adtTy   = tycty
@@ -70,8 +72,8 @@ instance r ~ Ref => Elaborate (Decl r) where
            tyInferNH tycty
            -- Returns a type...
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
-           -- Add the tycon (no body)
-           addFreeM tyc tycty Nothing
+           -- Add the tycon
+           addFreeM tyc (Abstract tycty)
            -- Add the projections types
            let projns = map fst projs
            -- Note that it is important to add the projections in this order, so
@@ -79,7 +81,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            -- Also, we don't add the bodies yet.
            elprojs <- mapM (elabRecRewr tyc tycty projns) projs
            -- Finally, add the data constructor
-           dcty <- elabRecCon tyc tycty projs
+           dcty <- elabRecCon tyc dc tycty projs
            [] <$ addRecM tyc Rec{ recName  = tyc
                                 , recTy    = tycty
                                 , recCon   = (dc, dcty)
@@ -99,6 +101,8 @@ elabCon tyc dc ty =
     do checkDup dc
        tyInferNH ty -- The type of the datacon is well typed
        fromKMonadP (goodTy B0 ty) -- ...and well formed
+       -- Add it to the env
+       addFreeM dc (DataCon tyc)
   where
     goodTy :: (VarC v, Monad m) => Bwd v -> TmRef v -> KMonadP v m ()
     goodTy vs (Arr arg s) =
@@ -260,12 +264,14 @@ telescope f = go B0
         Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = f (toList vs)
 
-elabRecCon :: Monad m => ConId -> TmRefId -> Projs Ref -> KMonadT Id m TmRefId
-elabRecCon tyc tycty projs =
+elabRecCon :: Monad m => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m TmRefId
+elabRecCon tyc dc tycty projs =
     do let dcty = runElabM (go₁ B0 tycty)
        -- TODO make sure that I typecheck everywhere like here but assert it,
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
+       -- Add it to the env
+       addFreeM dc (DataCon tyc)
        return dcty
   where
     go₁ :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
@@ -296,7 +302,7 @@ elabRecRewr :: Monad m
 elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
-       addFreeM n projty Nothing
+       addFreeM n (RecProj tyc)
        return (n, projty)
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)

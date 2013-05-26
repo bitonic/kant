@@ -173,8 +173,8 @@ lookupProj tyc pr =
 isRecM :: (VarC v, Monad m) => v -> KMonadT v m Bool
 isRecM v = do env <- getEnv; return (isRec env v)
 
-addFreeM :: (VarC v, Monad m) => Id -> TmRefId -> Maybe TmRefId -> KMonadT v m ()
-addFreeM v ty mv = do env <- getEnv; putEnv (addFree env v ty mv)
+addFreeM :: (VarC v, Monad m) => Id -> Free -> KMonadT v m ()
+addFreeM v def = do env <- getEnv; putEnv (addFree env v def)
 
 addADTM :: (Monad m) => ConId -> ADT -> KMonadT v m ()
 addADTM n adt = do env <- getEnv; putEnv (addADT env n adt)
