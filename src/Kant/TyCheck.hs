@@ -62,7 +62,10 @@ tyInfer' (Arr ty₁ s) =
                            _       -> expectingType ty₂ tyty₂
            _ -> expectingType ty₁ tyty₁
 tyInfer' (App t₁ t₂) = do tyt₁ <- tyInfer' t₁; checkApp (Just t₁) tyt₁ [t₂]
-tyInfer' t@(Con _ _ _ _) = untypedTm t
+tyInfer' t@(Con _ tyc _ _) =
+    do tyc' <- (`nest` tyc) <$> getEnv
+       tycty <- lookupTy tyc'
+       if arrLen tycty == 0 then return (V tyc') else untypedTm t
 tyInfer' (Destr ar tyc n t) =
     do tyt  <- tyInfer' t
        tyt' <- whnfM tyt
