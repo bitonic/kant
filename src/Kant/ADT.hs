@@ -9,7 +9,7 @@ module Kant.ADT
 import           Kant.Decl
 import           Kant.Term
 
-type Rewr_ = forall v. VarC v => [TmRef v] -> Maybe (TmRef v)
+type Rewr_ = forall v. VarC v => TmRef v -> [TmRef v] -> Maybe [TmRef v]
 
 -- | The difference between this and a 'Kant.Decl' is that the constructors are
 --   checked for well formedness.  Moreover, the 'Rewrite'.

@@ -60,12 +60,18 @@ tyInfer' (Arr ty₁ s) =
                            _       -> expectingType ty₂ tyty₂
            _ -> expectingType ty₁ tyty₁
 tyInfer' (App t₁ t₂) = do tyt₁ <- tyInfer' t₁; checkApp (Just t₁) tyt₁ [t₂]
-tyInfer' (Data ar tyc TyCon ts)       = dataInfer ts  =<< lookupDataTy ar tyc
-tyInfer' (Data ar tyc (DataCon c) ts) = dataInfer ts  =<< lookupDataCon ar tyc c
-tyInfer' (Rewr tyc (Elim ts))         = dataInfer ts  =<< lookupElim tyc
-tyInfer' (Rewr tyc (Proj n t))        = dataInfer [t] =<< lookupProj tyc n
+tyInfer' t@(Con _ _ _ _) = untypedTm t
+tyInfer' (Destr ar tyc n t) =
+    do tyt  <- tyInfer' t
+       tyt' <- whnfM tyt
+       pars <- checkTyCon tyc tyt'
+       elimTy <- lookupElim tyc
+       return (discharge pars elimTy)
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
+
+checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
+checkTyCon tyc (appV -> (V v, ts)) = undefined
 
 dataInfer :: (Monad m, VarC v) => [TmRef v] -> TmRef v -> TyMonadT v m (TmRef v)
 dataInfer = flip (checkApp Nothing)
@@ -112,9 +118,11 @@ eqRefs (Arr ty₁ s₁) (Arr ty₂ s₂) =
          <*> nestPM (eqRefs' (fromScope s₁) (fromScope s₂))
 eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs t'₁ t'₂
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
-eqRefs (Data ar₁ tyc₁ ct₁ ts₁) (Data ar₂ tyc₂ ct₂ ts₂) =
-    (((ar₁, tyc₁, ct₁) == (ar₂, tyc₂, ct₂) &&) . and) <$>
+eqRefs (Con ar₁ tyc₁ dc₁ ts₁) (Con ar₂ tyc₂ dc₂ ts₂) =
+     (((ar₁, tyc₁, dc₁) == (ar₂, tyc₂, dc₂) &&) . and) <$>
     mapM (uncurry eqRefs) (zip ts₁ ts₂)
+eqRefs (Destr ar₁ tyc₁ n₁ t₁) (Destr ar₂ tyc₂ n₂ t₂) =
+    ((ar₁, tyc₁, n₁) == (ar₂, tyc₂, n₂) &&) <$> eqRefs t₁ t₂
 eqRefs (Hole x _) (Hole y _) = return (x == y)
 eqRefs _ _ = return False
 

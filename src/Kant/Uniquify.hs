@@ -49,15 +49,15 @@ uniquify env t =
        let t' = t >>= \v -> V (freshVar env v names)
        return (evalState (go t') ixs)
   where
-    go t'@(V _)           = return t'
-    go t'@(Ty _)          = return t'
-    go (Arr ty s)         = Arr <$> go ty <*> goScope s
-    go (Lam s)            = Lam <$> goScope s
-    go (App t₁ t₂)        = App <$> go t₁ <*> go t₂
-    go (Data ar c ct ts') = Data ar c ct <$> mapM go ts'
-    go (Rewr n re)        = Rewr n <$> mapRewr go re
-    go (Ann ty t')        = Ann <$> go ty <*> go t'
-    go (Hole hn ts)       = Hole hn <$> mapM go ts
+    go t'@(V _)            = return t'
+    go t'@(Ty _)           = return t'
+    go (Arr ty s)          = Arr <$> go ty <*> goScope s
+    go (Lam s)             = Lam <$> goScope s
+    go (App t₁ t₂)         = App <$> go t₁ <*> go t₂
+    go (Con ar tyc dc ts') = Con ar tyc dc <$> mapM go ts'
+    go (Destr ar tyc n t') = Destr ar tyc n <$> go t'
+    go (Ann ty t')         = Ann <$> go ty <*> go t'
+    go (Hole hn ts)        = Hole hn <$> mapM go ts
 
     goScope :: VarC v => TmScope r v -> State (HashMap Id Integer) (TmScope r v)
     goScope s =

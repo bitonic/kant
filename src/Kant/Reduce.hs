@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ViewPatterns #-}
 module Kant.Reduce (nf, whnf) where
 
 import           Bound
@@ -11,7 +12,19 @@ import           Kant.Term
 
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
 
+
 reduce :: Reducer -> Reducer
+reduce r env (appV -> (reduce r env -> Destr ar tyc n t, ts)) =
+    case ar of
+        ADT_ -> case adtRewr (envADT env tyc) t' ts of
+                    Nothing  -> stuck
+                    Just ts' -> reduce r env (app ts')
+        Rec_ -> case recRewr (envRec env tyc) n t' ts of
+                    Nothing  -> stuck
+                    Just ts' -> reduce r env (app ts')
+  where
+    t'    = reduce r env t
+    stuck = app (Destr ar tyc n t' : map (reduce r env) ts)
 reduce r env t@(V v) =
     maybe t (reduce r env) (envBody env v)
 reduce _ _ (Ty r) = (Ty r)
@@ -21,17 +34,7 @@ reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
         Lam s -> reduce r env (instantiate1 t₂ s)
         t₁'   -> App t₁' (reduce r env t₂)
-reduce r env (Rewr c (Elim ts)) =
-    case adtRewr (envADT env c) ts' of
-        Nothing -> Rewr c (Elim ts')
-        Just t  -> reduce r env t
-  where ts' = map (reduce r env) ts
-reduce r env (Rewr c (Proj n t)) =
-    case recRewr (envRec env c) n [t'] of
-        Nothing  -> Rewr c (Proj n t')
-        Just t'' -> reduce r env t''
-  where t' = reduce r env t
-reduce r env (Data ar c ct ts) = Data ar c ct (map (reduce r env) ts)
+reduce r env (Con ar tyc dc ts) = Con ar tyc dc (map (r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 
