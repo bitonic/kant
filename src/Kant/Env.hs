@@ -8,6 +8,7 @@ module Kant.Env
     , EnvT
     , EnvP
     , EnvId
+    , envFree
     , envType
     , envBody
     , envADT
@@ -53,6 +54,7 @@ data Free
     | Value TmRefId TmRefId
     | DataCon ConId
     | DataElim ConId
+    | RecCon ConId
     | RecProj ConId
 
 freeType :: Free -> Maybe TmRefId
@@ -68,27 +70,30 @@ instance IsCursor Env where
     getCurs = envCurs
     putCurs c env = env{envCurs = c}
 
+envFree :: Env f v -> Id -> Maybe Free
+envFree Env{envFrees = frees} n = HashMap.lookup n frees
+
 envType :: Eq v => EnvT v -> v -> Maybe (TmRef v)
-envType env@Env{envFrees = defs} v =
+envType env v =
     case free' env v of
-        Just n  -> fmap (nest env) <$> (freeType =<< HashMap.lookup n defs)
+        Just n  -> fmap (nest env) <$> (freeType =<< envFree env n)
         Nothing -> Just (ctx env v)
 
 envBody :: Eq v => Env f v -> v -> Maybe (TmRef v)
-envBody env@Env{envFrees = defs} v =
+envBody env v =
     do n <- free' env v
-       fmap (nest env) <$> (freeBody =<< HashMap.lookup n defs)
+       fmap (nest env) <$> (freeBody =<< envFree env n)
 
-envADT :: Eq v => Env f v -> ConId -> ADT
+envADT :: Env f v -> ConId -> ADT
 envADT Env{envADTs = adts} v =
     case HashMap.lookup v adts of
         Nothing  -> IMPOSSIBLE("looking up non-existant ADT")
         Just adt -> adt
 
-envRec' :: Eq v => Env f v -> ConId -> Maybe Rec
+envRec' :: Env f v -> ConId -> Maybe Rec
 envRec' Env{envRecs = recs} v = HashMap.lookup v recs
 
-envRec :: Eq v => Env f v -> ConId -> Rec
+envRec :: Env f v -> ConId -> Rec
 envRec env v =
     case envRec' env v of
         Nothing  -> IMPOSSIBLE("looking up non-existant record")

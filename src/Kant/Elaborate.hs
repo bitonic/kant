@@ -271,7 +271,7 @@ elabRecCon tyc dc tycty projs =
        -- since if we generate an ill typed type it's an internal error.
        tyInferNH dcty
        -- Add it to the env
-       addFreeM dc (DataCon tyc)
+       addFreeM dc (RecCon tyc)
        return dcty
   where
     go₁ :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
