@@ -22,7 +22,7 @@ conDestr env (appV -> (V v, ts)) =
            Just dc ->
                case lookupFree env dc of
                    Nothing -> return (app (V v : ts'))
-                   Just f  -> do (t, ts'') <- f ts
+                   Just f  -> do (t, ts'') <- f ts'
                                  return (app (t : ts''))
 conDestr _ (V v) = return (V v)
 conDestr _ (Ty r) = return (Ty r)
