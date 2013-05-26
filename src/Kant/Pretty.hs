@@ -95,11 +95,9 @@ instance Pretty KError where
         group (nest' ("Expecting type" <$> pretty ty₁) <$>
                nest' ("for term" <$> pretty t) <$>
                nest' ("instead of" <$> pretty ty₂))
-    pretty (ExpectingFunction (Just t) ty) =
+    pretty (ExpectingFunction t ty) =
         group (nest' ("Expecting function type for term" <$> pretty t) <$>
                nest' ("instead of" <$> pretty ty))
-    pretty (ExpectingFunction Nothing ty) =
-        group (nest' ("Expecting function type instead of" <$> pretty ty))
     pretty (ExpectingType t ty) =
         group (nest' ("Expecting a * for term" <$> pretty t) <$>
                nest' ("instead of" <$> pretty ty))
@@ -130,9 +128,10 @@ instance Pretty Free where
     pretty (Value ty t) =
         group (nest' ("Defined variable of type" <$> pretty ty) <$>
                nest' ("and with body" <$> pretty t))
-    pretty (DataCon tyc) = "Data constructor for type `" <> pretty tyc <> "'"
-    pretty (DataElim tyc) = "Data eliminator for type `" <> pretty tyc <> "'"
-    pretty (RecProj tyc) = "Record projection for type `" <> pretty tyc <> "'"
+    pretty (DataCon tyc) = "Data constructor for ADT `" <> pretty tyc <> "'"
+    pretty (DataElim tyc) = "Data eliminator for ADT `" <> pretty tyc <> "'"
+    pretty (RecCon tyc) = "Data constructor for record `" <> pretty tyc <> "'"
+    pretty (RecProj tyc) = "Record projection for record `" <> pretty tyc <> "'"
 
 instance Pretty Output where
     pretty (OTyCheck ty [])    = gnest ("Type:" <$> pretty ty)

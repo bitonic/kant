@@ -61,7 +61,13 @@ tyInfer' (Arr ty₁ s) =
                                       addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
                            _       -> expectingType ty₂ tyty₂
            _ -> expectingType ty₁ tyty₁
-tyInfer' (App t₁ t₂) = do tyt₁ <- tyInfer' t₁; checkApp (Just t₁) tyt₁ [t₂]
+tyInfer' (App t₁ t₂) =
+    do tyt₁ <- tyInfer' t₁
+       tyt₁' <- whnfM tyt₁
+       case tyt₁' of
+           Arr ty₁ s -> do tyCheck t₂ ty₁
+                           constrIfTy (instantiate1 t₂ s)
+           _         -> expectingFunction t₁ tyt₁
 tyInfer' t@(Con _ tyc _ _) =
     do tyc' <- (`nest` tyc) <$> getEnv
        tycty <- lookupTy tyc'
@@ -93,17 +99,6 @@ discharge :: VarC v => [TmRef v] -> TmRef v -> TmRef v
 discharge []       ty        = ty
 discharge (t : ts) (Arr _ s) = discharge ts (instantiate1 t s)
 discharge _        ty        = IMPOSSIBLE("Expecting arrow instead of " ++ show ty)
-
-checkApp :: (VarC v, Monad m)
-         => Maybe (TmRef v) -> TmRef v -> [TmRef v] -> TyMonadT v m (TmRef v)
-checkApp _  ty [] = return ty
-checkApp tm tyt₁ (t₂ : ts) =
-    do tyt₁' <- whnfM tyt₁
-       case tyt₁' of
-           Arr ty₁ s -> do tyCheck t₂ ty₁
-                           ty <- constrIfTy (instantiate1 t₂ s)
-                           checkApp Nothing ty ts
-           _         -> expectingFunction tm tyt₁
 
 constrIfTy :: (VarC v, Monad m) => TmRef v -> KMonadE f v m (Tm Ref v)
 constrIfTy ty =

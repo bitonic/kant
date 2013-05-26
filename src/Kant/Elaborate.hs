@@ -60,7 +60,7 @@ instance r ~ Ref => Elaborate (Decl r) where
            [] <$ addADTM tyc ADT{ adtName = tyc
                                 , adtTy   = tycty
                                 , adtElim = elty
-                                , adtRewr = buildRewr tyc dcs
+                                , adtRewr = buildRewr (arrLen tycty) tyc dcs
                                 , adtCons = dcs }
     elaborate (RecD (tyc, tycty) dc projs) =
         -- This is a bit tricky, since we need the 'Record' in the env to
@@ -211,27 +211,28 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
                                      (map (F *** nestt) args))
              else hyps dc motiveV motiveArg args
 
-buildRewr :: ConId -> [(ConId, TmRefId)] -> Rewr_
+buildRewr :: Int -> ConId -> [(ConId, TmRefId)] -> Rewr_
 -- The 1 is for the target, then the number of methods
-buildRewr _ dcs _ ts | length ts < 1 + length dcs = Nothing
-buildRewr tyc dcs (t :: TmRef v) ts =
+buildRewr _ _ dcs _ ts | length ts < 1 + length dcs = Nothing
+buildRewr pars tyc dcs (t :: TmRef v) ts =
     case t of
-        -- TODO should we assert that the arguments are of the right number?
         Con ADT_ _ dc args | Just j <-  elemIndex dc (map fst dcs) ->
             let method = methods !! j
-                dcty = snd (dcs !! j)
-            in Just (app (method : args ++ recs 0 args dcty) : rest)
+                dcty   = snd (dcs !! j)
+            in Just (app (method : args ++ recs pars args dcty) : rest)
         Con ADT_ _ dc _ -> IMPOSSIBLE("constructor not present: " ++ dc)
         _ -> Nothing
   where
     (motive : methods, rest) = splitAt (1 + length dcs) ts
 
-    recs :: Int -> [TmRef v] -> TmRefId -> [TmRef v]
-    recs n args (Arr (appV -> (tyHead, _)) s) =
-        (if tyHead == V tyc then [recuRewr (args !! n)] else []) ++
-         -- It doesn't matter what we instantiate here
-        recs (n+1) args (instDummy s)
-    recs _ _ _ = []
+    -- Here we are using the datacon type to find out about recursive
+    -- occurences, so for example it doesn't really matter what we instantiate
+    recs 0 (arg : args) (Arr (appV -> (tyHead, _)) s) =
+        (if tyHead == V tyc then [recuRewr arg] else []) ++
+        recs 0 args (instDummy s)
+    recs 0 [] _ = []
+    recs n args (Arr _ s) = recs (n - 1) args (instDummy s)
+    recs _ _ _ = IMPOSSIBLE("malformed data type")
 
     recuRewr x = app (Destr ADT_ tyc (elimName tyc) x : motive : methods)
 

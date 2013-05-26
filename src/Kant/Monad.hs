@@ -168,10 +168,8 @@ expectingType :: (VarC v, Monad m, IsCursor c)
 expectingType t₁ t₂ = throwKError =<< ExpectingType <$> slamM t₁ <*> slamM t₂
 
 expectingFunction :: (VarC v, Monad m, IsCursor c)
-                  => Maybe (TmRef v) -> TmRef v -> KMonad (c f) v m a
-expectingFunction tm t =
-    do tm' <- case tm of Nothing -> return Nothing; Just t' -> Just <$> slamM t'
-       throwKError =<< ExpectingFunction tm' <$> slamM t
+                  => TmRef v -> TmRef v -> KMonad (c f) v m a
+expectingFunction t ty = throwKError =<< ExpectingFunction <$> slamM t <*> slamM ty
 
 expectingTypeData :: (VarC v, Monad m, IsCursor c)
                   => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
