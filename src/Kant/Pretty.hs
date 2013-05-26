@@ -38,7 +38,6 @@ instance Pretty (STm r) where
     pretty (SHole hn ts) = "{!" <> pretty hn <+> hsep (map singleParens ts) <> "!}"
     pretty (SAnn pars ty t) =
         "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
-    pretty (SPrim n) = pretty n
 
 nest' :: Doc -> Doc
 nest' = nest 2
@@ -50,7 +49,6 @@ singleTm :: STm r -> Bool
 singleTm (SV _)      = True
 singleTm (STy _)     = True
 singleTm (SHole _ _) = True
-singleTm (SPrim _)   = True
 singleTm _           = False
 
 singleParens :: STm r -> Doc
@@ -115,6 +113,9 @@ instance Pretty KError where
         group (nest' ("Recursive occurrence of" <+> pretty tyc <+>
                       "in wrong position in data constructor" <+> pretty dc <+>
                       "of type" <$> pretty ty))
+    pretty (NotEnoughArguments n) =
+        group (nest' ("Not enough arguments for constructor/destructor `" <>
+                       pretty n <> "'"))
     pretty (UntypedTm ty) =
         group (nest' ("Type can't be inferred for term" <+> pretty ty))
     pretty (UnexpectedHole hn) = "Unexpected hole `" <> pretty hn <> "'."
