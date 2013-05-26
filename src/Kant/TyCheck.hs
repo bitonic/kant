@@ -66,12 +66,16 @@ tyInfer' (Destr ar tyc n t) =
        tyt' <- whnfM tyt
        pars <- checkTyCon tyc tyt'
        elimTy <- lookupElim tyc
+       env <- getEnv
        return (discharge pars elimTy)
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
 checkTyCon tyc (appV -> (V v, ts)) = undefined
+
+discharge :: [TmRef v] -> TmRef v -> TmRef v
+discharge = undefined
 
 dataInfer :: (Monad m, VarC v) => [TmRef v] -> TmRef v -> TyMonadT v m (TmRef v)
 dataInfer = flip (checkApp Nothing)
@@ -99,6 +103,9 @@ tyCheck = whnf₂ go
   where
     -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
+    go (Con ar tyc dc ts) ty =
+        do pars <- checkTyCon tyc ty
+           checkDataCon ar tyc dc ts pars
     go (Lam s₁) (Arr ty s₂) = nestM ty (whnf₂ go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
@@ -107,6 +114,10 @@ tyCheck = whnf₂ go
         do tyt <- whnfM =<< tyInfer' t
            eq <- fromKMonadP (eqRefs ty tyt)
            unless eq (mismatch ty t tyt)
+
+checkDataCon :: (VarC v, Monad m)
+             => ADTRec -> ConId -> ConId -> [TmRef v] -> [TmRef v] -> TyMonadT v m ()
+checkDataCon = undefined
 
 -- TODO maybe find a way to eliminate the explicit recursion?
 eqRefs :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
