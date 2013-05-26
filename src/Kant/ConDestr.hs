@@ -25,12 +25,15 @@ conDestr env (appV -> (V v, ts)) =
                    Just _ -> Left dc
 conDestr _ (V v) = return (V v)
 conDestr _ (Ty r) = return (Ty r)
-conDestr env (Lam s) = Lam . toScope <$> conDestr (nestC env Proxy) (fromScope s)
+conDestr env (Lam s) = Lam . toScope <$> conDestr (nestP env) (fromScope s)
 conDestr env (Arr ty s) =
-    Arr <$> conDestr env ty <*> (toScope <$> conDestr (nestC env Proxy) (fromScope s))
+    Arr <$> conDestr env ty <*> (toScope <$> conDestr (nestP env) (fromScope s))
 conDestr env (App t₁ t₂) = App <$> conDestr env t₁ <*> conDestr env t₂
 conDestr env (Hole hid ts) = Hole hid <$> mapM (conDestr env) ts
 conDestr _ _ = IMPOSSIBLE("we shouldn't have constructors/destructors now")
 
 lookupDataCon :: Env f v -> Id -> Maybe (ADTRec, ConId, Int)
 lookupDataCon = undefined
+
+nestP :: EnvP v -> EnvP (Var NameId v)
+nestP = (`nestC` const Proxy)

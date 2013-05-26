@@ -51,17 +51,19 @@ newCurs = Cursor{ cursPull   = id
                 , cursRename = flip ($)
                 , cursCtx    = const IMPOSSIBLE("looking up an empty ctx") }
 
-nestCurs :: Functor f => Cursor f v -> f v -> Cursor f (Var NameId v)
+nestCurs :: Functor f => Cursor f v -> (a -> f v) -> Cursor f (Var (Name Id a) v)
 nestCurs Cursor{ cursPull   = pull_
                , cursNest   = nest_
                , cursRename = rename
-               , cursCtx    = ctx_ } t =
+               , cursCtx    = ctx_ } f =
     Cursor{ cursPull   = \v -> case v of B n -> name n; F v' -> pull_ v'
           , cursNest   = F . nest_
-          , cursRename = \v f -> case v of B (Name n ()) -> B (Name (f n) ())
-                                           F v'          -> F (rename v' f)
-          , cursCtx    = \v -> case v of B _  -> F <$> t
-                                         F v' -> F <$> ctx_ v'
+          , cursRename = \v g -> case v of
+                                     B (Name n x) -> B (Name (g n) x)
+                                     F v'         -> F (rename v' g)
+          , cursCtx    = \v -> case v of
+                                   B (Name _ x) -> F <$> f x
+                                   F v'         -> F <$> ctx_ v'
           }
 
 toCursP :: Cursor f v -> CursorP v
@@ -80,7 +82,7 @@ instance IsCursor Cursor where
     getCurs = id
     putCurs c _ = c
 
-nestC :: (IsCursor c, Functor f) => c f v -> f v -> c f (Var (Name Id ()) v)
+nestC :: (IsCursor c, Functor f) => c f v -> (a -> f v) -> c f (Var (Name Id a) v)
 nestC c t = putCurs (nestCurs (getCurs c) t) c
 
 restoreC :: (IsCursor c) => c f v -> c f' v' -> c f v

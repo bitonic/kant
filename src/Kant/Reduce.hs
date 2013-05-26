@@ -43,7 +43,7 @@ reduce r env (App t₁ t₂) =
 reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See first clause")
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
-reduceScope r env s = (toScope (r (nestC env Proxy) (fromScope s)))
+reduceScope r env s = (toScope (r (nestC env (const Proxy)) (fromScope s)))
 
 whnf :: VarC v => Env f v -> TmRef v -> TmRef v
 whnf env = reduce (\_ t -> t) (toP env)

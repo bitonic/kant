@@ -296,8 +296,8 @@ elabRecCon tyc dc tycty projs =
 elabRecRewr :: Monad m
             => ConId                     -- Type con
             -> TmRefId                   -- Type con type
-            -> [Id   ]                   -- Projection names
-            -> (Id, Scope Int TmRef Id)  -- Current projection
+            -> [Id]                      -- Projection names
+            -> Proj Ref                  -- Current projection
             -> KMonadT Id m (Id, TmRefId)
 elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
@@ -319,15 +319,15 @@ elabRecRewr tyc tycty projns (n, proj) =
            let fixprojs v = if v `elem` map (nest env') projns
                             then app (map V (v : vs ++ [B (Name "x" ())]))
                             else V v
-           return (fixprojs =<< (instProj vs (nest env' <$> proj)))
+           return (fixprojs =<< instProj vs (nest env' <$> proj))
 
-instProj :: [v] -> Scope Int TmRef v  -> TmRef v
+instProj :: [v] -> Scope (Name Id Int) TmRef v -> TmRef v
 instProj vs s = instantiate inst s
   where
-    inst i = if i < length vs then V (vs !! i)
-             else IMPOSSIBLE("Out of bound index in projection")
+    inst (Name _ i) = if i < length vs then V (vs !! i)
+                      else IMPOSSIBLE("Out of bound index in projection")
 
-instProjs :: [v] -> [(Id, Scope Int TmRef v)] -> [(Id, TmRef v)]
+instProjs :: [v] -> [(Id, Scope (Name Id Int) TmRef v)] -> [(Id, TmRef v)]
 instProjs vs = map (second (instProj vs))
 
 buildRecRewr :: [Id] -> Id -> Rewr_

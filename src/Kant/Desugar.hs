@@ -5,7 +5,9 @@ import           Control.Arrow (first, second)
 import           Data.List (elemIndex)
 
 import           Bound
+import           Bound.Name
 
+import           Kant.Common
 import           Kant.Decl
 import           Kant.Sugar
 import           Kant.Term
@@ -42,9 +44,10 @@ instance r ~ () => Desugar (SDecl r) where
       where pars' = map (first Just) pars
     desugar (SRecord c pars dc projs) =
         RecD (c, desugar (SArr pars' (STy ()))) dc
-             [ (n, abstract (`elemIndex` (map fst pars)) (desugar proj))
-             | (n, proj) <- projs ]
-      where pars' = map (first Just) pars
+             [(n, abstract ixName (desugar proj)) | (n, proj) <- projs]
+      where
+        pars' = map (first Just) pars
+        ixName p = Name "dummy" <$> elemIndex p (map fst pars)
 
 instance r ~ () => Desugar (SModule r) where
     type Core (SModule r) = ModuleSyn

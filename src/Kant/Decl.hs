@@ -1,5 +1,6 @@
 module Kant.Decl
     ( Cons
+    , Proj
     , Projs
     , Decl(..)
     , DeclSyn
@@ -8,11 +9,15 @@ module Kant.Decl
     ) where
 
 import           Bound
+import           Bound.Name
 
 import           Kant.Term
 
 type Cons r = [(ConId, TmId r)]
-type Projs r = [(Id, Scope Int (Tm r) Id)]
+
+-- Note: we need the 'Name' just so that we can easily traverse with a 'Cursor'.
+type Proj r = (Id, Scope (Name Id Int) (Tm r) Id)
+type Projs r = [Proj r]
 
 data Decl r
     = Val Id (TmId r)

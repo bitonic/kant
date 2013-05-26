@@ -75,7 +75,8 @@ restoreEnv m = do env <- getEnv; x <- m; putEnv env; return x
 nestM :: (Monad m, IsCursor c, Functor f)
       => f v -> KMonad (c f) (Var NameId v) m a -> KMonad (c f) v m a
 nestM ty (KMonad m) =
-    KMonad (StateT (\env -> second (restoreC env) <$> runStateT m (nestC env ty)))
+    KMonad $ StateT $
+    \env -> second (restoreC env) <$> runStateT m (nestC env (const ty))
 
 nestPM :: (Monad m, IsCursor c)
        => KMonad (c Proxy) (Var NameId v) m a -> KMonad (c Proxy) v m a
