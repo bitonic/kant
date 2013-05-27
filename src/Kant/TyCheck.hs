@@ -91,7 +91,6 @@ constrIfTy ty =
 tyCheck :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
 tyCheck = whnf₂ go
   where
-    -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
     go (Lam s₁) (Arr ty s₂) = nestM ty (whnf₂ go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
