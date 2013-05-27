@@ -44,6 +44,7 @@ module Kant.Monad
     , expectingType
     , expectingFunction
     , expectingTypeData
+    , expectingTypeData'
     , wrongRecTypePos
     , untypedTm
     , unexpectedHole
@@ -172,8 +173,13 @@ expectingFunction :: (VarC v, Monad m, IsCursor c)
 expectingFunction t ty = throwKError =<< ExpectingFunction <$> slamM t <*> slamM ty
 
 expectingTypeData :: (VarC v, Monad m, IsCursor c)
+                  => ConId -> TmRef v -> KMonad (c f) v m a
+expectingTypeData tyc ty =
+    throwKError =<< ExpectingTypeData Nothing tyc <$> slamM ty
+
+expectingTypeData' :: (VarC v, Monad m, IsCursor c)
                   => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
-expectingTypeData dc tyc ty = throwKError (ExpectingTypeData dc tyc ty)
+expectingTypeData' dc tyc ty = throwKError (ExpectingTypeData (Just dc) tyc ty)
 
 wrongRecTypePos :: (VarC v, Monad m, IsCursor c)
                 => ConId -> ConId -> TmRefId -> KMonad (c f) v m a

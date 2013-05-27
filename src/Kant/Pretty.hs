@@ -104,7 +104,10 @@ instance Pretty KError where
     pretty (ExpectingTypeCon tyc ty) =
         group (nest' ("Expecting Type as return type for type constructor" <+>
                       pretty tyc <+> "instead of" <$> pretty ty))
-    pretty (ExpectingTypeData dc tyc ty) =
+    pretty (ExpectingTypeData Nothing tyc ty) =
+        group (nest' ("Expecting something constructing a" <+> pretty tyc <+>
+                      "instead of" <$> pretty ty))
+    pretty (ExpectingTypeData (Just dc) tyc ty) =
         group (nest' ("Expecting something constructing a" <+> pretty tyc <+>
                       "for data constructor" <+> pretty dc <+> "instead of" <$>
                       pretty ty))

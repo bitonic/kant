@@ -19,6 +19,8 @@ import           Kant.Monad
 import           Kant.Term
 #include "../impossible.h"
 
+import Debug.Trace
+
 tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
     do (ty, holes) <- mapKMonad run (tyInfer' t)
@@ -79,19 +81,17 @@ tyInfer' (Destr ar tyc n t) =
        destrTy <- case ar of
                       ADT_ -> lookupElim tyc
                       Rec_ -> lookupProj tyc n
-       return (discharge (pars ++ [tyt']) (destrTy))
+       return (discharge (pars ++ [tyt']) destrTy)
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
-checkTyCon tyc (appV -> (V v, ts)) =
+checkTyCon tyc t@(appV -> (V v, ts)) =
     do env <- getEnv
-       -- TODO better errors
        case free' env v of
-           Nothing -> fail "no tycon"
            Just tyc' | tyc == tyc' -> return ts
-           Just tyc' -> fail ("no tycon " ++ tyc')
-checkTyCon _ _ = fail "no tycon"
+           _ -> expectingTypeData tyc t
+checkTyCon tyc t = expectingTypeData tyc t
 
 -- TODO we don't bother checking that the parameters are of the right type since
 -- we already know that that's the case.  Make sure that this assumption holds.

@@ -119,7 +119,7 @@ elabCon tyc dc ty =
         do env <- getEnv
            unless (arg == V (nest env tyc) &&
                    and (zipWith (==) pars (map V (toList vs))))
-                  (expectingTypeData dc tyc ty)
+                  (expectingTypeData' dc tyc ty)
 
 type ElabM v a = KMonad (Cursor Proxy) v Identity a
 

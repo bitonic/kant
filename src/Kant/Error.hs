@@ -1,10 +1,11 @@
 module Kant.Error (KError(..)) where
 
-import           Control.Monad.Error (Error)
+import           Control.Monad.Error (Error(..))
 import qualified Text.Parsec as Parsec
 
 import           Kant.Parser
 import           Kant.Term
+#include "../impossible.h"
 
 data KError
     = OutOfBounds Id
@@ -13,7 +14,7 @@ data KError
     | ExpectingFunction TmRefId TmRefId
     | ExpectingType TmRefId TmRefId
     | ExpectingTypeCon ConId TmRefId
-    | ExpectingTypeData ConId ConId TmRefId
+    | ExpectingTypeData (Maybe ConId) ConId TmRefId
     | WrongRecTypePos ConId ConId TmRefId
     | UntypedTm TmRefId
     | UnexpectedHole HoleId
@@ -26,3 +27,4 @@ data KError
     deriving (Show)
 
 instance Error KError where
+    noMsg = IMPOSSIBLE("don't call `fail'!")
