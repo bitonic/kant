@@ -1,7 +1,7 @@
 * TODO bug in type hierarchy checker
   After loading ‘common.ka’, ‘:t map Nat upto3 Nat’ gives ‘Cyclic types’.
-* TODO bug in type checking
-  ‘map Nat Nat upto3’ loops
+* TODO strange bidi behaviour
+  (cons one (map Nat Nat (plus one) upto3)) spits an inference error
 * TODO η-expansion of records and funs
 * TODO Pattern unification
 * TODO Better pretty printing
