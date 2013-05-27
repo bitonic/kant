@@ -48,8 +48,8 @@ length [A : *] [xs : List A] : Nat => (
 )
 
 upto3  : List Nat => (cons one (cons two (cons three nil)))
--- upto4  : List Nat => (cons one (map Nat Nat upto3 (plus one)))
--- upto4' : List Nat => (map Nat upto3 Nat suc)
+upto4  : List Nat => (cons one (map Nat Nat (plus one) upto3))
+upto4' : List Nat => (map Nat Nat (plus one) upto3)
 
 -- record Sigma : [A : *] [B : A -> *] -> * =>
 --     si {fst : A, snd : B fst}
