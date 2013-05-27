@@ -19,8 +19,6 @@ import           Kant.Monad
 import           Kant.Term
 #include "../impossible.h"
 
-import Debug.Trace
-
 tyInfer :: (VarC v, Monad m) => TmRef v -> KMonadT v m (TmRef v, [HoleCtx])
 tyInfer t =
     do (ty, holes) <- mapKMonad run (tyInfer' t)
