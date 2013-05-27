@@ -110,7 +110,6 @@ constrIfTy ty =
 tyCheck :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
 tyCheck = whnf₂ go
   where
-    -- TODO try to iteratively get the whnf, instead the nf at once
     go :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m ()
     go (Con ar tyc dc ts) ty =
         do pars <- checkTyCon tyc ty
