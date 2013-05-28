@@ -151,21 +151,6 @@ eqRefs _ _ = return False
 eqRefs' :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadP v m Bool
 eqRefs' = whnf₂ eqRefs
 
-isProp :: (VarC v, Monad m) => TmRef v -> TmRef v -> TyMonadT v m Bool
-isProp t₀ (Ty _) = whnf₁ go t₀
-  where
-    go :: (VarC v, Monad m) => TmRef v -> TyMonadT v m Bool
-    go (Arr ty s) = nestM ty (whnf₁ go (fromScope s))
-    go (appV -> (t, pars)) =
-        do t' <- whnfM t
-           case t' of
-               V v -> (&&) <$> isRecM v <*> (and <$> mapM (whnf₁ go) pars)
-               _   -> return False
-isProp _ _ = return False
-
 whnf₂ :: (Monad m, VarC v) => (TmRef v -> TmRef v -> TyMonad f v m a)
       -> TmRef v -> TmRef v -> TyMonad f v m a
 whnf₂ m t₁ t₂ = join (m <$> whnfM t₁ <*> whnfM t₂)
-whnf₁ :: (Monad m, VarC v) => (TmRef v -> TyMonad f v m a)
-      -> TmRef v -> TyMonad f v m a
-whnf₁ m t = m =<< whnfM t
