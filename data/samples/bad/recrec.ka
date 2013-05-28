@@ -1,0 +1,2 @@
+
+record Foo : * => foo {oof : Foo}
