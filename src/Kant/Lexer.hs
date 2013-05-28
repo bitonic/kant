@@ -8,7 +8,7 @@ module Kant.Lexer
     ) where
 
 import           Control.Applicative ((*>), (<*), (<$), (<$>), (<*>))
-import           Control.Monad (msum)
+import           Control.Monad (msum, void)
 
 import           Text.Parsec hiding (runParser, ParseError)
 import           Text.Parsec.String
@@ -84,7 +84,8 @@ lexToken = tok
     ident = (:) <$> alphaNum <*> many (alphaNum <|> digit <|> oneOf "'_-")
 
     tok =
-        msum [ lexeme (string "--" *> manyTill anyChar (char '\n')) *> tok
+        msum [ lexeme (string "--" *> manyTill anyChar (void (char '\n') <|> eof))
+               *> tok
              , msum [simpleTok s t | (s, t) <- simpleToks]
              , lexeme (NAME <$> ident)
              , EOF <$ eof
