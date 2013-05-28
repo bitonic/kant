@@ -35,7 +35,7 @@ Library
                       unordered-containers,
                       wl-pprint
 
-    Build-Tools:      alex, happy
+    Build-Tools:      happy
 
     GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
     Extensions:       CPP

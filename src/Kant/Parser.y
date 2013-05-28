@@ -21,6 +21,8 @@ import           Kant.Lexer
 import           Kant.Sugar
 import           Kant.Term
 
+import Debug.Trace
+
 }
 
 %name parseModule_
@@ -29,7 +31,7 @@ import           Kant.Term
 
 %tokentype { Token }
 
-%monad { Alex }
+%monad { Parser }
 %lexer { lexer } { EOF }
 
 %token
@@ -101,8 +103,6 @@ DataCon : name ':' Tm                        { ($1, $3) }
 RecProj :: { (Id, STmSyn) }
 RecProj : name ':' Tm                        { ($1, $3) }
 
-
-
 Tm :: { STmSyn }
 Tm
     : '\\' Seq(Binder) '=>' Tm               { SLam $2 $4 }
@@ -147,39 +147,31 @@ Hole : '{!' name Seq0(SingleTm) '!}'         { SHole $2 $3 }
 
 {
 
-lexer :: (Token -> Alex a) -> Alex a
-lexer f = alexMonadScan' >>= f
-
-parseErr :: String -> Alex a
-parseErr err =
-    do (l, c) <- lineCol `liftM` alexGetInput
-       alexError ("Parse error at line " ++ show l ++ ", column " ++ show c ++ err)
+lexer :: (Token -> Parser a) -> Parser a
+lexer = (lexToken >>=)
 
 -- TODO find a way to find more info, e.g. tokens we were expecting or stuff
 -- like this.
-happyError :: Alex a
-happyError = parseErr "."
+happyError :: Parser a
+happyError = fail "Parse error"
 
-tyConPars :: [SParam ()] -> Alex [(Id, STmSyn)]
-tyConPars pars = maybe happyError return
-                       (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
-
-type ParseError = String
-
--- | 'Left' for an error 'String', 'Right' for a result.
-type ParseResult = Either ParseError
+tyConPars :: [SParam ()] -> Parser [(Id, STmSyn)]
+tyConPars pars =
+    maybe happyError return
+          (sequence [do v <- mv; return (v, ty) | (mv, ty) <- pars])
 
 parseModule :: String -> ParseResult ModuleSyn
-parseModule s = desugar <$> runAlex s parseModule_
+parseModule s = desugar <$> runParser s parseModule_
 
 parseDecl :: String -> ParseResult DeclSyn
-parseDecl s = desugar <$> runAlex s parseDecl_
+parseDecl s = desugar <$> runParser s parseDecl_
 
 parseTm :: String -> ParseResult TmSyn
-parseTm s = desugar <$> runAlex s parseTm_
+parseTm s = desugar <$> runParser s parseTm_
 
 -- | Explodes if things go wrong.
 parseFile :: FilePath -> IO ModuleSyn
-parseFile fp = readFile fp >>= either fail return . parseModule
+parseFile fp = readFile fp >>= either (fail . show) return . parseModule
 
 }
+
