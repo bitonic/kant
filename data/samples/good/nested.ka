@@ -1,0 +1,19 @@
+
+-- This is just to make sure that the hierarchy isn't too strict...
+
+data Nat : * => { zero : Nat | suc : Nat -> Nat }
+
+data List : [A : *] -> * =>
+    { nil  : List A
+    | cons : A -> List A -> List A
+    }
+
+record Sigma : [A : *] [B : A -> *] -> * =>
+    si {fst : A, snd : B fst}
+
+data Bool : * => { true : Bool | false : Bool }
+
+ite [A : *] [b : Bool] : A -> A -> A => (Bool-Elim b (\_ => A))
+
+foo1 : Sigma * (\_ => *) => (si Nat (List Nat))
+foo2 : Sigma Bool (\b => ite * b Nat Bool) => (si true zero)
