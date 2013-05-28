@@ -1,0 +1,2 @@
+
+data Mu : [F : * -> *] -> * => {mu : F (Mu F) -> Mu F}
