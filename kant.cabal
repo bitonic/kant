@@ -72,7 +72,7 @@ Library
 Executable kant
     Main-Is:          kant.hs
 
-    GHC-Options:      -Wall -fno-warn-unused-do-bind -prof -auto-all
+    GHC-Options:      -Wall -fno-warn-unused-do-bind
 
     Build-Depends:    base >= 3 && < 5,
                       kant
