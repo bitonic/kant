@@ -11,6 +11,7 @@ import           Control.Monad (when, unless)
 import           Data.Foldable (foldlM)
 import           Data.List (elemIndex)
 import           Data.Maybe (isJust)
+import           Data.Foldable (forM_)
 
 import           Control.Monad.Identity (Identity, runIdentity)
 
@@ -83,7 +84,7 @@ instance r ~ Ref => Elaborate (Decl r) where
                         , recProjs = []
                         , recRewr  = buildRecRewr projns }
                addProj (elprojs, rec₁) proj@(projn, _) =
-                   do projty <- elabRecRewr tyc tycty projns proj
+                   do projty <- elabRecRewr tyc dc tycty projns proj
                       let elproj = (projn, projty)
                           rec₂ = rec₁{recProjs = recProjs rec₁ ++ [(projn, projty)]}
                       addRecM tyc rec₂
@@ -119,7 +120,7 @@ elabCon tyc dc ty =
            env <- getEnv
            let fvs  = freeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
-                  (wrongRecTypePos dc tyc ty)
+                  (wrongRecTypePos tyc dc ty)
            nestPM (goodTy (fmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
@@ -298,14 +299,20 @@ elabRecCon tyc dc tycty projs =
                pjs' = map (second (fromScope . abstract abproj)) pjs
            Arr proj <$> (toScope <$> nestPM (go₂ (fmap F vs) pjs'))
 
-elabRecRewr :: Monad m
+elabRecRewr :: (Monad m)
             => ConId                     -- Type con
+               -> ConId                  -- Data con
             -> TmRefId                   -- Type con type
             -> [Id]                      -- Projection names
             -> Proj Ref                  -- Current projection
             -> KMonadT Id m TmRefId
-elabRecRewr tyc tycty projns (n, proj) =
+elabRecRewr tyc dc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
+       -- TODO we need to check recursive occurrences here, it's very annoying
+       -- because ideally we'd just avoid adding the record in the first place.
+       forM_ projty $
+           \v -> do env <- getEnv
+                    when (v == nest env tyc) (wrongRecTypePos tyc dc projty)
        tyInferNH projty
        addFreeM n (RecProj tyc)
        return projty
