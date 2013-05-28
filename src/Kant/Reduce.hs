@@ -19,8 +19,8 @@ reduce r env t@(V v) =
     maybe t (reduce r env) (envBody env v)
 reduce _ _ (Ty r) = (Ty r)
 reduce r env (Lam s)    = Lam (reduceScope r env s)
-reduce r env (Arr ty s) = Arr (r env ty) (reduceScope r env s)
-reduce r env (Con ar tyc dc ts) = Con ar tyc dc (map (r env) ts)
+reduce r env (Arr ty s) = Arr (reduce r env ty) (reduceScope r env s)
+reduce r env (Con ar tyc dc ts) = Con ar tyc dc (map (reduce r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 -- TODO I think that matching here directly on 'Destr' without reducing first is
@@ -40,7 +40,7 @@ reduce r env (App t₁ t₂) =
     case reduce r env t₁ of
         Lam s -> reduce r env (instantiate1 t₂ s)
         t₁'   -> App t₁' (reduce r env t₂)
-reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See first clause")
+reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See previous clauses")
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
 reduceScope r env s = (toScope (r (nestC env (const Proxy)) (fromScope s)))

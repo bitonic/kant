@@ -8,6 +8,7 @@ module Kant.Elaborate (Elaborate(..), elimName) where
 
 import           Control.Arrow ((***), second)
 import           Control.Monad (when, unless)
+import           Data.Foldable (foldlM)
 import           Data.List (elemIndex)
 import           Data.Maybe (isJust)
 
@@ -63,10 +64,10 @@ instance r ~ Ref => Elaborate (Decl r) where
                                 , adtRewr = buildRewr (arrLen tycty) tyc dcs
                                 , adtCons = dcs }
     elaborate (RecD (tyc, tycty) dc projs) =
-        -- This is a bit tricky, since we need the 'Record' in the env to
+        -- This is a bit tricky, since we need the 'RecCon's in the env to
         -- typecheck the projections, if we add the bodies of the tycon and the
-        -- projs themselves.  Thus, we first add the tycon and projections
-        -- abstractly, and then add the bodies.
+        -- projs themselves.  Thus, we gradually replace the 'Rec' with a more
+        -- complete version.
         do checkDup tyc
            -- Tycheck type con
            tyInferNH tycty
@@ -74,19 +75,26 @@ instance r ~ Ref => Elaborate (Decl r) where
            unless (returnsTy tycty) (expectingTypeCon tyc tycty)
            -- Add the tycon
            addFreeM tyc (Abstract tycty)
-           -- Add the projections types
+           -- Add the record
            let projns = map fst projs
-           -- Note that it is important to add the projections in this order, so
-           -- that we typecheck them with regards to the previous fields only.
-           -- Also, we don't add the bodies yet.
-           elprojs <- mapM (elabRecRewr tyc tycty projns) projs
+               rec = Rec{ recName  = tyc
+                        , recTy    = tycty
+                        , recCon   = IMPOSSIBLE("we haven't added the dc yet")
+                        , recProjs = []
+                        , recRewr  = buildRecRewr projns }
+               addProj (elprojs, rec₁) proj@(projn, _) =
+                   do projty <- elabRecRewr tyc tycty projns proj
+                      let elproj = (projn, projty)
+                          rec₂ = rec₁{recProjs = recProjs rec₁ ++ [(projn, projty)]}
+                      addRecM tyc rec₂
+                      return (elprojs ++ [elproj], rec₂)
+           addRecM tyc rec
+           -- We add the projection one by one, gradually upgrading the rec.
+           (_, rec') <- foldlM addProj ([], rec) projs
            -- Finally, add the data constructor
            dcty <- elabRecCon tyc dc tycty projs
-           [] <$ addRecM tyc Rec{ recName  = tyc
-                                , recTy    = tycty
-                                , recCon   = (dc, dcty)
-                                , recProjs = elprojs
-                                , recRewr  = buildRecRewr projns }
+           [] <$ addRecM tyc rec'{recCon   = (dc, dcty)}
+
 returnsTy :: TmRef v -> Bool
 returnsTy (Arr  _ s) = returnsTy (fromScope s)
 returnsTy (Ty _)     = True
@@ -155,7 +163,7 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
                   nestPM (nestPM (methods (map (F . F) args) motiveV target cons)))
 
     methods :: Eq v
-            => [v]                  -- Arguments for the tycon
+            => [v]                -- Arguments for the tycon
             -> TmRef v            -- Quantified motive `P'
             -> TmRef v            -- Target
             -> [(ConId, TmRefId)] -- Constructors
@@ -167,30 +175,26 @@ elimTy tyc tycty cons ref = telescope targetsf tycty
 
     -- I can't use `telescope' because I need to bump the motiveV each time
     method :: Eq v
-           => [v]               -- Arguments to the tycon
-           -> ConId             -- Data con
+           => [v]             -- Arguments to the tycon
+           -> ConId           -- Data con
            -> TmRefId         -- Data con type
            -> TmRef v         -- Quantifiend motive `P'
            -> ElabM v (TmRef v)
     method args₀ dc dcty motiveV₀ =
         let go :: Eq v
                => TmRef v        -- Quantified motive `P'
-               -> [v]              -- Args for the tycon
                -> [(v, TmRef v)] -- Args to the datacon, var and type
                -> TmRef v        -- Type of the datacon
                -> ElabM v (TmRef v)
-            go motiveV tyargs args (Arr arg s) =
+            go motiveV args (Arr arg s) =
                 mkArr arg <$>
-                nestPM (go (nestt motiveV) (map F tyargs)
+                nestPM (go (nestt motiveV)
                            (map (F *** nestt) args ++ [(B (bindingN s), nestt arg)])
                            (fromScope s))
-            go motiveV tyargs args (appV -> _) =
-                do curs <- getEnv
-                   hyps dc motiveV
-                        (app (V (nest curs dc) : map V tyargs ++ map (V . fst) args))
-                        args
+            go motiveV args (appV -> _) =
+                hyps dc motiveV (Con ADT_ tyc dc (map (V . fst) args)) args
         in do curs <- getEnv
-              go motiveV₀ args₀ [] (discharge args₀ (nest curs <$> dcty))
+              go motiveV₀ [] (discharge args₀ (nest curs <$> dcty))
 
     discharge [] dcty = dcty
     discharge (arg : args) (Arr _ s) = discharge args (instantiate1 (V arg) s)
@@ -299,16 +303,17 @@ elabRecRewr :: Monad m
             -> TmRefId                   -- Type con type
             -> [Id]                      -- Projection names
             -> Proj Ref                  -- Current projection
-            -> KMonadT Id m (Id, TmRefId)
+            -> KMonadT Id m TmRefId
 elabRecRewr tyc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
        tyInferNH projty
        addFreeM n (RecProj tyc)
-       return (n, projty)
+       return projty
   where
     go :: VarC v => Bwd v -> TmRef v -> ElabM v (TmRef v)
     go vs (Arr ty s) =
-        Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
+        Arr ty <$>
+        (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ =
         do env <- getEnv
            let vs' = toList vs
@@ -317,9 +322,10 @@ elabRecRewr tyc tycty projns (n, proj) =
     returnTy :: VarC v => [v] -> ElabM (Var NameId v) (TmRef (Var NameId v))
     returnTy (map F -> vs) =
         do env' <- getEnv
-           let fixprojs v = if v `elem` map (nest env') projns
-                            then app (map V (v : vs ++ [B (Name "x" ())]))
-                            else V v
+           let fixprojs v = case free' env' v of
+                                Just pn | pn `elem` projns ->
+                                    Destr Rec_ tyc pn (V (B (Name "x" ())))
+                                _ -> V v
            return (fixprojs =<< instProj vs (nest env' <$> proj))
 
 instProj :: [v] -> Scope (Name Id Int) TmRef v -> TmRef v

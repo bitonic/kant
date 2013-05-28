@@ -74,22 +74,23 @@ tyInfer' t@(Con _ tyc _ _) =
        if arrLen tycty == 0 then return (V tyc') else untypedTm t
 tyInfer' (Destr ar tyc n t) =
     do tyt  <- tyInfer' t
-       tyt' <- whnfM tyt
-       pars <- checkTyCon tyc tyt'
+       pars <- checkTyCon tyc tyt
        destrTy <- case ar of
                       ADT_ -> lookupElim tyc
                       Rec_ -> lookupProj tyc n
-       return (discharge (pars ++ [tyt']) destrTy)
+       return (discharge (pars ++ [t]) destrTy)
 tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
-checkTyCon tyc t@(appV -> (V v, ts)) =
-    do env <- getEnv
-       case free' env v of
-           Just tyc' | tyc == tyc' -> return ts
-           _ -> expectingTypeData tyc t
-checkTyCon tyc t = expectingTypeData tyc t
+checkTyCon tyc t =
+    do t' <- whnfM t
+       case appV t' of
+           (V v, ts) -> do env <- getEnv
+                           case free' env v of
+                               Just tyc' | tyc == tyc' -> return ts
+                               _ -> expectingTypeData tyc t
+           _         -> expectingTypeData tyc t
 
 -- TODO we don't bother checking that the parameters are of the right type since
 -- we already know that that's the case.  Make sure that this assumption holds.

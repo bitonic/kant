@@ -55,6 +55,7 @@ module Kant.Monad
     , parseModuleM
     , conDestrDeclM
     , processDeclM
+    , conDestrM
     , processTmM
     ) where
 
@@ -211,7 +212,10 @@ conDestrDeclM :: (Monad m) => Decl r -> KMonadE f Id m (Decl r)
 conDestrDeclM = wrapConDestr conDestrDecl
 
 processTmM :: (Monad m) => String -> KMonadE f Id m TmRefId
-processTmM = wrapParse parseTm >=> wrapConDestr conDestr >=> putRef
+processTmM = wrapParse parseTm >=> conDestrM >=> putRef
+
+conDestrM :: (Monad m) => Tm r Id -> KMonadE f Id m (Tm r Id)
+conDestrM = wrapConDestr conDestr
 
 wrapParse :: Monad m => (a -> Either ParseError b) -> a -> KMonad f v m b
 wrapParse f = either (throwKError . TmParse) return . f
