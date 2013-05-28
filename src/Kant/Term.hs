@@ -78,6 +78,8 @@ data Tm r v
     | Con ADTRec ConId ConId [Tm r v]
     | Destr ADTRec ConId Id (Tm r v)
     | Hole HoleId [Tm r v]
+    | TyEq (Tm r v) (Tm r v)
+    | HeEq (Tm r v) (Tm r v) (Tm r v) (Tm r v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 data ADTRec = ADT_ | Rec_
@@ -96,15 +98,17 @@ instance (Read r) => Read1 (Tm r) where readsPrec1 = readsPrec
 instance Monad (Tm r) where
     return = V
 
-    V v              >>= f = f v
-    Ty r             >>= _ = Ty r
-    Lam s            >>= f = Lam (s >>>= f)
-    Arr ty s         >>= f = Arr (ty >>= f) (s >>>= f)
-    App t₁ t₂        >>= f = App (t₁ >>= f) (t₂ >>= f)
-    Con ar tyc dc ts >>= f = Con ar tyc dc (map (>>= f) ts)
-    Destr ar tyc n t >>= f = Destr ar tyc n (t >>= f)
-    Ann ty t         >>= f = Ann (ty >>= f) (t >>= f)
-    Hole hn ts       >>= f = Hole hn (map (>>= f) ts)
+    V v                >>= f = f v
+    Ty r               >>= _ = Ty r
+    Lam s              >>= f = Lam (s >>>= f)
+    Arr ty s           >>= f = Arr (ty >>= f) (s >>>= f)
+    App t₁ t₂          >>= f = App (t₁ >>= f) (t₂ >>= f)
+    Con ar tyc dc ts   >>= f = Con ar tyc dc (map (>>= f) ts)
+    Destr ar tyc n t   >>= f = Destr ar tyc n (t >>= f)
+    Ann ty t           >>= f = Ann (ty >>= f) (t >>= f)
+    Hole hn ts         >>= f = Hole hn (map (>>= f) ts)
+    TyEq ty₁ ty₂       >>= f = TyEq (ty₁ >>= f) (ty₂ >>= f)
+    HeEq t₁ ty₁ t₂ ty₂ >>= f = HeEq (t₁ >>= f) (ty₁ >>= f) (t₂ >>= f) (ty₂ >>= f)
 
 lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
@@ -155,16 +159,19 @@ annV (Ann _ t) = t
 annV t         = t
 
 mapRef :: (Monad m)  => (r₁ -> m r₂) -> Tm r₁ v -> m (Tm r₂ v)
-mapRef _ (V v)              = return (V v)
-mapRef f (Ty r)             = Ty <$> f r
-mapRef f (Lam s)            = Lam . toScope <$> mapRef f (fromScope s)
-mapRef f (Arr t s)          = Arr <$> mapRef f t
-                                  <*> (toScope <$> mapRef f (fromScope s))
-mapRef f (App t₁ t₂)        = App <$> mapRef f t₁ <*> mapRef f t₂
-mapRef f (Ann ty t)         = Ann <$> mapRef f ty <*> mapRef f t
-mapRef f (Con ar tyc dc ts) = Con ar tyc dc <$> mapM (mapRef f) ts
-mapRef f (Destr ar tyc n t) = Destr ar tyc n <$> mapRef f t
-mapRef f (Hole h ts)        = Hole h <$> mapM (mapRef f) ts
+mapRef _ (V v)                = return (V v)
+mapRef f (Ty r)               = Ty <$> f r
+mapRef f (Lam s)              = Lam . toScope <$> mapRef f (fromScope s)
+mapRef f (Arr t s)            = Arr <$> mapRef f t
+                                    <*> (toScope <$> mapRef f (fromScope s))
+mapRef f (App t₁ t₂)          = App <$> mapRef f t₁ <*> mapRef f t₂
+mapRef f (Ann ty t)           = Ann <$> mapRef f ty <*> mapRef f t
+mapRef f (Con ar tyc dc ts)   = Con ar tyc dc <$> mapM (mapRef f) ts
+mapRef f (Destr ar tyc n t)   = Destr ar tyc n <$> mapRef f t
+mapRef f (Hole h ts)          = Hole h <$> mapM (mapRef f) ts
+mapRef f (TyEq ty₁ ty₂)       = TyEq <$> mapRef f ty₁ <*> mapRef f ty₂
+mapRef f (HeEq t₁ ty₁ t₂ ty₂) = HeEq <$> mapRef f t₁ <*> mapRef f ty₁
+                                     <*> mapRef f t₂ <*> mapRef f ty₂
 
 unRef :: Tm r v -> Tm () v
 unRef = runIdentity . mapRef (const (return ()))

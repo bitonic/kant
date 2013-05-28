@@ -51,6 +51,8 @@ data STm r
     | SApp (STm r) (STm r)
     | SArr [SParam r] (STm r)
     | SHole HoleId [STm r]
+    | STyEq (STm r) (STm r)
+    | SHeEq (STm r) (STm r) (STm r) (STm r)
     deriving (Show)
 type STmSyn = STm ()
 type STmRef = STm Ref

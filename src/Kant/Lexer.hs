@@ -43,11 +43,12 @@ data Token
     | NAME Id
     | TYPE
     | EOF
-    | UNDERSCORE
+    | UNDER
     | LHOLE
     | RHOLE
     | COMMA
     | RECORD
+    | EQUAL
     deriving (Show, Eq, Ord)
 
 lexeme :: Parser a -> Parser a
@@ -58,11 +59,26 @@ lexToken = tok
   where
     simpleTok s x = lexeme (x <$ string s)
     simpleToks =
-        [(":",  COLON),  (",",  COMMA),  ("{",  LBRACE), ("}",  RBRACE),
-         ("(",  LPAREN), (")",  RPAREN), ("[",  LBRACK), ("]",  RBRACK),
-         ("|",  BAR),    ("->", ARROW),  ("=>", DARROW), ("_",  UNDERSCORE),
-         ("\\", LAMBDA), ("*",  TYPE),   ("{!", LHOLE),  ("!}", RHOLE),
-         ("data", DATA), ("record", RECORD), ("postulate", POSTULATE)
+        [ (":",         COLON    )
+        , (",",         COMMA    )
+        , ("{",         LBRACE   )
+        , ("}",         RBRACE   )
+        , ("(",         LPAREN   )
+        , (")",         RPAREN   )
+        , ("[",         LBRACK   )
+        , ("]",         RBRACK   )
+        , ("|",         BAR      )
+        , ("->",        ARROW    )
+        , ("=>",        DARROW   )
+        , ("_",         UNDER    )
+        , ("\\",        LAMBDA   )
+        , ("*",         TYPE     )
+        , ("{!",        LHOLE    )
+        , ("!}",        RHOLE    )
+        , ("=",         EQUAL    )
+        , ("data",      DATA     )
+        , ("record",    RECORD   )
+        , ("postulate", POSTULATE)
         ]
 
     ident = (:) <$> alphaNum <*> many (alphaNum <|> digit <|> oneOf "'_-")

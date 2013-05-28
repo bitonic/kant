@@ -1,8 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module Kant.TyCheck
-    ( tyInfer
-    , tyInferNH
-    ) where
+module Kant.TyCheck (tyInfer, tyInferNH) where
 
 import           Control.Monad (unless, join)
 

@@ -26,6 +26,9 @@ distill' (Destr _ _ n t) = sapp [SV n, distill' t]
 distill' (Ann ty t) = SAnn (map (second distill) pars) (distill ty') (distill t')
   where (pars, ty', t') = unrollAnn ty t
 distill' (Hole hn ts) = SHole hn (map distill ts)
+distill' (TyEq ty₁ ty₂) = STyEq (distill ty₁) (distill ty₂)
+distill' (HeEq t₁ ty₁ t₂ ty₂) =
+     SHeEq (distill t₁) (distill ty₁) (distill t₂) (distill ty₂)
 
 sapp :: [STm r] -> STm r
 sapp = foldl1 SApp

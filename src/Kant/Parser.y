@@ -35,26 +35,30 @@ import Debug.Trace
 %lexer { lexer } { EOF }
 
 %token
-    ':'                 { COLON }
-    ','                 { COMMA }
-    '{'                 { LBRACE }
-    '}'                 { RBRACE }
-    '('                 { LPAREN }
-    ')'                 { RPAREN }
-    '['                 { LBRACK }
-    ']'                 { RBRACK }
-    '|'                 { BAR }
-    '->'                { ARROW }
-    '=>'                { DARROW }
-    '\\'                { LAMBDA }
-    '_'                 { UNDERSCORE }
-    'data'              { DATA }
-    'record'            { RECORD }
+    ':'                 { COLON     }
+    ','                 { COMMA     }
+    '{'                 { LBRACE    }
+    '}'                 { RBRACE    }
+    '('                 { LPAREN    }
+    ')'                 { RPAREN    }
+    '['                 { LBRACK    }
+    ']'                 { RBRACK    }
+    '|'                 { BAR       }
+    '->'                { ARROW     }
+    '=>'                { DARROW    }
+    '\\'                { LAMBDA    }
+    '_'                 { UNDER     }
+    '='                 { EQUAL     }
+    'data'              { DATA      }
+    'record'            { RECORD    }
     'postulate'         { POSTULATE }
-    '*'                 { TYPE }
-    '{!'                { LHOLE }
-    '!}'                { RHOLE }
-    name                { NAME $$ }
+    '*'                 { TYPE      }
+    '{!'                { LHOLE     }
+    '!}'                { RHOLE     }
+    name                { NAME $$   }
+
+%nonassoc '='
+%right '->'
 
 %%
 
@@ -114,6 +118,8 @@ SingleTm
     : name                                   { SV $1 }
     | Type                                   { $1 }
     | Hole                                   { $1 }
+    | TyEq                                   { $1 }
+    | HeEq                                   { $1 }
     | '(' Tm ')'                             { $2 }
 
 Type :: { STmSyn }
@@ -144,6 +150,13 @@ LamParam
 
 Hole :: { STmSyn }
 Hole : '{!' name Seq0(SingleTm) '!}'         { SHole $2 $3 }
+
+TyEq :: { STmSyn }
+TyEq : SingleTm '=' SingleTm                 { STyEq $1 $3 }
+
+HeEq :: { STmSyn }
+HeEq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
+       { SHeEq $2 $4 $8 $10 }
 
 {
 

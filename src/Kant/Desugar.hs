@@ -30,6 +30,9 @@ instance r ~ () => Desugar (STm r) where
     desugar (SAnn pars ty t) =
         Ann (desugar (SArr pars ty)) (desugar (SLam (map fst pars) t))
     desugar (SHole hn ts) = Hole hn (map desugar ts)
+    desugar (STyEq ty₁ ty₂) = TyEq (desugar ty₁) (desugar ty₂)
+    desugar (SHeEq t₁ ty₁ t₂ ty₂) =
+        HeEq (desugar t₁) (desugar ty₁) (desugar t₂) (desugar ty₂)
 
 instance r ~ () => Desugar (SDecl r) where
     type Core (SDecl r) = DeclSyn
