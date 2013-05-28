@@ -41,7 +41,6 @@ module Kant.Monad
     , formHoleM
       -- * Errors
     , mismatch
-    , expectingType
     , expectingFunction
     , expectingTypeData
     , expectingTypeData'
@@ -164,10 +163,6 @@ mismatch :: (VarC v, Monad m, IsCursor c)
          => TmRef v -> TmRef v -> TmRef v -> KMonad (c f) v m a
 mismatch t₁ t₂ t₃ =
     throwKError =<< Mismatch <$> slamM t₁ <*> slamM t₂ <*> slamM t₃
-
-expectingType :: (VarC v, Monad m, IsCursor c)
-              => TmRef v -> TmRef v -> KMonad (c f) v m a
-expectingType t₁ t₂ = throwKError =<< ExpectingType <$> slamM t₁ <*> slamM t₂
 
 expectingFunction :: (VarC v, Monad m, IsCursor c)
                   => TmRef v -> TmRef v -> KMonad (c f) v m a

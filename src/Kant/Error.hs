@@ -12,7 +12,6 @@ data KError
     | DuplicateName Id
     | Mismatch TmRefId TmRefId TmRefId
     | ExpectingFunction TmRefId TmRefId
-    | ExpectingType TmRefId TmRefId
     | ExpectingTypeCon ConId TmRefId
     | ExpectingTypeData (Maybe ConId) ConId TmRefId
     | WrongRecTypePos ConId ConId TmRefId

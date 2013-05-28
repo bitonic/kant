@@ -98,9 +98,6 @@ instance Pretty KError where
     pretty (ExpectingFunction t ty) =
         group (nest' ("Expecting function type for term" <$> pretty t) <$>
                nest' ("instead of" <$> pretty ty))
-    pretty (ExpectingType t ty) =
-        group (nest' ("Expecting a * for term" <$> pretty t) <$>
-               nest' ("instead of" <$> pretty ty))
     pretty (ExpectingTypeCon tyc ty) =
         group (nest' ("Expecting Type as return type for type constructor" <+>
                       pretty tyc <+> "instead of" <$> pretty ty))

@@ -46,18 +46,11 @@ tyInfer' (Ty r) = Ty <$> addConstr' (r :<:)
 tyInfer' (V v) = constrIfTy =<< lookupTy v
 tyInfer' t@(Lam _) = untypedTm t
 tyInfer' (Arr ty₁ s) =
-    do tyty₁ <- tyInfer' ty₁
-       tyty₁' <- whnfM tyty₁
-       case tyty₁' of
-           Ty r₁ -> nestM ty₁ $
-                    do let ty₂ = fromScope s
-                       tyty₂ <- tyInfer' ty₂
-                       tyty₂' <- whnfM tyty₂
-                       case tyty₂' of
-                           (Ty r₂) -> Ty <$>
-                                      addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
-                           _       -> expectingType ty₂ tyty₂
-           _ -> expectingType ty₁ tyty₁
+    do tyty₁@(Ty r₁) <- Ty <$> freshRef
+       tyCheck ty₁ tyty₁
+       nestM ty₁ $ do tyty₂@(Ty r₂) <- Ty <$> freshRef
+                      tyCheck (fromScope s) tyty₂
+                      Ty <$> addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
 tyInfer' (App t₁ t₂) =
     do tyt₁ <- tyInfer' t₁
        tyt₁' <- whnfM tyt₁
@@ -76,7 +69,9 @@ tyInfer' (Destr ar tyc n t) =
                       ADT_ -> lookupElim tyc
                       Rec_ -> lookupProj tyc n
        return (discharge (pars ++ [t]) destrTy)
-tyInfer' (Ann ty t) = do tyCheck ty . Ty =<< freshRef; ty <$ tyCheck t ty
+tyInfer' (Ann ty t) =
+    do tyCheck ty . Ty =<< freshRef
+       ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
@@ -115,6 +110,7 @@ tyCheck = whnf₂ go
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
            addHole =<< formHoleM hn ty (zip ts tys)
+    go (Ty r₁) (Ty r₂) = addConstrs [r₁ :<: r₂]
     go t ty =
         do tyt <- whnfM =<< tyInfer' t
            eq <- fromKMonadP (eqRefs ty tyt)
@@ -139,7 +135,7 @@ eqRefs (App t₁ t'₁) (App t₂ t'₂) = (&&) <$> eqRefs t₁ t₂ <*> eqRefs 
 eqRefs (Ann ty₁ t₁) (Ann ty₂ t₂) = (&&) <$> eqRefs ty₁ ty₂ <*> eqRefs t₁ t₂
 eqRefs (Con ar₁ tyc₁ dc₁ ts₁) (Con ar₂ tyc₂ dc₂ ts₂) =
      (((ar₁, tyc₁, dc₁) == (ar₂, tyc₂, dc₂) &&) . and) <$>
-    mapM (uncurry eqRefs) (zip ts₁ ts₂)
+     mapM (uncurry eqRefs) (zip ts₁ ts₂)
 eqRefs (Destr ar₁ tyc₁ n₁ t₁) (Destr ar₂ tyc₂ n₂ t₂) =
     ((ar₁, tyc₁, n₁) == (ar₂, tyc₂, n₂) &&) <$> eqRefs t₁ t₂
 eqRefs (Hole x _) (Hole y _) = return (x == y)
