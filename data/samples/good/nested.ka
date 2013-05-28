@@ -15,5 +15,10 @@ data Bool : * => { true : Bool | false : Bool }
 
 ite [A : *] [b : Bool] : A -> A -> A => (Bool-Elim b (\_ => A))
 
-foo1 : Sigma * (\_ => *) => (si Nat (List Nat))
+And [A B : *] : * => (Sigma A (\_ => B))
+
+foo1 : And * * => (si Nat (List Nat))
 foo2 : Sigma Bool (\b => ite * b Nat Bool) => (si true zero)
+foo4 : And (And * *) (Sigma Bool (\b => ite * b Nat Bool)) => (si foo1 foo2)
+foo5 : List * => (cons Nat (cons Bool (cons (And Nat Bool) nil)))
+foo6 : List (List *) => (cons nil (cons foo5 nil))
