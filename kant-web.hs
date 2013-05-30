@@ -12,11 +12,11 @@ import           Control.Monad.Error (strMsg)
 import           Control.Monad.Reader (ReaderT, runReaderT, ask)
 import           Control.Monad.Trans (lift, MonadIO(..))
 import           System.FilePath ((</>), splitFileName)
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as TextLazy
 
 import           Data.Aeson (ToJSON(..), (.=))
 import qualified Data.Aeson as Aeson
-import           Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy.UTF8 as ByteString
 import           Network.WebSockets (WebSockets, Hybi10)
 import qualified Network.WebSockets as WebSockets
 import qualified Network.WebSockets.Snap as WebSockets
@@ -80,15 +80,15 @@ session req =
   where
     go fp env =
         do msg <- WebSockets.receiveData
-           (env', res) <- liftIO (runDirRead (repl env (ByteString.toString msg)) fp)
+           (env', res) <- liftIO (runDirRead (repl env (Text.unpack msg)) fp)
            WebSockets.sendTextData (Aeson.encode res)
            go fp env'
 
-app :: ByteString -> Snap ()
+app :: TextLazy.Text -> Snap ()
 app ix =
     Snap.path "repl" (Snap.modifyTimeout (const 10) >>
                       WebSockets.runWebSocketsSnap session)
-    <|> Snap.path "" (Snap.writeLBS ix) -- Index
+    <|> Snap.path "" (Snap.writeLazyText ix) -- Index
     <|> (Snap.serveDirectory =<< publicDir)
 
 publicDir :: MonadIO m => m FilePath
@@ -105,4 +105,4 @@ index =
        return (writeHtmlString def{writerStandalone = True, writerTemplate = tmpl} md)
 
 main :: IO ()
-main = Snap.quickHttpServe . app . ByteString.fromString =<< index
+main = Snap.quickHttpServe . app . TextLazy.pack =<< index
