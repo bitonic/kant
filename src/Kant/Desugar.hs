@@ -33,6 +33,8 @@ instance r ~ () => Desugar (STm r) where
     desugar (STyEq ty₁ ty₂) = TyEq (desugar ty₁) (desugar ty₂)
     desugar (SHeEq t₁ ty₁ t₂ ty₂) =
         HeEq (desugar t₁) (desugar ty₁) (desugar t₂) (desugar ty₂)
+    desugar (SCoe q t) = Coe (desugar q) (desugar t)
+    desugar (SCoh q t) = Coh (desugar q) (desugar t)
 
 instance r ~ () => Desugar (SDecl r) where
     type Core (SDecl r) = DeclSyn

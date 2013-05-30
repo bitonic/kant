@@ -60,6 +60,8 @@ uniquify env t =
     go (Hole hn ts)         = Hole hn <$> mapM go ts
     go (TyEq ty₁ ty₂)       = TyEq <$> go ty₁ <*> go ty₂
     go (HeEq t₁ ty₁ t₂ ty₂) = HeEq <$> go t₁ <*> go ty₁ <*> go t₂ <*> go ty₂
+    go (Coe q t')           = Coe <$> go q <*> go t'
+    go (Coh q t')           = Coh <$> go q <*> go t'
 
     goScope :: VarC v => TmScope r v -> State (HashMap Id Integer) (TmScope r v)
     goScope s =

@@ -52,12 +52,14 @@ import Debug.Trace
     'data'              { DATA      }
     'record'            { RECORD    }
     'postulate'         { POSTULATE }
+    'coe'               { COE       }
+    'coh'               { COH       }
     '*'                 { TYPE      }
     '{!'                { LHOLE     }
     '!}'                { RHOLE     }
     name                { NAME $$   }
 
-%nonassoc '='
+%nonassoc '=' 'coe' 'coh'
 %right '->'
 
 %%
@@ -120,6 +122,8 @@ SingleTm
     | Hole                                   { $1 }
     | TyEq                                   { $1 }
     | HeEq                                   { $1 }
+    | Coe                                    { $1 }
+    | Coh                                    { $1 }
     | '(' Tm ')'                             { $2 }
 
 Type :: { STmSyn }
@@ -157,6 +161,12 @@ TyEq : SingleTm '=' SingleTm                 { STyEq $1 $3 }
 HeEq :: { STmSyn }
 HeEq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
        { SHeEq $2 $4 $8 $10 }
+
+Coe :: { STmSyn }
+Coe : 'coe' SingleTm SingleTm                { SCoe $2 $3 }
+
+Coh :: { STmSyn }
+Coh : 'coh' SingleTm SingleTm                { SCoh $2 $3 }
 
 {
 

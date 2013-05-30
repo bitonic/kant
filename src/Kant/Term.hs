@@ -80,6 +80,8 @@ data Tm r v
     | Hole HoleId [Tm r v]
     | TyEq (Tm r v) (Tm r v)
     | HeEq (Tm r v) (Tm r v) (Tm r v) (Tm r v)
+    | Coe (Tm r v) (Tm r v)
+    | Coh (Tm r v) (Tm r v)
     deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
 
 data ADTRec = ADT_ | Rec_
@@ -109,6 +111,8 @@ instance Monad (Tm r) where
     Hole hn ts         >>= f = Hole hn (map (>>= f) ts)
     TyEq ty₁ ty₂       >>= f = TyEq (ty₁ >>= f) (ty₂ >>= f)
     HeEq t₁ ty₁ t₂ ty₂ >>= f = HeEq (t₁ >>= f) (ty₁ >>= f) (t₂ >>= f) (ty₂ >>= f)
+    Coe q t            >>= f = Coe (q >>= f) (t >>= f)
+    Coh q t            >>= f = Coh (q >>= f) (t >>= f)
 
 lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
@@ -172,6 +176,8 @@ mapRef f (Hole h ts)          = Hole h <$> mapM (mapRef f) ts
 mapRef f (TyEq ty₁ ty₂)       = TyEq <$> mapRef f ty₁ <*> mapRef f ty₂
 mapRef f (HeEq t₁ ty₁ t₂ ty₂) = HeEq <$> mapRef f t₁ <*> mapRef f ty₁
                                      <*> mapRef f t₂ <*> mapRef f ty₂
+mapRef f (Coe q t)            = Coe <$> mapRef f q <*> mapRef f t
+mapRef f (Coh q t)            = Coh <$> mapRef f q <*> mapRef f t
 
 unRef :: Tm r v -> Tm () v
 unRef = runIdentity . mapRef (const (return ()))

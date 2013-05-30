@@ -49,6 +49,8 @@ data Token
     | COMMA
     | RECORD
     | EQUAL
+    | COE
+    | COH
     deriving (Show, Eq, Ord)
 
 lexeme :: Parser a -> Parser a
@@ -79,6 +81,8 @@ lexToken = tok
         , ("data",      DATA     )
         , ("record",    RECORD   )
         , ("postulate", POSTULATE)
+        , ("coe",       COE      )
+        , ("coh",       COH      )
         ]
 
     ident = (:) <$> alphaNum <*> many (alphaNum <|> digit <|> oneOf "'_-")

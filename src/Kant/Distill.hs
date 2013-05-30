@@ -29,6 +29,8 @@ distill' (Hole hn ts) = SHole hn (map distill ts)
 distill' (TyEq ty₁ ty₂) = STyEq (distill ty₁) (distill ty₂)
 distill' (HeEq t₁ ty₁ t₂ ty₂) =
      SHeEq (distill t₁) (distill ty₁) (distill t₂) (distill ty₂)
+distill' (Coe q t) = SCoe (distill q) (distill t)
+distill' (Coh q t) = SCoh (distill q) (distill t)
 
 sapp :: [STm r] -> STm r
 sapp = foldl1 SApp
