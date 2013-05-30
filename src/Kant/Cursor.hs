@@ -68,9 +68,6 @@ newCurs = Cursor{ cursPull   = id
                 , cursRename = flip ($)
                 , cursCtx    = const IMPOSSIBLE("looking up an empty ctx") }
 
--- | Give me a 'Cursor', and a function that associates a value for each bound
---   variable of the scope I'm entering, and I'll give you a cursor to work
---   inside a 'Scope' over a 'Var'.
 nestCurs :: Functor f => Cursor f v -> (a -> f v) -> Cursor f (Var (Name Id a) v)
 nestCurs Cursor{ cursPull   = pull_
                , cursNest   = nest_
@@ -105,6 +102,9 @@ instance IsCursor Cursor where
     getCurs = id
     putCurs c _ = c
 
+-- | Give me an 'IsCursor', and a function that associates a value for each
+--   bound variable of the scope I'm entering, and I'll give you a cursor to
+--   work inside a 'Scope' over a 'Var'.
 nestC :: (IsCursor c, Functor f) => c f v -> (a -> f v) -> c f (Var (Name Id a) v)
 nestC c t = putCurs (nestCurs (getCurs c) t) c
 
