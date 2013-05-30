@@ -1,0 +1,9 @@
+data prelude_Empty : * => { }
+prelude_absurd [A : *] [bot : prelude_Empty] : A => (
+    prelude_Empty-Elim bot (\_ => A)
+)
+
+record prelude_Unit : * => prelude_tt { }
+
+record prelude_And : [A B : *] -> * =>
+   prelude_pair {prelude_fst : A, prelude_snd : B}
