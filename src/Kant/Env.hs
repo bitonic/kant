@@ -14,14 +14,11 @@ module Kant.Env
     , envBody
     , envADT
     , envRec
-    , isRec
     , newEnv
     , addFree
     , addADT
     , addRec
     ) where
-
-import           Data.Maybe (isJust)
 
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -108,7 +105,7 @@ envADT Env{envADTs = adts} v =
 -- | Gets a 'Rec' given a 'ConId', panics if it's not present.
 envRec :: Env f v -> ConId -> Rec
 envRec Env{envRecs = recs} v =
-    case HashMap.lookup v ads of
+    case HashMap.lookup v recs of
         Nothing  -> IMPOSSIBLE("looking up non-existant record")
         Just rec -> rec
 
