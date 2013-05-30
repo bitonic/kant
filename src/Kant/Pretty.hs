@@ -108,10 +108,9 @@ instance Pretty KError where
         group (nest' ("Expecting something constructing a" <+> pretty tyc <+>
                       "for data constructor" <+> pretty dc <+> "instead of" <$>
                       pretty ty))
-    pretty (WrongRecTypePos tyc dc ty) =
+    pretty (WrongRecTypePos tyc dc) =
         group (nest' ("Recursive occurrence of" <+> pretty tyc <+>
-                      "in wrong position in data constructor" <+> pretty dc <+>
-                      "of type" <$> pretty ty))
+                      "in wrong position in data constructor" <+> pretty dc))
     pretty (NotEnoughArguments n) =
         group (nest' ("Not enough arguments for constructor/destructor `" <>
                        pretty n <> "'"))

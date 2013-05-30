@@ -120,7 +120,7 @@ elabCon tyc dc ty =
            env <- getEnv
            let fvs  = freeVs env arg
            unless (not (HashSet.member tyc fvs) || appHead arg == V (nest env tyc))
-                  (wrongRecTypePos tyc dc ty)
+                  (wrongRecTypePos tyc dc)
            nestPM (goodTy (fmap F vs :< B dummyN) (fromScope s))
     goodTy vs (appV -> (arg, pars)) =
         -- The type must return something of the type we are defininng, and the
@@ -306,12 +306,12 @@ elabRecRewr :: (Monad m)
             -> Proj Ref                  -- Current projection
             -> KMonadT Id m TmRefId
 elabRecRewr tyc dc tycty projns (n, proj) =
-    do let projty = runElabM (go B0 tycty)
-       -- we need to check recursive occurrences here, it's very annoying
+    do -- we need to check recursive occurrences here, it's very annoying
        -- because ideally we'd just avoid adding the record in the first place.
-       forM_ projty $
+       forM_ proj $
            \v -> do env <- getEnv
-                    when (v == nest env tyc) (wrongRecTypePos tyc dc projty)
+                    when (v == nest env tyc) (wrongRecTypePos tyc dc)
+       let projty = runElabM (go B0 tycty)
        tyInferNH projty
        addFreeM n (RecProj tyc)
        return projty

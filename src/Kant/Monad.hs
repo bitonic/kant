@@ -177,9 +177,8 @@ expectingTypeData' :: (VarC v, Monad m, IsCursor c)
                   => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
 expectingTypeData' dc tyc ty = throwKError (ExpectingTypeData (Just dc) tyc ty)
 
-wrongRecTypePos :: (VarC v, Monad m, IsCursor c)
-                => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
-wrongRecTypePos dc tyc ty = throwKError (WrongRecTypePos dc tyc ty)
+wrongRecTypePos :: (VarC v, Monad m) => ConId -> ConId -> KMonad f v m a
+wrongRecTypePos dc tyc = throwKError (WrongRecTypePos tyc dc)
 
 untypedTm :: (VarC v, Monad m, IsCursor c) => TmRef v -> KMonad (c f) v m a
 untypedTm t = throwKError =<< UntypedTm <$> slamM t

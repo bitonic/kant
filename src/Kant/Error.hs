@@ -14,7 +14,7 @@ data KError
     | ExpectingFunction TmRefId TmRefId
     | ExpectingTypeCon ConId TmRefId
     | ExpectingTypeData (Maybe ConId) ConId TmRefId
-    | WrongRecTypePos ConId ConId TmRefId
+    | WrongRecTypePos ConId ConId
     | UntypedTm TmRefId
     | UnexpectedHole HoleId
     | NotEnoughArguments ConId
