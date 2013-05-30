@@ -3,7 +3,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
--- | This is largely ripped off fig. 9 of 'The View from the Left'.
+
+-- | Converts 'ADTD' and 'RecD' to things that will be stored in the 'Env'.
+--   This is by far the ugliest part of the codebase.
+--
+--   Largely ripped off fig. 9 of 'The View from the Left'.
 module Kant.Elaborate (Elaborate(..), elimName) where
 
 import           Control.Arrow ((***), second)
@@ -269,7 +273,8 @@ telescope f = go B0
         Arr ty <$> (toScope <$> nestPM (go (fmap F vs :< B (bindingN s)) (fromScope s)))
     go vs _ = f (toList vs)
 
-elabRecCon :: Monad m => ConId -> ConId -> TmRefId -> Projs Ref -> KMonadT Id m TmRefId
+elabRecCon :: Monad m
+           => ConId -> ConId -> TmRefId -> [Proj Ref] -> KMonadT Id m TmRefId
 elabRecCon tyc dc tycty projs =
     do let dcty = runElabM (go₁ B0 tycty)
        -- TODO make sure that I typecheck everywhere like here but assert it,

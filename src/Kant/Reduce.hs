@@ -1,5 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
+-- | Functions that... reduce terms.
 module Kant.Reduce (nf, whnf) where
 
 import           Bound
@@ -12,7 +13,6 @@ import           Kant.Term
 #include "../impossible.h"
 
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
-
 
 reduce :: Reducer -> Reducer
 reduce r env t@(V v) =
@@ -43,10 +43,12 @@ reduce r env (App t₁ t₂) =
 reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See previous clauses")
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
-reduceScope r env s = (toScope (r (nestC env (const Proxy)) (fromScope s)))
+reduceScope r env s = toScope (r (nestC env (const Proxy)) (fromScope s))
 
+-- | Reduce to "weak head normal form".
 whnf :: VarC v => Env f v -> TmRef v -> TmRef v
 whnf env = reduce (\_ t -> t) (toP env)
 
+-- | Reduce to full normal form.
 nf :: VarC v => Env f v -> TmRef v -> TmRef v
 nf env = reduce nf (toP env)

@@ -23,7 +23,6 @@ module Kant.Monad
     , lookupDataCon
     , lookupElim
     , lookupProj
-    , isRecM
     , addFreeM
     , addADTM
     , addRecM
@@ -89,10 +88,8 @@ doADTRec :: (VarC v, Monad m)
 doADTRec ADT_ tyc f _ = (f . (`envADT` tyc)) <$> getEnv
 doADTRec Rec_  tyc _ f = (f . (`envRec` tyc)) <$> getEnv
 
-lookupTyCon :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (TmRef v)
-lookupTyCon dt tyc =
-    do env <- getEnv
-       fmap (nest env) <$> doADTRec dt tyc adtTy recTy
+lookupTyCon :: (VarC v, Monad m) => ADTRec -> ConId -> KMonadE f v m (Either ADT Rec)
+lookupTyCon dt tyc = doADTRec dt tyc Left Right
 
 lookupDataCon :: (VarC v, Monad m)
               => ADTRec -> ConId -> ConId -> KMonadE f v m (TmRef v)
@@ -117,9 +114,6 @@ lookupProj tyc pr =
        return $ case lookup pr (recProjs (envRec env tyc)) of
                     Nothing -> IMPOSSIBLE("Projection not present")
                     Just ty -> nest env <$> ty
-
-isRecM :: (VarC v, Monad m) => v -> KMonadT v m Bool
-isRecM v = do env <- getEnv; return (isRec env v)
 
 addFreeM :: (VarC v, Monad m) => Id -> Free -> KMonadT v m ()
 addFreeM v def = do env <- getEnv; putEnv (addFree env v def)
@@ -177,7 +171,7 @@ expectingTypeData' :: (VarC v, Monad m, IsCursor c)
                   => ConId -> ConId -> TmRefId -> KMonad (c f) v m a
 expectingTypeData' dc tyc ty = throwKError (ExpectingTypeData (Just dc) tyc ty)
 
-wrongRecTypePos :: (VarC v, Monad m) => ConId -> ConId -> KMonad f v m a
+wrongRecTypePos :: (Monad m) => ConId -> ConId -> KMonad f v m a
 wrongRecTypePos dc tyc = throwKError (WrongRecTypePos tyc dc)
 
 untypedTm :: (VarC v, Monad m, IsCursor c) => TmRef v -> KMonad (c f) v m a

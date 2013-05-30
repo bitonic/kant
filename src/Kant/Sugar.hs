@@ -1,3 +1,4 @@
+-- | The syntactic sugar that we actually parse.
 module Kant.Sugar
      ( -- * Abstract syntax tree
        Id
@@ -22,6 +23,7 @@ newtype SModule r = SModule {unSModule :: [SDecl r]}
 type SModuleSyn = SModule ()
 type SModuleRef = SModule Ref
 
+-- | A sugared declaration.
 data SDecl r
     = SVal Id [SParam r] (STm r) (STm r)
     | SPostulate Id (STm r)

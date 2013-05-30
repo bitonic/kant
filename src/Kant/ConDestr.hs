@@ -1,6 +1,8 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+-- | This module goes through a freshly parsed term and substitute
+--   applications of constructors and destructors in 'Con's and 'Destr's,
+--   respectively.
 module Kant.ConDestr (conDestr, conDestrDecl) where
 
 import           Bound

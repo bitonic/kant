@@ -1,4 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
+-- | Transform 'Sugar' into 'Tm'.  Also includes a typeclass to transform
+--   entire 'SDecl' and 'SModule.
 module Kant.Desugar (Desugar(..)) where
 
 import           Control.Arrow (first, second)
@@ -13,6 +15,8 @@ import           Kant.Sugar
 import           Kant.Term
 
 class Desugar a where
+    -- | We need a type family since I don't want to define @newtype@s and the
+    --   @r@ is not the last parameter in 'Tm'.
     type Core a :: *
     desugar :: a -> Core a
 

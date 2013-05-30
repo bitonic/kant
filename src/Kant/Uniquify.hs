@@ -1,4 +1,9 @@
 -- TODO I seem to override global names, check.
+-- | Module with various function to convert a term nested in scopes to a
+--   top-level thing, taking care of avoiding name-clashes.
+--
+--   It basically takes the names provided by the user originally, and changes
+--   them if there are duplicates.
 module Kant.Uniquify (slam, formHole) where
 
 import           Control.Monad (when, void)

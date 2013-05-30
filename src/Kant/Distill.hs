@@ -1,4 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
+-- | Transform 'Tm' back to a 'Sugar'.  We never need to handle 'Decl' or
+--   'Modules', since everything is going to be elaborated.
 module Kant.Distill (distill) where
 
 import           Control.Arrow (second)
