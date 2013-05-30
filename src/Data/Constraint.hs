@@ -1,3 +1,8 @@
+-- | Handles a system of constraints, detecting inconsistencies when they
+--   arise.
+--
+--   Supports @<@, @<=@, and @==@ constraints, with the behaviour you would
+--   expect from those constraints on integers.
 module Data.Constraint
     ( Constr(..)
     , Constrs

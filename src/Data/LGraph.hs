@@ -1,11 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- TODO I can greatly improve the efficiency of this:
+--   * Prune vertices of variables that do not appear anymore, preserving the
+--     paths.
 -- | A graph with labelled edges and condensing of SCCs, derived from
 --
 --     /Structuring Depth-First Search Algorithms in Haskell/,
 --     by David King and John Launchbury.
--- TODO I can greatly improve the efficiency of this:
---   * Prune vertices of variables that do not appear anymore, preserving the
---     paths.
 module Data.LGraph
     ( -- * Graph type
       Graph
