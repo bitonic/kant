@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+-- | Module that fills a freshly parsed 'Tm' with fresh 'Ref's.
 module Kant.Ref (PutRef(..)) where
 
 import           Bound
