@@ -66,8 +66,8 @@ type Ref = Integer
 type TmScope r = Scope NameId (Tm r)
 type TmScopeRef = TmScope Ref
 
--- TODO make the treatment of holes better---e.g. don't treat them as normal
--- terms...
+-- TODO make the treatment of holes better---e.g. don't let them escape their
+-- enironment
 data Tm r v
     = V v
     | Ty r

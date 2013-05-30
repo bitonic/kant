@@ -79,13 +79,14 @@ checkTyCon tyc t =
     do t' <- whnfM t
        case appV t' of
            (V v, ts) -> do env <- getEnv
-                           case free' env v of
-                               Just tyc' | tyc == tyc' -> return ts
-                               _ -> expectingTypeData tyc t
+                           if nest env tyc == v
+                              then return ts
+                              else expectingTypeData tyc t
            _         -> expectingTypeData tyc t
 
--- TODO we don't bother checking that the parameters are of the right type since
--- we already know that that's the case.  Make sure that this assumption holds.
+-- We don't bother checking that the parameters are of the right type since we
+-- already know that that's the case.
+-- TODO maybe assert the assumption above.
 discharge :: VarC v => [TmRef v] -> TmRef v -> TmRef v
 discharge []       ty        = ty
 discharge (t : ts) (Arr _ s) = discharge ts (instantiate1 t s)

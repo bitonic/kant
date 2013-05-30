@@ -137,11 +137,10 @@ runElabM m = case runIdentity (runKMonad newCurs m) of
                  Left err     -> IMPOSSIBLE("Got error from KMonad:\n" ++ show err)
                  Right (x, _) -> x
 
--- TODO better argument names.
-elimTy :: ConId                 -- ^ Tycon
+elimTy :: ConId               -- ^ Tycon
        -> TmRefId             -- ^ Tycon type
        -> [(ConId, TmRefId)]  -- ^ Constructors
-       -> Ref                   -- ^ Reference for the returned Ty
+       -> Ref                 -- ^ Reference for the returned Ty
        -> ElabM Id TmRefId
 elimTy tyc tycty cons ref = telescope targetsf tycty
   where
@@ -308,7 +307,7 @@ elabRecRewr :: (Monad m)
             -> KMonadT Id m TmRefId
 elabRecRewr tyc dc tycty projns (n, proj) =
     do let projty = runElabM (go B0 tycty)
-       -- TODO we need to check recursive occurrences here, it's very annoying
+       -- we need to check recursive occurrences here, it's very annoying
        -- because ideally we'd just avoid adding the record in the first place.
        forM_ projty $
            \v -> do env <- getEnv

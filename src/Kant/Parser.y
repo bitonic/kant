@@ -25,7 +25,7 @@ import Debug.Trace
 
 }
 
-%name parseModule_
+%name parseModule_ Module
 %name parseDecl_ Decl
 %name parseTm_ Tm
 
