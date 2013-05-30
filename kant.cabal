@@ -24,6 +24,7 @@ Library
     Build-Depends:    base >= 3 && < 5,
                       array,
                       bound >= 0.7,
+                      filepath,
                       haskeline,
                       hashable,
                       hashtables,
@@ -54,6 +55,7 @@ Library
                       Kant.Error,
                       Kant.Monad,
                       Kant.Parser
+                      Kant.Prelude,
                       Kant.Pretty,
                       Kant.REPL,
                       Kant.Reduce,

@@ -36,6 +36,7 @@ import           Kant.Elaborate
 import           Kant.Env
 import           Kant.Error
 import           Kant.Monad
+import           Kant.Prelude
 import           Kant.Pretty
 import           Kant.REPL.Types
 import           Kant.Term
@@ -126,5 +127,15 @@ run env =
 banner :: String
 banner = "KANT " ++ showVersion version ++ ", made in London, year 2013."
 
+preludeEnv :: MonadIO m => m EnvId
+preludeEnv =
+    liftIO $
+    do res <- runKMonad newEnv . replInput . ILoad False =<< preludeFile
+       case res of
+           Left err -> fail ("Error while loading prelude:\n" ++ show (pretty err))
+           Right (_, env) -> return env
+
 main :: IO ()
-main = do putStrLn banner; runInputT defaultSettings (run newEnv)
+main =
+    do putStrLn banner
+       runInputT defaultSettings (run =<< preludeEnv)
