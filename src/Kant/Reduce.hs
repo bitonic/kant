@@ -7,14 +7,14 @@ import           Bound
 import           Data.Proxy
 
 import           Kant.ADT
-import           Kant.Common
 import           Kant.Cursor
 import           Kant.Env
-import qualified Kant.Prelude as P
 import           Kant.Term
 #include "../impossible.h"
 
 type Reducer = forall v. VarC v => EnvP v -> TmRef v -> TmRef v
+
+-- TODO Do I need to reduce proofs?  I probably shouldn't.
 
 reduce :: Reducer -> Reducer
 reduce r env t@(V v) =
@@ -26,8 +26,23 @@ reduce r env (Con ar tyc dc ts) = Con ar tyc dc (map (reduce r env) ts)
 reduce r env (Ann _ t) = reduce r env t
 reduce r env (Hole hn ts) = Hole hn (map (reduce r env) ts)
 reduce r env (Eq t₁ ty₁ t₂ ty₂) =
-    reduceHeEq r env (reduce r env t₁) (reduce r env ty₁)
-                     (reduce r env t₂) (reduce r env ty₂)
+    reduceEq r env (reduce r env t₁) (reduce r env ty₁)
+                   (reduce r env t₂) (reduce r env ty₂)
+reduce r env (Coeh Coe ty₁ ty₂ t p) =
+    reduceCoe r env (reduce r env ty₁) (reduce r env ty₂)
+                    (reduce r env t) (reduce r env p)
+reduce r env (Coeh Coh ty₁ ty₂ t p) =
+    Coeh Coh (reduce r env ty₁) (reduce r env ty₂) (reduce r env t) (reduce r env p)
+reduce r env (App t₁ t₂) =
+    case reduce r env t₁ of
+        Lam s -> reduce r env (instantiate1 t₂ s)
+        t₁'   -> App t₁' (reduce r env t₂)
+reduce _ _ (Prop r) = Prop r
+reduce _ _ Top = Top
+reduce _ _ Bot = Bot
+reduce r env (And pr₁ pr₂) = And (reduce r env pr₁) (reduce r env pr₂)
+reduce r env (Forall ty s) = Forall (reduce r env ty) (reduceScope r env s)
+reduce r env (Dec pr) = reduceDec r env (reduce r env pr)
 -- TODO I think that matching here directly on 'Destr' without reducing first is
 -- safe, but I'm not sure, check.
 reduce r env (appV -> (Destr ar tyc n t, ts)) =
@@ -41,10 +56,6 @@ reduce r env (appV -> (Destr ar tyc n t, ts)) =
   where
     t'    = reduce r env t
     stuck = app (Destr ar tyc n t' : map (reduce r env) ts)
-reduce r env (App t₁ t₂) =
-    case reduce r env t₁ of
-        Lam s -> reduce r env (instantiate1 t₂ s)
-        t₁'   -> App t₁' (reduce r env t₂)
 reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See previous clauses")
 
 -- reduceTyEq :: VarC v => Reducer -> EnvP v -> TmRef v -> TmRef v -> TmRef v
@@ -61,9 +72,16 @@ reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See previous clauses")
 --     undefined
 -- reduceTyEq _ _ ty₁ ty₂ = TyEq ty₁ ty₂
 
-reduceHeEq :: VarC v => Reducer -> EnvP v
-           -> TmRef v -> TmRef v -> TmRef v -> TmRef v -> TmRef v
-reduceHeEq = undefined
+reduceEq :: VarC v => Reducer -> EnvP v
+         -> TmRef v -> TmRef v -> TmRef v -> TmRef v -> TmRef v
+reduceEq = undefined
+
+reduceDec :: VarC v => Reducer -> EnvP v -> TmRef v -> TmRef v
+reduceDec = undefined
+
+reduceCoe :: VarC v => Reducer -> EnvP v
+          -> TmRef v -> TmRef v -> TmRef v -> TmRef v -> TmRef v
+reduceCoe = undefined
 
 reduceScope :: VarC v => Reducer -> EnvP v -> TmScopeRef v -> TmScopeRef v
 reduceScope r env s = toScope (r (nestC env (const Proxy)) (fromScope s))

@@ -64,7 +64,6 @@ singleTm (SHole _ _) = True
 singleTm STop = True
 singleTm SBot = True
 singleTm (SCoeh _ _ _ _ _) = True
-singleTm (SAnd _ _) = True
 singleTm (SDec _) = True
 singleTm (SProp _) = True
 singleTm (SAnd _ _) = True
