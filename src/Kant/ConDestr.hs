@@ -34,6 +34,19 @@ conDestr env (Arr ty s) =
 conDestr env (App t₁ t₂) = App <$> conDestr env t₁ <*> conDestr env t₂
 conDestr env (Ann ty t) = Ann <$> conDestr env ty <*> conDestr env t
 conDestr env (Hole hid ts) = Hole hid <$> mapM (conDestr env) ts
+conDestr env (Coeh c ty₁ ty₂ p t) =
+    Coeh c <$> conDestr env ty₁ <*> conDestr env ty₂
+           <*> conDestr env p   <*> conDestr env t
+conDestr env (Dec pr) = Dec <$> conDestr env pr
+conDestr _ (Prop r) = return (Prop r)
+conDestr _ Top = return Top
+conDestr _ Bot = return Bot
+conDestr env (And pr₁ pr₂) = And <$> conDestr env pr₁ <*> conDestr env pr₂
+conDestr env (Forall ty s) =
+    Forall <$> conDestr env ty <*> (toScope <$> conDestr (nestP env) (fromScope s))
+conDestr env (Eq t₁ ty₁ t₂ ty₂) =
+    Eq <$> conDestr env t₁ <*> conDestr env ty₁
+       <*> conDestr env t₂ <*> conDestr env ty₂
 conDestr _ _ = IMPOSSIBLE("we shouldn't have constructors/destructors now")
 
 -- TODO eliminate duplication between here and 'putRef'
