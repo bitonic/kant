@@ -120,8 +120,7 @@ SingleTm
     : name                                   { SV $1 }
     | Type                                   { $1 }
     | Hole                                   { $1 }
-    | TyEq                                   { $1 }
-    | HeEq                                   { $1 }
+    | Eq                                     { $1 }
     | Coe                                    { $1 }
     | Coh                                    { $1 }
     | '(' Tm ')'                             { $2 }
@@ -155,15 +154,12 @@ LamParam
 Hole :: { STmSyn }
 Hole : '{!' name Seq0(SingleTm) '!}'         { SHole $2 $3 }
 
-TyEq :: { STmSyn }
-TyEq : SingleTm '=' SingleTm                 { STyEq $1 $3 }
-
-HeEq :: { STmSyn }
-HeEq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
-       { SHeEq $2 $4 $8 $10 }
+Eq :: { STmSyn }
+Eq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
+       { SEq $2 $4 $8 $10 }
 
 Coe :: { STmSyn }
-Coe : 'coe' SingleTm SingleTm                { SCoe $2 $3 }
+Coe : 'coe' SingleTm SingleTm SingleTm SingleTm { SCoe $2 $3 $4 $5 }
 
 Coh :: { STmSyn }
 Coh : 'coh' SingleTm SingleTm                { SCoh $2 $3 }

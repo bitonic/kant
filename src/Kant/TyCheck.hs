@@ -73,6 +73,35 @@ tyInfer' (Ann ty t) =
     do tyCheck ty . Ty =<< freshRef
        ty <$ tyCheck t ty
 tyInfer' t@(Hole _ _) = untypedTm t
+tyInfer' (Prop r) = Prop <$> addConstr' (r :<:)
+tyInfer' Top = Prop <$> freshRef
+tyInfer' Bot = Prop <$> freshRef
+tyInfer' (And pr₁ pr₂) =
+    do r₁ <- freshRef
+       r₂ <- freshRef
+       tyCheck pr₁ (Prop r₁)
+       tyCheck pr₂ (Prop r₂)
+       Prop <$> addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
+tyInfer' (Forall ty s) =
+    do tyty@(Ty r₁) <- Ty <$> freshRef
+       tyCheck ty tyty
+       nestM tyty $ do tys@(Prop r₂) <- Prop <$> freshRef
+                       tyCheck (fromScope s) tys
+                       Prop <$> addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
+tyInfer' (Dec pr) =
+    do prty@(Prop r) <- Prop <$> freshRef
+       tyCheck pr prty
+       return (Ty r)
+tyInfer' (Coeh c ty₁ ty₂ q t) =
+    do ty₁ty@(Ty r₁) <- Ty <$> freshRef
+       tyCheck ty₁ ty₁ty
+       ty₂ty@(Ty r₂) <- Ty <$> freshRef
+       tyCheck ty₂ ty₂ty
+       tyCheck q (Dec (Eq ty₁ ty₁ty ty₂ ty₂ty))
+       tyCheck t ty₁
+       case c of
+           Coe -> return ty₂
+           Coh -> return (Dec (Dec t ty₁ (Coe ty₁ ty₁ q t) ty₂))
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
 checkTyCon tyc t =
