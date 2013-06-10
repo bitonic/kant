@@ -37,7 +37,7 @@ instance r ~ () => Desugar (STm r) where
     desugar (SEq t₁ ty₁ t₂ ty₂) =
         Eq (desugar t₁) (desugar ty₁) (desugar t₂) (desugar ty₂)
     desugar (SCoeh c ty₁ ty₂ q t) =
-        Coe c (desugar ty₁) (desugar ty₂) (desugar q) (desugar t)
+        Coeh c (desugar ty₁) (desugar ty₂) (desugar q) (desugar t)
 
 instance r ~ () => Desugar (SDecl r) where
     type Core (SDecl r) = DeclSyn

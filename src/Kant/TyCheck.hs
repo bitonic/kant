@@ -101,7 +101,13 @@ tyInfer' (Coeh c ty₁ ty₂ q t) =
        tyCheck t ty₁
        case c of
            Coe -> return ty₂
-           Coh -> return (Dec (Dec t ty₁ (Coe ty₁ ty₁ q t) ty₂))
+           Coh -> return (Dec (Eq t ty₁ (coe ty₁ ty₁ q t) ty₂))
+tyInfer' (Eq t₁ ty₁ t₂ ty₂) =
+    do ty₁ty@(Ty r₁) <- Ty <$> freshRef
+       tyCheck ty₁ ty₁ty
+       ty₂ty@(Ty r₂) <- Ty <$> freshRef
+       tyCheck ty₂ ty₂ty
+       Prop <$> addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])
 
 checkTyCon :: (Monad m, VarC v) => ConId -> TmRef v -> TyMonadT v m [TmRef v]
 checkTyCon tyc t =

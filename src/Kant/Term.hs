@@ -13,6 +13,9 @@ module Kant.Term
     , TmScope
     , TmScopeRef
     , Tm(..)
+    , Coeh(..)
+    , coe
+    , coh
     , ADTRec(..)
     , TmRef
     , TmId
@@ -95,6 +98,10 @@ data ADTRec = ADT_ | Rec_
 
 data Coeh = Coe | Coh
     deriving (Eq, Ord, Show, Read)
+
+coe, coh :: Tm r v -> Tm r v -> Tm r v -> Tm r v -> Tm r v
+coe = Coeh Coe
+coh = Coeh Coh
 
 type TmRef = Tm Ref
 type TmId r = Tm r Id

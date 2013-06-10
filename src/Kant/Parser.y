@@ -159,10 +159,10 @@ Eq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
        { SEq $2 $4 $8 $10 }
 
 Coe :: { STmSyn }
-Coe : 'coe' SingleTm SingleTm SingleTm SingleTm { SCoe $2 $3 $4 $5 }
+Coe : 'coe' SingleTm SingleTm SingleTm SingleTm { SCoeh Coe $2 $3 $4 $5 }
 
 Coh :: { STmSyn }
-Coh : 'coh' SingleTm SingleTm                { SCoh $2 $3 }
+Coh : 'coh' SingleTm SingleTm SingleTm SingleTm { SCoeh Coh $2 $3 $4 $5 }
 
 {
 
