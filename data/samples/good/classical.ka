@@ -15,13 +15,13 @@ case [A B C : *] [x : Or A B] [f : A -> C] [g : B -> C] : C => (
         C f g
 )
 
-data Bot : * => { }
+data Empty : * => { }
 
-absurd [p : Bot] [A : *] : A => (
-    Bot-Elim p (\_ => A)
+absurd [p : Empty] [A : *] : A => (
+    Empty-Elim p (\_ => A)
 )
 
-not [A : *] : * => (A -> Bot)
+not [A : *] : * => (A -> Empty)
 
 em-dn [em : [A : *] -> Or A (not A)] [A : *] [nnA : not (not A)] : A => (
     case A (not A) A (em A) (\a => a) (\nota => absurd (nnA nota) A)
