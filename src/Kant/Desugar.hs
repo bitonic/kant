@@ -38,6 +38,14 @@ instance r ~ () => Desugar (STm r) where
         Eq (desugar t₁) (desugar ty₁) (desugar t₂) (desugar ty₂)
     desugar (SCoeh c ty₁ ty₂ q t) =
         Coeh c (desugar ty₁) (desugar ty₂) (desugar q) (desugar t)
+    desugar STop = Top
+    desugar SBot = Bot
+    desugar (SAnd pr₁ pr₂) = And (desugar pr₁) (desugar pr₂)
+    desugar (SForall [] pr) = desugar pr
+    desugar (SForall ((vn, ty₁) : pars) ty₂) =
+        fora vn (desugar ty₁) (desugar (SForall pars ty₂))
+    desugar (SDec pr) = Dec (desugar pr)
+    desugar (SProp ()) = Prop ()
 
 instance r ~ () => Desugar (SDecl r) where
     type Core (SDecl r) = DeclSyn

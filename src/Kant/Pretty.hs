@@ -39,6 +39,17 @@ instance Pretty (STm r) where
     pretty (SHole hn ts) = "{!" <> pretty hn <+> hsep (map singleParens ts) <> "!}"
     pretty (SAnn pars ty t) =
         "\\" <> hsep (map prettyPar pars) <+> ":" <+> pretty ty <+> "=>" <+> pretty t
+    pretty (SEq t₁ ty₁ t₂ ty₂) =
+        prettyTyped t₁ ty₁ <+> "=" <+> prettyTyped t₂ ty₂
+    pretty (SCoeh c ty₁ ty₂ t q) =
+        (case c of Coe -> "coe"; Coh -> "coh") <+>
+        singleParens ty₁ <+> singleParens ty₂ <+> singleParens t <+> singleParens q
+    pretty STop = "Top"
+    pretty SBot = "Bot"
+    pretty (SProp _) = "Prop"
+    pretty (SDec pr) = "[|" <+> pretty pr <+> "|]"
+    pretty (SAnd pr₁ pr₂) = pretty pr₁ <+> "/\\" <+> pretty pr₂
+    pretty (SForall pars ty) = "forall" <+> hsep (map prettyPar pars) <+> pretty ty
 
 nest' :: Doc -> Doc
 nest' = nest 2
@@ -47,10 +58,17 @@ gnest :: Doc -> Doc
 gnest = group . nest'
 
 singleTm :: STm r -> Bool
-singleTm (SV _)      = True
-singleTm (STy _)     = True
+singleTm (SV _) = True
+singleTm (STy _) = True
 singleTm (SHole _ _) = True
-singleTm _           = False
+singleTm STop = True
+singleTm SBot = True
+singleTm (SCoeh _ _ _ _ _) = True
+singleTm (SAnd _ _) = True
+singleTm (SDec _) = True
+singleTm (SProp _) = True
+singleTm (SAnd _ _) = True
+singleTm _ = False
 
 singleParens :: STm r -> Doc
 singleParens t = if singleTm t then pt else "(" <> align pt <> ")"
@@ -74,6 +92,9 @@ prettyPar (mn, ty) = "[" <> n <+> ":" <+> pretty ty <> "]"
   where n = case mn of
                 Nothing -> "_"
                 Just n' -> pretty n'
+
+prettyTyped :: STm r -> STm r -> Doc
+prettyTyped t ty = "(" <> singleParens t <+> ":" <+> singleParens ty <> ")"
 
 prettyBs :: Maybe Id -> Doc
 prettyBs Nothing  = "_"

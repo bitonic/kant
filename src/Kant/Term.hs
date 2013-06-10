@@ -24,6 +24,7 @@ module Kant.Term
       -- * Smart constructors
     , lam
     , arr
+    , fora
     , app
       -- * Smart destructors
     , appV
@@ -138,9 +139,12 @@ lam :: Maybe Id -> TmId r -> TmId r
 lam Nothing  t = Lam (toScope (F <$> t))
 lam (Just v) t = Lam (abstract1Name v t)
 
-arr :: Maybe Id -> TmId r -> TmId r -> TmId r
+arr, fora :: Maybe Id -> TmId r -> TmId r -> TmId r
 arr Nothing  ty t = Arr ty (toScope (F <$> t))
 arr (Just v) ty t = Arr ty (abstract1Name v t)
+
+fora Nothing  ty t = Forall ty (toScope (F <$> t))
+fora (Just v) ty t = Forall ty (abstract1Name v t)
 
 app :: Foldable t => t (Tm r v) -> Tm r v
 app = foldl1 App

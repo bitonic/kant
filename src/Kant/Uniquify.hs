@@ -54,17 +54,23 @@ uniquify env t =
        let t' = t >>= \v -> V (freshVar env v names)
        return (evalState (go t') ixs)
   where
-    go t'@(V _)            = return t'
-    go t'@(Ty _)           = return t'
-    go (Arr ty s)          = Arr <$> go ty <*> goScope s
-    go (Lam s)             = Lam <$> goScope s
-    go (App t₁ t₂)         = App <$> go t₁ <*> go t₂
+    go t'@(V _) = return t'
+    go t'@(Ty _) = return t'
+    go (Arr ty s) = Arr <$> go ty <*> goScope s
+    go (Lam s) = Lam <$> goScope s
+    go (App t₁ t₂) = App <$> go t₁ <*> go t₂
     go (Con ar tyc dc ts') = Con ar tyc dc <$> mapM go ts'
     go (Destr ar tyc n t') = Destr ar tyc n <$> go t'
-    go (Ann ty t')         = Ann <$> go ty <*> go t'
-    go (Hole hn ts)        = Hole hn <$> mapM go ts
+    go (Ann ty t') = Ann <$> go ty <*> go t'
+    go (Hole hn ts) = Hole hn <$> mapM go ts
     go (Eq t₁ ty₁ t₂ ty₂)  = Eq <$> go t₁ <*> go ty₁ <*> go t₂ <*> go ty₂
     go (Coeh c ty₁ ty₂ q t') = Coeh c <$> go ty₁ <*> go ty₂ <*> go q <*> go t'
+    go (Prop r) =  return (Prop r)
+    go Top = return Top
+    go Bot = return Bot
+    go (And pr₁ pr₂) = And <$> go pr₁ <*> go pr₂
+    go (Forall ty' s) = Forall <$> go ty' <*> goScope s
+    go (Dec pr) = Dec <$> go pr
 
     goScope :: VarC v => TmScope r v -> State (HashMap Id Integer) (TmScope r v)
     goScope s =

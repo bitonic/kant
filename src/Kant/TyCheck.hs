@@ -93,9 +93,9 @@ tyInfer' (Dec pr) =
        tyCheck pr prty
        return (Ty r)
 tyInfer' (Coeh c ty₁ ty₂ q t) =
-    do ty₁ty@(Ty r₁) <- Ty <$> freshRef
+    do ty₁ty <- Ty <$> freshRef
        tyCheck ty₁ ty₁ty
-       ty₂ty@(Ty r₂) <- Ty <$> freshRef
+       ty₂ty <- Ty <$> freshRef
        tyCheck ty₂ ty₂ty
        tyCheck q (Dec (Eq ty₁ ty₁ty ty₂ ty₂ty))
        tyCheck t ty₁
@@ -103,8 +103,10 @@ tyInfer' (Coeh c ty₁ ty₂ q t) =
            Coe -> return ty₂
            Coh -> return (Dec (Eq t ty₁ (coe ty₁ ty₁ q t) ty₂))
 tyInfer' (Eq t₁ ty₁ t₂ ty₂) =
-    do ty₁ty@(Ty r₁) <- Ty <$> freshRef
+    do tyCheck t₁ ty₁
+       ty₁ty@(Ty r₁) <- Ty <$> freshRef
        tyCheck ty₁ ty₁ty
+       tyCheck t₂ ty₂
        ty₂ty@(Ty r₂) <- Ty <$> freshRef
        tyCheck ty₂ ty₂ty
        Prop <$> addConstrs' (\r -> [r₁ :<=: r, r₂ :<=: r])

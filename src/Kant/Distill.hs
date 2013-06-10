@@ -32,14 +32,25 @@ distill' (Eq t₁ ty₁ t₂ ty₂) =
      SEq (distill t₁) (distill ty₁) (distill t₂) (distill ty₂)
 distill' (Coeh c ty₁ ty₂ q t) =
     SCoeh c (distill ty₁) (distill ty₂) (distill q) (distill t)
+distill' Top = STop
+distill' Bot = SBot
+distill' (And pr₁ pr₂) = SAnd (distill pr₁) (distill pr₂)
+distill' t₁@(Forall _ _) = SForall (map (second distill) pars) (distill' t₂)
+  where (pars, t₂) = unrollFora t₁
+distill' (Dec pr) = SDec (distill' pr)
+distill' (Prop r) = SProp r
 
 sapp :: [STm r] -> STm r
 sapp = foldl1 SApp
 
-unrollArr :: TmId r -> ([(Maybe Id, TmId r)], TmId r)
+unrollArr, unrollFora :: TmId r -> ([(Maybe Id, TmId r)], TmId r)
 unrollArr (Arr ty s) = ((n, ty) : pars, t₂)
   where (n, t₁) = scopeN s; (pars, t₂) = unrollArr t₁
 unrollArr t = ([], t)
+
+unrollFora (Forall ty s) = ((n, ty) : pars, t₂)
+  where (n, t₁) = scopeN s; (pars, t₂) = unrollFora t₁
+unrollFora t = ([], t)
 
 unrollLam :: TmId r -> ([Maybe Id], TmId r)
 unrollLam (Lam s) = (vn : vs, t₂)
