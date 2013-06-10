@@ -49,18 +49,26 @@ import Debug.Trace
     '\\'                { LAMBDA    }
     '_'                 { UNDER     }
     '='                 { EQUAL     }
+    '/\\'               { AND       }
+    'Top'               { TOP       }
+    'Bot'               { BOT       }
+    'Prop'              { PROP      }
+    'forall'            { FORALL    }
     'data'              { DATA      }
     'record'            { RECORD    }
     'postulate'         { POSTULATE }
     'coe'               { COE       }
     'coh'               { COH       }
     '*'                 { TYPE      }
-    '{!'                { LHOLE     }
-    '!}'                { RHOLE     }
+    '{|'                { LHOLE     }
+    '|}'                { RHOLE     }
+    '[|'                { LDEC      }
+    '|]'                { RDEC      }
     name                { NAME $$   }
 
 %nonassoc '=' 'coe' 'coh'
 %right '->'
+%right '/\\'
 
 %%
 
@@ -114,16 +122,23 @@ Tm
     : '\\' Seq(Binder) '=>' Tm               { SLam $2 $4 }
     | '\\' Seq0(LamParam) ':' Tm '=>' Tm     { SAnn $2 $4 $6 }
     | Arr                                    { uncurry SArr $1 }
+    | Forall                                 { uncurry SForall $1 }
 
 SingleTm :: { STmSyn }
 SingleTm
     : name                                   { SV $1 }
-    | Type                                   { $1 }
-    | Hole                                   { $1 }
-    | Eq                                     { $1 }
-    | Coe                                    { $1 }
-    | Coh                                    { $1 }
+    | Type                                   { STy () }
+    | 'Top'                                  { STop }
+    | 'Bot'                                  { SBot }
+    | 'Prop'                                 { SProp () }
+    | SingleTm '/\\' SingleTm                { SAnd $1 $3 }
+    | '[|' Tm '|]'                           { SDec $2 }
+    | '{|' name Seq0(SingleTm) '|}'          { SHole $2 $3 }
     | '(' Tm ')'                             { $2 }
+    | 'coe' SingleTm SingleTm SingleTm SingleTm { SCoeh Coe $2 $3 $4 $5 }
+    | 'coh' SingleTm SingleTm SingleTm SingleTm { SCoeh Coh $2 $3 $4 $5 }
+    | '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
+       { SEq $2 $4 $8 $10 }
 
 Type :: { STmSyn }
 Type : '*'                                   { STy () }
@@ -135,6 +150,9 @@ Arr1(X)
     : Seq(Pi) '->' Arr                       { first (concat $1 ++) $3 }
     | App '->' Arr                           { first ((Nothing, $1) :) $3 }
     | X                                      { ([], $1) }
+
+Forall :: { ([SParam ()], STmSyn) }
+Forall : 'forall' Seq(Pi) App                { (concat $2, $3) }
 
 Pi  :: { [SParam ()] }
 Pi  : '[' Seq(Binder) ':' Tm ']'             { zip $2 (repeat $4) }
@@ -150,19 +168,6 @@ Binder
 LamParam :: { SParam () }
 LamParam
     : '[' Binder ':' Tm ']'                  { ($2, $4) }
-
-Hole :: { STmSyn }
-Hole : '{!' name Seq0(SingleTm) '!}'         { SHole $2 $3 }
-
-Eq :: { STmSyn }
-Eq : '(' SingleTm ':' SingleTm ')' '=' '(' SingleTm ':' SingleTm ')'
-       { SEq $2 $4 $8 $10 }
-
-Coe :: { STmSyn }
-Coe : 'coe' SingleTm SingleTm SingleTm SingleTm { SCoeh Coe $2 $3 $4 $5 }
-
-Coh :: { STmSyn }
-Coh : 'coh' SingleTm SingleTm SingleTm SingleTm { SCoeh Coh $2 $3 $4 $5 }
 
 {
 

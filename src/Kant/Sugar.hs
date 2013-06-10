@@ -54,6 +54,12 @@ data STm r
     | SHole HoleId [STm r]
     | SEq (STm r) (STm r) (STm r) (STm r)
     | SCoeh Coeh (STm r) (STm r) (STm r) (STm r)
+    | STop
+    | SBot
+    | SAnd (STm r) (STm r)
+    | SForall [SParam r] (STm r)
+    | SDec (STm r)
+    | SProp r
     deriving (Show)
 type STmSyn = STm ()
 type STmRef = STm Ref

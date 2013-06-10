@@ -51,6 +51,13 @@ data Token
     | EQUAL
     | COE
     | COH
+    | FORALL
+    | TOP
+    | BOT
+    | AND
+    | PROP
+    | LDEC
+    | RDEC
     deriving (Show, Eq, Ord)
 
 lexeme :: Parser a -> Parser a
@@ -71,13 +78,30 @@ lexToken = tok
         , ("]",         RBRACK   )
         , ("|",         BAR      )
         , ("->",        ARROW    )
+        , ("→",         ARROW    )
         , ("=>",        DARROW   )
+        , ("⇒",         DARROW   )
+        , ("/\\",       AND      )
+        , ("∧",         AND      )
+        , ("forall",    FORALL   )
+        , ("∀",         FORALL   )
+        , ("Top",       TOP      )
+        , ("⊤",         TOP      )
+        , ("Bot",       BOT      )
+        , ("⊥",         BOT      )
         , ("_",         UNDER    )
         , ("\\",        LAMBDA   )
+        , ("λ",         LAMBDA   )
         , ("*",         TYPE     )
-        , ("{!",        LHOLE    )
-        , ("!}",        RHOLE    )
+        , ("⋆",         TYPE     )
+        , ("{|",        LHOLE    )
+        , ("|}",        RHOLE    )
         , ("=",         EQUAL    )
+        , ("[|",        LDEC     )
+        , ("⟦",         LDEC     )
+        , ("|]",        RDEC     )
+        , ("⟧",         RDEC     )
+        , ("Prop",      PROP     )
         , ("data",      DATA     )
         , ("record",    RECORD   )
         , ("postulate", POSTULATE)
