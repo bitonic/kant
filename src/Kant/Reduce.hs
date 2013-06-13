@@ -33,10 +33,6 @@ reduce r env (Coeh Coe ty₁ ty₂ t p) =
                     (reduce r env t) (reduce r env p)
 reduce r env (Coeh Coh ty₁ ty₂ t p) =
     Coeh Coh (reduce r env ty₁) (reduce r env ty₂) (reduce r env t) (reduce r env p)
-reduce r env (App t₁ t₂) =
-    case reduce r env t₁ of
-        Lam s -> reduce r env (instantiate1 t₂ s)
-        t₁'   -> App t₁' (reduce r env t₂)
 reduce _ _ (Prop r) = Prop r
 reduce _ _ Top = Top
 reduce _ _ Bot = Bot
@@ -56,6 +52,11 @@ reduce r env (appV -> (Destr ar tyc n t, ts)) =
   where
     t'    = reduce r env t
     stuck = app (Destr ar tyc n t' : map (reduce r env) ts)
+reduce r env (App t₁ t₂) =
+    case reduce r env t₁ of
+        Lam s -> reduce r env (instantiate1 t₂ s)
+        t₁'   -> App t₁' (reduce r env t₂)
+
 reduce _ _ (Destr _ _ _ _) = IMPOSSIBLE("See previous clauses")
 
 -- reduceTyEq :: VarC v => Reducer -> EnvP v -> TmRef v -> TmRef v -> TmRef v
