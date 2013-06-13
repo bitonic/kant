@@ -9,6 +9,7 @@
 module Data.LGraph
     ( -- * Graph type
       Graph
+    , Rep
       -- * Construction
     , Edge
     , empty
@@ -45,15 +46,22 @@ import           Data.Hashable (Hashable(..))
 #include "../impossible.h"
 #include "../containers.h"
 
+-- | A `representative' for a vertex.  Each vertex in the graph is
+--   initially its own representative, and when condensing cycles a new
+--   representative for all the vertices is choosen.
 newtype Rep v = Rep v deriving (Show, Eq, Hashable)
 
+-- | A graph with vertices of type `v' and labels of type `l'.
 data Graph v l = Graph
     { grSucs :: HashMap (Rep v) (HashMap (Rep v) l)
     , grReps :: HashMap v (Rep v)
     , grSper :: HashMap (Rep v) (HashSet v)
     } deriving (Show)
 
+-- | An `Edge' is two vertices and a label.  Used by the user.
 type Edge v l = (v, l, v)
+-- | An edge between representatives.  Internally, this is what we will
+--   have.
 type RepEdge v l = (Rep v, l, Rep v)
 
 empty :: Graph v l
@@ -71,6 +79,8 @@ addVertex v gr@Graph{grSucs = sucs, grReps = reps, grSper = sper} =
 build :: (Eq v, Hashable v, Ord l) => [Edge v l] -> Graph v l
 build = foldl' (flip addEdge) empty
 
+-- | Adds an `Edge' and returns the new `Graph'.  Inserts the vertices
+--   if missing.
 addEdge :: (Eq v, Hashable v, Ord l) => Edge v l -> Graph v l -> Graph v l
 addEdge (v₁, l, v₂) gr₁ = gr₃{grSucs = HashMap.insert r₁ r₁sucs' sucs}
   where
@@ -90,6 +100,7 @@ edges = HashMap.foldlWithKey' vEdges [] . grSucs
 -- TODO I'd like this to be more efficient, without doing the edges on a second
 -- pass.  We could already make this faster by using ST when collecting the
 -- edges.
+-- | Gets all the edges between the provided vertices.
 inEdges :: (Eq v, Hashable v, Ord l, Hashable l)
         => [Rep v] -> Graph v l -> [RepEdge v l]
 inEdges rs Graph{grSucs = sucs} = go (HashSet.fromList rs)
@@ -107,6 +118,7 @@ vertices = HashMap.keys . grSucs
 reverseG :: Graph v l -> [RepEdge v l]
 reverseG gr = [(v₂, l, v₁) | (v₁, l, v₂) <- edges gr]
 
+-- | Gets the transpose of the graph.
 transpose :: (Eq v, Hashable v) => Graph v l -> Graph v l
 transpose gr = gr{grSucs = repBuild (reverseG gr)}
   where
@@ -118,15 +130,21 @@ transpose gr = gr{grSucs = repBuild (reverseG gr)}
                (foldl' (\hm r -> HashMap.insert r HashMap.empty hm)
                        HashMap.empty (vertices gr))
 
-data Tree v l = Node (Rep v) (Forest v l)
+-- | A `Tree' has a root node and a `Forest' of successors.
+data Tree v l   = Node (Rep v) (Forest v l)
 type Forest v l = [Tree v l]
 
+-- | A depth first search on the graph, starting from the given
+--   vertices.  If there are cycles, an infinite `Forest' will be
+--   generated---which is fine, since the result is produced lazily.
 dfs :: (Eq v, Hashable v, Ord l) => Graph v l -> [Rep v] -> Forest v l
 dfs g vs = prune (map (generate g) vs)
 
+-- | `dff gr = dfs gr (vertices gr)'
 dff :: (Eq v, Hashable v, Ord l) => Graph v l -> Forest v l
 dff gr = dfs gr (vertices gr)
 
+-- | The vertices of the graph in post order.
 postOrd :: (Eq v, Hashable v, Ord l) => Graph v l -> [Rep v]
 postOrd = postorderF . dff
   where
@@ -156,9 +174,13 @@ chop m (Node r ts : us) =
 scc' :: (Eq v, Hashable v, Ord l, Hashable l) => Graph v l -> Forest v l
 scc' gr = dfs gr (reverse (postOrd (transpose gr)))
 
+-- | A strongly connected component (SCC) is either a single acyclic
+--   vertex, or a list of vertices V where for each v1, v2 in V there is a
+--   path from v1 to v2.
 data SCC v l = Acyclic (Rep v) | Cyclic [Rep v]
     deriving (Show)
 
+-- | All the SCCs of the graph.
 scc :: (Eq v, Hashable v, Hashable l, Ord l) => Graph v l -> [SCC v l]
 scc gr = map decode (scc' gr)
   where
@@ -167,6 +189,8 @@ scc gr = map decode (scc' gr)
     decode' (Node v₁ ts) = v₁ : concatMap decode' ts
     mentionsItself v = HashMap.member v HMBANG(v, grSucs gr)
 
+-- | Condense a given SCC, choosing one representative among the nodes
+--   and updating the edges accordingly.
 condense :: (Eq v, Hashable v) => SCC v l -> Graph v l -> Graph v l
 condense (Acyclic _) gr = gr
 condense (Cyclic []) _ = IMPOSSIBLE("empty Cyclic received")
