@@ -125,7 +125,8 @@ run env =
            Just s  -> maybe (return ()) run =<< repl env s
 
 banner :: String
-banner = "KANT " ++ showVersion version ++ ", made in London, year 2013."
+banner = "B E R T U S\nVersion " ++ showVersion version ++
+         ", made in London, year 2013."
 
 preludeEnv :: MonadIO m => m EnvId
 preludeEnv =

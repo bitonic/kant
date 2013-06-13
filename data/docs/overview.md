@@ -1,4 +1,4 @@
-Kant is a small language with dependent types, written to explore possible ways
+Bertus is a small language with dependent types, written to explore possible ways
 to implement a core language supporting
 [observational equality](http://www.cs.nott.ac.uk/~txa/publ/obseqnow.pdf).
 
