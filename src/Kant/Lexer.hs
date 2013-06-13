@@ -70,6 +70,8 @@ lexToken = tok
     simpleToks =
         [ (":",         COLON    )
         , (",",         COMMA    )
+        , ("{|",        LHOLE    )
+        , ("|}",        RHOLE    )
         , ("{",         LBRACE   )
         , ("}",         RBRACE   )
         , ("(",         LPAREN   )
@@ -94,8 +96,6 @@ lexToken = tok
         , ("λ",         LAMBDA   )
         , ("*",         TYPE     )
         , ("⋆",         TYPE     )
-        , ("{|",        LHOLE    )
-        , ("|}",        RHOLE    )
         , ("=",         EQUAL    )
         , ("[|",        LDEC     )
         , ("⟦",         LDEC     )
