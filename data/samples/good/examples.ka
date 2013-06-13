@@ -1,0 +1,55 @@
+------------------------------------------------------------
+-- Naturals
+
+data Nat : * => { zero : Nat | suc : Nat -> Nat }
+
+one : Nat => (suc zero)
+two : Nat => (suc one)
+three : Nat => (suc two)
+
+------------------------------------------------------------
+-- Binary trees
+
+data Tree : [A : *] -> * =>
+  { leaf : Tree A | node : Tree A -> A -> Tree A -> Tree A }
+
+------------------------------------------------------------
+-- Empty types
+
+data Empty : * => { }
+
+------------------------------------------------------------
+-- Ordered lists
+
+record Unit : * => tt { }
+
+le [n : Nat] : Nat -> * => (
+  Nat-Elim
+    n
+    (\_ => Nat -> *)
+    (\_ => Unit)
+    (\n f m => Nat-Elim m (\_ => *) Empty (\m' _ => f m'))
+)
+
+data Lift : * =>
+  { bot : Lift | lift : Nat -> Lift | top : Lift }
+
+le' [l1 : Lift] : Lift -> * => (
+  Lift-Elim
+    l1
+    (\_ => Lift -> *)
+    (\_     => Unit)
+    (\n1 l2 => Lift-Elim l2 (\_ => *) Empty (\n2 => le n1 n2) Unit)
+    (\l2    => Lift-Elim l2 (\_ => *) Empty (\_  => Empty)    Unit)
+)
+
+data OList : [low upp : Lift] -> * =>
+  { nil  : le' low upp -> OList low upp
+  | cons : [n : Nat] -> OList (lift n) upp -> le' low (lift n) -> OList low upp
+  }
+
+------------------------------------------------------------
+-- Dependent products
+
+record Prod : [A : *] [B : A -> *] -> * =>
+  prod {fst : A, snd : B fst}

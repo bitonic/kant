@@ -1,0 +1,16 @@
+
+-- data Nat : * => { zero : Nat | suc : Nat -> Nat }
+
+-- record And : [A B : *] -> * =>
+--     and {fst : A, snd : B}
+
+-- record Unit : * => tt { }
+
+-- Tuple [x : Nat] [A : *] : * =>
+--     (Nat-Elim x (\_ => *) Unit (\_ B => And A B))
+
+-- ix [x : Nat] [A : *] : Tuple (suc x) A : A =>
+--     (Nat-Elim x
+--               (\n => Tuple (suc n) A -> A)
+--               (\t -> fst t)
+              
