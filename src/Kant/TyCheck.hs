@@ -147,7 +147,8 @@ tyCheck = whnf₂ go
     go (Lam s₁) (Arr ty s₂) = nestM ty (whnf₂ go (fromScope s₁) (fromScope s₂))
     go (Hole hn ts) ty =
         do tys <- mapM tyInfer' ts
-           addHole =<< formHoleM hn ty =<< (zip <$> mapM nfM ts <*> mapM nfM tys)
+           ty' <- nfM' ty
+           addHole =<< (formHoleM hn ty') =<< (zip <$> mapM nfM' ts <*> mapM nfM' tys)
     go (Ty r₁) (Ty r₂) = addConstrs [r₁ :<: r₂]
     go t ty =
         do tyt <- whnfM =<< tyInfer' t

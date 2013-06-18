@@ -35,6 +35,8 @@ module Kant.Monad
       -- * Normal forms
     , whnfM
     , nfM
+    , whnfM'
+    , nfM'
       -- * Slamming terms
     , slamM
     , formHoleM
@@ -141,6 +143,12 @@ whnfM t = (`whnf` t) <$> getEnv
 
 nfM :: (Monad m, VarC v) => TmRef v -> KMonadE f v m (TmRef v)
 nfM t = (`nf` t) <$> getEnv
+
+whnfM' :: (Monad m, VarC v) => TmRef v -> KMonadE f v m (TmRef v)
+whnfM' t = (`whnf'` t) <$> getEnv
+
+nfM' :: (Monad m, VarC v) => TmRef v -> KMonadE f v m (TmRef v)
+nfM' t = (`nf'` t) <$> getEnv
 
 slamM :: (VarC v, IsCursor c, Monad m) => Tm r v -> KMonad (c f) v m (TmId r)
 slamM t = flip slam t <$> getEnv

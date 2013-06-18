@@ -1,89 +1,89 @@
 ------------------------------------------------------------
 -- Core ITT (minus W)
 
-data Empty : * => { }
+data Empty : ⋆ ⇒ { }
 
-absurd [A : *] [x : Empty] : A => (
-  Empty-Elim x (\_ => A)
+absurd [A : ⋆] [x : Empty] : A ⇒ (
+  Empty-Elim x (λ _ ⇒ A)
 )
 
-neg [A : *] : * => (A -> Empty)
+neg [A : ⋆] : ⋆ ⇒ (A → Empty)
 
-record Unit : * => tt { }
+record Unit : ⋆ ⇒ tt { }
 
-record Prod : [A : *] [B : A -> *] -> * =>
+record Prod : [A : ⋆] [B : A → ⋆] → ⋆ ⇒
   prod {fst : A, snd : B fst}
 
-data Bool : * => { true : Bool | false : Bool }
+data Bool : ⋆ ⇒ { true : Bool | false : Bool }
 
 -- The if_then_else_ is provided by Bool-Elim
 
 -- A large eliminator, for convenience
-ITE [b : Bool] [A B : *] : * => (
-  Bool-Elim b (\_ => *) A B
+ITE [b : Bool] [A B : ⋆] : ⋆ ⇒ (
+  Bool-Elim b (λ _ ⇒ ⋆) A B
 )
 
 ------------------------------------------------------------
 -- Examples →
 
-data Nat : * => { zero : Nat | suc : Nat -> Nat }
+data Nat : ⋆ ⇒ { zero : Nat | suc : Nat → Nat }
 
-gt [n : Nat] : Nat -> * => (
+gt [n : Nat] : Nat → ⋆ ⇒ (
   Nat-Elim
     n
-    (\_ => Nat -> *)
-    (\_ => Empty)
-    (\n f m => Nat-Elim m (\_ => *) Unit (\m' _ => f m'))
+    (λ _ ⇒ Nat → ⋆)
+    (λ _ ⇒ Empty)
+    (λ n f m ⇒ Nat-Elim m (λ _ ⇒ ⋆) Unit (λ m' _ ⇒ f m'))
 )
 
-data List : [A : *] -> * =>
-  { nil : List A | cons : A -> List A -> List A }
+data List : [A : ⋆] → ⋆ ⇒
+  { nil : List A | cons : A → List A → List A }
 
-length [A : *] [xs : List A] : Nat => (
-    List-Elim xs (\_ => Nat) zero (\_ _ n => suc n)
+length [A : ⋆] [xs : List A] : Nat ⇒ (
+    List-Elim xs (λ _ ⇒ Nat) zero (λ _ _ n ⇒ suc n)
 )
 
-head [A : *] [xs : List A] : gt (length A xs) zero -> A => (
+head [A : ⋆] [xs : List A] : gt (length A xs) zero → A ⇒ (
     List-Elim
       xs
-      (\xs => gt (length A xs) zero -> A)
-      (\p => absurd A p)
-      (\x _ _ _ => x)
+      (λ xs ⇒ gt (length A xs) zero → A)
+      (λ p ⇒ absurd A p)
+      (λ x _ _ _ ⇒ x)
 )
 
 ------------------------------------------------------------
 -- Examples ×
 
-data Parity : * => { even : Parity | odd : Parity }
+data Parity : ⋆ ⇒ { even : Parity | odd : Parity }
 
-flip [p : Parity] : Parity => (
-  Parity-Elim p (\_ => Parity) odd even
+flip [p : Parity] : Parity ⇒ (
+  Parity-Elim p (λ _ ⇒ Parity) odd even
 )
 
-parity [n : Nat] : Parity => (
-  Nat-Elim n (\_ => Parity) even (\_ => flip)
+parity [n : Nat] : Parity ⇒ (
+  Nat-Elim n (λ _ ⇒ Parity) even (λ _ ⇒ flip)
 )
 
-even [n : Nat] : * => (Parity-Elim (parity n) (\_ => *) Unit Empty)
+even [n : Nat] : ⋆ ⇒ (Parity-Elim (parity n) (λ _ ⇒ ⋆) Unit Empty)
 
-one   : Nat => (suc zero)
-two   : Nat => (suc one)
-three : Nat => (suc two)
-four  : Nat => (suc three)
-five  : Nat => (suc four)
-six   : Nat => (suc five)
+one   : Nat ⇒ (suc zero)
+two   : Nat ⇒ (suc one)
+three : Nat ⇒ (suc two)
+four  : Nat ⇒ (suc three)
+five  : Nat ⇒ (suc four)
+six   : Nat ⇒ (suc five)
 
-even-6 : even six => tt
+even-6 : even six ⇒ tt
 
-even-5-neg : neg (even five) => (\z => z)
+even-5-neg : neg (even five) ⇒ (λ z ⇒ z)
 
-there-is-an-even-number : Prod Nat even => (prod six even-6)
+there-is-an-even-number : Prod Nat even ⇒ (prod six even-6)
 
-Or [A B : *] : * => (Prod Bool (\b => ITE b A B))
+Or [A B : ⋆] : ⋆ ⇒ (Prod Bool (λ b ⇒ ITE b A B))
 
-left  [A B : *] [x : A] : Or A B => (prod true  x)
-right [A B : *] [x : B] : Or A B => (prod false x)
+left  [A B : ⋆] [x : A] : Or A B ⇒ (prod true  x)
+right [A B : ⋆] [x : B] : Or A B ⇒ (prod false x)
 
-case [A B C : *] [f : A -> C] [g : B -> C] [x : Or A B] : C => (
-  (Bool-Elim (fst x) (\b => ITE b A B -> C) f g) (snd x)
+case [A B C : ⋆] [f : A → C] [g : B → C] [x : Or A B] : C ⇒ (
+  (Bool-Elim (fst x) (λ b ⇒ ITE b A B → C) f g) (snd x)
 )
