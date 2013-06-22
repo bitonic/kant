@@ -74,16 +74,23 @@ type TmScopeRef = TmScope Ref
 -- TODO make the treatment of holes better---e.g. don't let them escape their
 -- enironment
 data Tm r v
-    = V v
-    | Ty r
-    | Lam (TmScope r v)
-    | Arr (Tm r v) (TmScope r v)
-    | App (Tm r v) (Tm r v)
-    | Ann (Tm r v) (Tm r v)
+    = V v                        -- Variable.
+    | Ty r                       -- Type, with a hierarchy reference.
+    | Lam (TmScope r v)          -- Abstraction.
+    | Arr (Tm r v) (TmScope r v) -- Dependent function.
+    | App (Tm r v) (Tm r v)      -- Application.
+    | Ann (Tm r v) (Tm r v)      -- Annotated term.
+      -- Data constructor, the first ConId is the type constructor and
+      -- the second is the data constructor.
     | Con ADTRec ConId ConId [Tm r v]
+      -- Data destrutor, again first ConId being the type constructor
+      -- and the second the name of the eliminator.
     | Destr ADTRec ConId Id (Tm r v)
+      -- A type hole.
     | Hole HoleId [Tm r v]
+      -- A coercion or coherence.
     | Coeh Coeh (Tm r v) (Tm r v) (Tm r v) (Tm r v)
+      -- Decoding of propositions.
     | Dec (Tm r v)
       -- Propositions
     | Prop r

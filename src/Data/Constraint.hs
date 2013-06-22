@@ -31,13 +31,18 @@ instance Hashable ConstrTy where
     hashWithSalt i Weak   = hashWithSalt i True
     hashWithSalt i Strong = hashWithSalt i False
 
+-- | Data type holding the set of constraints, parametrised over the
+--   type of the variables.
 newtype Constrs a = Constrs (Graph a ConstrTy)
 
 data Constr a = a :<=: a | a :<: a | a :==: a
 
+-- | An empty set of constraints.
 empty :: Constrs a
 empty = Constrs Graph.empty
 
+-- | Adds one constraint to the set, returns the new set of constraints
+--   if consistent.
 addConstr :: (Eq a, Hashable a) => Constr a -> Constrs a -> Maybe (Constrs a)
 addConstr c (Constrs oldGr) = Constrs <$> consistent newGr
   where

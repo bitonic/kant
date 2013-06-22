@@ -44,14 +44,15 @@ import           Kant.TyCheck
 import           Paths_kant
 
 data Input
-    = ITyCheck String
-    | IEval String
-    | IDecl String
+    = ITyCheck String           -- Type check a term
+    | IEval String              -- Evaluate a term
+    | IDecl String              -- Declare something
+      -- Load a file, if `Bool' is true erase the previous environment
     | ILoad Bool FilePath
-    | IPretty String
-    | IQuit
-    | ISkip
-    | IHelp
+    | IPretty String            -- Pretty print a term
+    | IQuit                     -- Quit
+    | IHelp                     -- Display help message
+    | ISkip                     -- No input
 
 class Monad m => ReadFile m where
     readFile' :: FilePath -> m (Either IOError String)
@@ -59,6 +60,9 @@ class Monad m => ReadFile m where
 instance ReadFile IO where
     readFile' fp = catch (Right <$> readFile fp) (return . Left)
 
+-- KMonadT is parametrised over the type of the variables, which depends
+-- on how deep in the term structure we are.  For the REPL, we only deal
+-- with top-level terms, and thus only `Id' variables---top level names.
 type REPL m = KMonadT Id m
 
 parseInput :: Monad m => String -> REPL m Input
