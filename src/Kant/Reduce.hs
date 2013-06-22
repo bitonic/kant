@@ -12,8 +12,6 @@ import           Kant.Env
 import           Kant.Term
 #include "../impossible.h"
 
-import Debug.Trace
-
 type Reducer = forall v. VarC v => Bool -> EnvP v -> TmRef v -> TmRef v
 
 -- TODO Do I need to reduce proofs?  I probably shouldn't.
