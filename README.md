@@ -38,8 +38,11 @@ Without arguments it will run on `127.0.0.1:8000`.
 Source code overview
 ======================================================================
 
-Here is an overview of the modules, you can also run `./modules.sh` to
-generate a `modules.pdf` file with a dependency graph.
+Here is an overview of the modules.
+
+You can also run `./modules.sh` to generate a `modules.pdf` file with a
+dependency graph---you will need [dot](http://www.graphviz.org/) and
+[graphmod](http://hackage.haskell.org/package/graphmod).
 
 ````
 Data.
@@ -116,7 +119,6 @@ Kant.
   REPL         Brings it all together by defining a little monadic
                state machines that processes user commands and spits
                output.
-
 ````
 
 Additionally, the executable for the CLI prompt is in `kant.hs`, and the
