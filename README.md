@@ -7,9 +7,9 @@ yet.
 Building/Installing
 ======================================================================
 
-To build bertus, you need to have a recent Haskell Platform
-<http://www.haskell.org/platform/>.  Once you have that you can simply
-run
+To build bertus, you need to have a recent [Haskell
+Platform](http://www.haskell.org/platform/).  Once you have that you can
+simply run
 
     $ cabal install
 
