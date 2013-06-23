@@ -6,6 +6,8 @@
 --   functions.
 module Kant.Pretty (Pretty(..), putPretty) where
 
+import           Data.List (sortBy)
+import           Data.Ord (comparing)
 import           Data.String (IsString(..))
 
 import           Text.PrettyPrint.Leijen
@@ -158,11 +160,12 @@ instance Pretty Output where
                                         nest' ("Type:" <$> pretty ty))
     pretty (OPretty t)         = pretty t
     pretty (OHoles [])         = "OK"
-    pretty (OHoles holes)      = gnest ("Holes:" <$> prettyList holes)
     pretty (OInfo info)        = pretty info
     pretty OOK                 = "OK"
     pretty OQuit               = "Bye!"
     pretty OSkip               = ""
+    pretty (OHoles holes)      =
+        gnest ("Holes:" <$> prettyList (sortBy (comparing holeRef) holes))
     pretty OHelp               =
         "<decl>     Declare value/data type/record" <$$>
         ":t <term>  Typecheck" <$$>
