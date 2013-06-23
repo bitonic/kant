@@ -97,6 +97,8 @@ Kant.
                operations---we can retrieve the `Kant.Env' and throw
                `Kant.Error's.
 
+  TyCheck      The type checker.
+
   Elaborate    The messy bit.  Turns `Kant.Decl' into types and
                rewriting rules stored in a `Kant.ADT', which is in turn
                stored in a `Kant.Env'.
