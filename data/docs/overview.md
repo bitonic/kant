@@ -125,6 +125,9 @@ be applied to all their arguments to be used, and eliminators to the
 
 ### Type holes
 
+> I've got 99 holes but a proof ain't one.
+> <cite> Jay 'Well-Order' Z </cite>
+
 We have rudimentary holes, of the type kind.  You can barely see through
 them.  A hole is a place holder for a term:
 

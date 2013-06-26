@@ -130,3 +130,32 @@ body {
   padding: 0.5em 1em;
   background-color: #f0f0f0;
 }
+
+blockquote {
+  font-style: italic;
+  margin: 0.25em 0;
+  padding: 0.25em 0.5em 0.25em 40px;
+  line-height: 1.45;
+  position: relative;
+}
+
+blockquote:before {
+  display: block;
+  content: "\201C";
+  font-size: 80px;
+  position: absolute;
+  left: -20px;
+  top: -20px;
+  color: #7a7a7a;
+}
+
+blockquote cite {
+  color: #999999;
+  font-size: 0.9em;
+  display: block;
+  margin-top: 5px;
+}
+ 
+blockquote cite:before {
+  content: "\2014 \2009";
+}
