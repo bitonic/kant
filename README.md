@@ -35,6 +35,11 @@ The web application can be run with
 
 Without arguments it will run on `127.0.0.1:8000`.
 
+Using
+======================================================================
+
+Check `data/docs/overview.md` for a brief description of the language.
+
 Source code overview
 ======================================================================
 
