@@ -4,10 +4,10 @@ to implement a core language supporting
 
 Current features include:
 
-  * User defined data types and records
-  * Implicit universe hierarchy
-  * Bidirectional type checking for abstractions
-  * Type holes
+  * User defined data types and records;
+  * Implicit universe hierarchy;
+  * Bidirectional type checking, both for abstraction and user defined types;
+  * Type holes.
 
 Half done features:
 
@@ -18,9 +18,27 @@ Half done features:
 
 Planned features are:
 
-  * Pattern matching
-  * Inference via pattern unification
-  * Corecursion
+  * Pattern matching and explicit recursion;
+  * Inference via pattern unification;
+  * Corecursion.
+
+## Warning
+
+Bertus should be pretty solid but it's just a beginning.  Error messages
+will be ugly, and in general the system is not meant to be used yet for
+'proper' programming or theorem proving.
+
+Moreover, the parser will accept things that it cannot typecheck
+(because I haven't implemented OTT yet) and crash.  If you get a
+WebSocket error, that's what happened.  Don't worry, the server is still
+running.
+
+## Using the REPL
+
+Type `:h`, then your return key, and keep reading there.  You can load
+all the files in the
+[examples](https://github.com/bitonic/kant/tree/master/data/samples).
+In the command line REPL you can load whatever you want, obviously.
 
 ## Brief overview
 
@@ -28,9 +46,9 @@ Francesco, go write proper docs!
 
 ### Syntax
 
-The best thing is to head towards the few examples I have put together,
-good and bad:
-<https://github.com/bitonic/kant/tree/master/data/samples>.
+The best thing is to head towards the few
+[examples](https://github.com/bitonic/kant/tree/master/data/samples) I
+have put together, good and bad.
 
 Let's see... you have functions:
 
