@@ -125,3 +125,8 @@ body {
 ::-webkit-scrollbar-thumb {
   background-color: rgba(0, 0, 0, 0.3);
 }
+
+#content pre {
+  padding: 0.5em 1em;
+  background-color: #f0f0f0;
+}
