@@ -1,8 +1,0 @@
-
-data Empty : * => { }
-
-data Inf : * => { inf : Inf -> Inf }
-
-infempty [i : Inf] : Empty => (
-    Inf-Elim i (\_ => Empty) (\_ bot => bot)
-)

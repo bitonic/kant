@@ -1,7 +1,0 @@
-
-data Nat : * => { zero : Nat | suc : Nat -> Nat }
-
-data Fin : [n : Nat] -> * =>
-    { fzero : Fin n
-    | fsuc : [n : Nat] -> Fin (suc n)
-    }
