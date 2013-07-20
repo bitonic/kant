@@ -5,6 +5,7 @@ import Data.Foldable (Foldable)
 
 import Control.Monad.Fresh
 import Data.Bwd
+import Language.Bertus.Subst
 import Language.Bertus.Tm
 import Language.Bertus.Tele
 

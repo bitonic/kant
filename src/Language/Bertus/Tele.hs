@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
 module Language.Bertus.Tele
     ( module Data.Proxy
     , FwdTele(..)
@@ -15,7 +10,8 @@ import Data.Foldable (Foldable)
 
 import Data.Proxy
 
-import Language.Bertus.Tm
+import Data.Var
+import Language.Bertus.Subst
 
 infixl 5 :>>
 data FwdTele f g a v where
