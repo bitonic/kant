@@ -1,8 +1,6 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
 module Language.Bertus.Tm
     ( module Data.Var
+    , Name
     , Scope
     , Tm(..)
     , Ty
@@ -15,23 +13,24 @@ module Language.Bertus.Tm
     , Subst(..)
     , inst
     , subst
-    , nest
+    , (///=)
     , (%%)
     , (%%%)
+    , ($$)
+    , ($$$)
     ) where
 
-import Data.Traversable (Traversable)
 import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 import Control.Monad.Fresh
 import Data.Var
 
 #include "../../impossible.h"
 
-type UName = String
-type UVar = Var UName
+type Name = String
 
-type Scope f v = f (UVar v)
+type Scope f v = f (Var Name v)
 
 data Tm v
     = Type
@@ -43,7 +42,8 @@ data Tm v
 
 type Ty = Tm
 
-type Meta = Ref
+newtype Meta = M Ref
+    deriving (Eq, Ord, Show)
 
 data Head v = Var v Twin | Meta Meta
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
@@ -67,9 +67,9 @@ class Subst f where
 
 instance Subst Tm where
     Type              //= _ = Type
-    Lam s             //= f = Lam (s //= nest f)
+    Lam s             //= f = Lam (s ///= f)
     Neutr v els       //= f = f v %%% map (//= f) els
-    Binder bi lhs rhs //= f = Binder bi (lhs //= f) (rhs //= nest f)
+    Binder bi lhs rhs //= f = Binder bi (lhs //= f) (rhs ///= f)
     Pair t u          //= f = Pair (t //= f) (u //= f)
 
 instance Subst Elim where
@@ -91,6 +91,9 @@ nest _ (Var  (B x) tw) = var (Var (B x) tw)
 nest f (Var  (F v) tw) = f (Var v tw) //= (var . fmap F)
 nest _ (Meta me)       = var (Meta me)
 
+(///=) :: Subst f => f (Var a t) -> (Head t -> Tm v) -> f (Var a v)
+t ///= f = t //= nest f
+
 (%%) :: Tm v -> Elim v -> Tm v
 Pair t _    %% Fst   = t
 Pair _ u    %% Snd   = u
@@ -100,3 +103,9 @@ _           %% _     = IMPOSSIBLE("Bad elimination")
 
 (%%%) :: Tm v -> [Elim v] -> Tm v
 (%%%) = foldl (%%)
+
+($$) :: Tm v -> Tm v -> Tm v
+t $$ u = t %% App u
+
+($$$) :: Tm v -> [Tm v] -> Tm v
+($$$) = foldl ($$)

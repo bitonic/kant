@@ -1,7 +1,5 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Control.Monad.Fresh (Ref, FreshT, runFreshT) where
+module Control.Monad.Fresh (Ref, FreshT, runFreshT, MonadFresh(..)) where
 
 import Control.Monad.Cont
 import Control.Monad.Error
