@@ -1,6 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Control.Monad.Fresh (Ref, FreshT, runFreshT, MonadFresh(..)) where
 
+import Control.Applicative (Applicative(..))
+import Data.Data (Data, Typeable)
+
 import Control.Monad.Cont
 import Control.Monad.Error
 import Control.Monad.List
@@ -9,7 +12,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 
 newtype Ref = Ref Integer
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Data, Typeable)
 
 newtype FreshT m a = FreshT {unFreshT :: StateT Integer m a}
 
@@ -18,6 +21,13 @@ runFreshT (FreshT m) = evalStateT m 0
 
 class MonadFresh m where
     fresh :: m Ref
+
+instance Functor m => Functor (FreshT m) where
+    fmap f = FreshT . fmap f . unFreshT
+
+instance (Functor m, Monad m) => Applicative (FreshT m) where
+    pure = return
+    (<*>) = ap
 
 instance Monad m => Monad (FreshT m) where
     return = FreshT . return

@@ -7,6 +7,8 @@ module Language.Bertus.Subst
     , (%%%)
     , ($$)
     , ($$$)
+    , abstract
+    , abstract'
     ) where
 
 import Data.Var
@@ -32,10 +34,12 @@ instance Subst Elim where
     Snd   //= _ = Snd
 
 inst :: Subst f => f (Var a v) -> Tm v -> f v
-inst s t = s //= \v -> case v of
-                           Var  (B _ ) _    -> t
-                           Var  (F v') tw   -> var (Var v' tw)
-                           Meta me          -> var (Meta me)
+inst s t =
+    s //= \v ->
+    case v of
+        Var  (B _ ) _  -> t
+        Var  (F v') tw -> var (Var v' tw)
+        Meta me        -> var (Meta me)
 
 subst :: (Eq v, Subst f) => Head v -> Tm v -> f v -> f v
 subst v t u = u //= \v' -> if v == v' then t else var v'
@@ -64,3 +68,13 @@ t $$ u = t %% App u
 ($$$) :: Tm v -> [Tm v] -> Tm v
 ($$$) = foldl ($$)
 
+abstract :: (Eq v, Subst f) => v -> Twin -> f v -> f (Var v v)
+abstract nom tw t =
+    t //= \v ->
+    var $ case v of
+              Var nom' _ | nom == nom' -> Var (B nom') tw
+              Var nom' tw'             -> Var (F nom') tw'
+              Meta mv                  -> Meta mv
+
+abstract' :: (Eq v, Subst f) => v -> f v -> f (Var v v)
+abstract' nom t = abstract nom Only t
