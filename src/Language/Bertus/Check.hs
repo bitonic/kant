@@ -72,3 +72,23 @@ equal ty t1 t2 = (==) <$> quote ty t1 <*> quote ty t2
 
 (<->) :: (Eq v, Monad m) => Ty v -> Ty v -> BMonadT v m Bool
 ty1 <-> ty2 = equal Type ty1 ty2
+
+isReflexive :: (Eq v, Monad m) => Eqn v -> BMonadT v m Bool
+isReflexive (Eqn ty1 t1 ty2 t2) =
+    do eq <- equal Type ty1 ty2
+       if eq then equal ty1 t1 t2 else return False
+
+checkProb :: (Eq v, Monad m)
+          => ProblemState -> Problem v -> BMonadT v m ()
+checkProb pst (Unify (Eqn ty1 t1 ty2 t2)) =
+    do check Type ty1
+       check ty1  t1
+       check Type ty2
+       check t2   t2
+       if pst == Solved
+           then do eq <- isReflexive (Eqn ty1 t1 ty2 t2)
+                   unless eq (error "checkProb: not unified")
+           else undefined
+checkProb pst (All (Param ty) prob) =
+    do check Type ty
+       nestM (Param ty) (checkProb pst prob)
