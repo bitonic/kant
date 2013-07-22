@@ -3,7 +3,6 @@ module Language.Bertus.Tm
     , Name
     , Scope
     , Tm(..)
-    , Canon(..)
     , Ty
     , Meta
     , Head(..)
@@ -30,15 +29,11 @@ type Name = String
 type Scope f v = f (Var Name v)
 
 data Tm v
-    = Neutr (Head v) [Elim v]
-    | Canon (Canon v)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
-
-data Canon v
     = Type
     | Bind Bind (Tm v) (Scope Tm v)
     | Pair (Tm v) (Tm v)
     | Lam (Scope Tm v)
+    | Neutr (Head v) [Elim v]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 type Ty = Tm

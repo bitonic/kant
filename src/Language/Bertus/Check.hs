@@ -9,8 +9,8 @@ import Language.Bertus.Tm
 check :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadT v m ()
 check Type Type =
     return ()
-check (Bind Pi dom cod) (Lam s) =
-    nestM (Param dom) (check cod s)
+check (Bind Pi dom cod) (Lam t) =
+    nestM (Param dom) (check cod t)
 check (Bind Sig fsty snty) (Pair fs sn) =
     do check fsty fs
        check (inst snty fs) sn
@@ -20,7 +20,7 @@ check ty (Neutr he els) =
        eq <- ty <-> ty'
        unless eq (throwError "mismatching types")
 check _ _ =
-    undefined
+    throwError "canonical inhabitant of non-canonical type"
 
 checkSpine :: (Eq v, Monad m) => Ty v -> Tm v -> [Elim v] -> BMonadT v m (Ty v)
 checkSpine ty _ [] =

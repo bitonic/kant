@@ -2,7 +2,6 @@ module Language.Bertus.Tele
     ( module Data.Proxy
     , FwdTele(..)
     , BwdTele(..)
-    , tailBwd
     , lookupBwd
     ) where
 
@@ -28,10 +27,6 @@ infixr 5 :<<
 data BwdTele f g a v where
     BT0   :: g v -> BwdTele f g a v
     (:<<) :: BwdTele f g a v -> f v -> BwdTele f g a (Var a v)
-
-
-tailBwd :: BwdTele f g a (Var a v) -> BwdTele f g a v
-tailBwd (bw :<< _) = bw
 
 lookupBwd :: Functor f => BwdTele f g a v -> v -> Maybe (f v)
 lookupBwd (BT0 _)    _     = Nothing
