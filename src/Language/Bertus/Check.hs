@@ -1,0 +1,74 @@
+module Language.Bertus.Check where
+
+import Language.Bertus.Common
+import Language.Bertus.Context
+import Language.Bertus.Monad
+import Language.Bertus.Subst
+import Language.Bertus.Tm
+
+check :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadT v m ()
+check Type Type =
+    return ()
+check (Bind Pi dom cod) (Lam s) =
+    nestM (Param dom) (check cod s)
+check (Bind Sig fsty snty) (Pair fs sn) =
+    do check fsty fs
+       check (inst snty fs) sn
+check ty (Neutr he els) =
+    do hety <- infer he
+       ty' <- checkSpine hety (Neutr he []) els
+       eq <- ty <-> ty'
+       unless eq (throwError "mismatching types")
+check _ _ =
+    undefined
+
+checkSpine :: (Eq v, Monad m) => Ty v -> Tm v -> [Elim v] -> BMonadT v m (Ty v)
+checkSpine ty _ [] =
+    return ty
+checkSpine (Bind Pi dom cod) t (App u : els) =
+    do check dom u
+       checkSpine (inst cod u) (t $$ u) els
+checkSpine (Bind Sig fsty _) t (Fst : els) =
+    do checkSpine fsty (t %% Fst) els
+checkSpine (Bind Sig _ snty) t (Snd : els) =
+    checkSpine (inst snty (t %% Fst)) (t %% Snd) els
+checkSpine _ _ _ = throwError "checkSpine error"
+
+infer :: Monad m => Head v -> BMonadT v m (Ty v)
+infer (Var v tw) = lookupVar v tw
+infer (Meta mv)  = lookupMeta mv
+
+quote :: Monad m => Ty v -> Tm v -> BMonadT v m (Tm v)
+quote (Bind Pi dom cod) t =
+    Lam <$> nestM (Param dom) (quote cod (fmap F t $$ var' (B "x")))
+quote (Bind Sig fsty snty) t =
+    Pair <$> quote fsty fs <*> quote (inst snty fs) (t %% Snd)
+  where fs = t %% Fst
+quote Type Type =
+    return Type
+quote Type (Bind bi lhs rhs) =
+    Bind bi <$> quote Type lhs <*> nestM (Param lhs) (quote Type rhs)
+quote _ (Neutr he els) =
+    do ty <- infer he
+       quoteSpine ty (head_ he) els
+quote _ _ =
+    error "quote"
+
+quoteSpine :: Monad m => Ty v -> Tm v -> [Elim v] -> BMonadT v m (Tm v)
+quoteSpine _ t [] =
+    return t
+quoteSpine (Bind Pi dom cod) t (App u : els) =
+    do u' <- quote dom u
+       quoteSpine (inst cod u') (t $$ u') els
+quoteSpine (Bind Sig fsty _) t (Fst : els) =
+    quoteSpine fsty (t %% Fst) els
+quoteSpine (Bind Sig _ snty) t (Snd : els) =
+    quoteSpine (inst snty (t %% Fst)) (t %% Snd) els
+quoteSpine _ _ _ =
+    error "quoteSpine"
+
+equal :: (Eq v, Monad m) => Ty v -> Tm v -> Tm v -> BMonadT v m Bool
+equal ty t1 t2 = (==) <$> quote ty t1 <*> quote ty t2
+
+(<->) :: (Eq v, Monad m) => Ty v -> Ty v -> BMonadT v m Bool
+ty1 <-> ty2 = equal Type ty1 ty2

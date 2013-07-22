@@ -23,7 +23,8 @@ data Eqn v = Eqn (Ty v) (Tm v) (Ty v) (Ty v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 instance Subst Eqn where
-    Eqn ty1 t1 ty2 t2 //= f = Eqn (ty1 //= f) (t1 //= f) (ty2 //= f) (t2 //= f)
+    Eqn ty1 t1 ty2 t2 //= f =
+        Eqn (ty1 //= f) (t1 //= f) (ty2 //= f) (t2 //= f)
 
 data Problem v = Unify (Eqn v) | All (Param v) (Scope Problem v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
@@ -69,4 +70,3 @@ nestCtx :: Param v -> Context v -> Context (Var Name v)
 nestCtx par (Context le ri pars) =
     Context (fmap (fmap F) le) (fmap (fmap (second (fmap F)) +++ fmap F) ri)
             (pars :<< par)
-

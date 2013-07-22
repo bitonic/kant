@@ -6,9 +6,12 @@ module Language.Bertus.Tm
     , Ty
     , Meta
     , Head(..)
+    , head_
     , var
+    , var'
+    , metavar
     , Twin(..)
-    , Binder(..)
+    , Bind(..)
     , Elim(..)
     ) where
 
@@ -29,7 +32,7 @@ data Tm v
     = Type
     | Lam (Scope Tm v)
     | Neutr (Head v) [Elim v]
-    | Binder Binder (Tm v) (Scope Tm v)
+    | Bind Bind (Tm v) (Scope Tm v)
     | Pair (Tm v) (Tm v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
@@ -41,15 +44,23 @@ newtype Meta = M Ref
 data Head v = Var v Twin | Meta Meta
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
-var :: Head v -> Tm v
-var v = Neutr v []
+head_ :: Head v -> Tm v
+head_ v = Neutr v []
+
+var :: v -> Twin -> Tm v
+var v tw = head_ (Var v tw)
+
+var' :: v -> Tm v
+var' v = var v Only
+
+metavar :: Meta -> Tm v
+metavar mv = Neutr (Meta mv) []
 
 data Twin = Only | TwinL | TwinR
     deriving (Eq, Ord, Show, Data, Typeable)
 
-data Binder = Pi | Sig
+data Bind = Pi | Sig
     deriving (Eq, Ord, Show, Data, Typeable)
 
 data Elim v = App (Tm v) | Fst | Snd
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
-

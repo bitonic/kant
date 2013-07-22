@@ -3,7 +3,7 @@ module Language.Bertus.Tele
     , FwdTele(..)
     , BwdTele(..)
     , tailBwd
-    , lookBwd
+    , lookupBwd
     ) where
 
 import Data.Traversable (Traversable)
@@ -33,7 +33,7 @@ data BwdTele f g a v where
 tailBwd :: BwdTele f g a (Var a v) -> BwdTele f g a v
 tailBwd (bw :<< _) = bw
 
-lookBwd :: Functor f => BwdTele f g a v -> v -> Maybe (f v)
-lookBwd (BT0 _)    _     = Nothing
-lookBwd (bw :<< _) (F v) = fmap (fmap F) (lookBwd bw v)
-lookBwd (_  :<< t) (B _) = Just (fmap F t)
+lookupBwd :: Functor f => BwdTele f g a v -> v -> Maybe (f v)
+lookupBwd (BT0 _)    _     = Nothing
+lookupBwd (bw :<< _) (F v) = fmap (fmap F) (lookupBwd bw v)
+lookupBwd (_  :<< t) (B _) = Just (fmap F t)

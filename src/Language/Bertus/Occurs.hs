@@ -1,4 +1,4 @@
-module Language.Bertus.Occurs where
+module Language.Bertus.Occurs (metas, occurs) where
 
 import Data.Data (Data)
 import Data.Generics.Schemes (listify)
@@ -13,4 +13,3 @@ metas = Set.fromList . listify (const True)
 
 occurs :: Data a => Meta -> a -> Bool
 occurs mv = Set.member mv . metas
-
