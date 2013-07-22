@@ -1,4 +1,19 @@
-module Language.Bertus.Context where
+module Language.Bertus.Context
+    ( Decl(..)
+    , Eqn(..)
+    , Problem(..)
+    , Param(..)
+    , ProbId
+    , probId
+    , ProblemState(..)
+    , Entry(..)
+    , Subs
+    , ContextL
+    , ContextR
+    , Params
+    , Context(..)
+    , nestCtx
+    ) where
 
 import Control.Arrow ((+++), second)
 import Data.Data (Data, Typeable)
@@ -43,6 +58,9 @@ instance Subst Param where
 newtype ProbId = ProbId Ref
     deriving (Eq, Ord, Show, Data, Typeable)
 
+probId :: Ref -> ProbId
+probId = ProbId
+
 data ProblemState = Blocked | Active | Pending [ProbId] | Solved | Failed
     deriving (Eq, Ord, Show, Data, Typeable)
 
@@ -60,10 +78,12 @@ type Subs v = [(Meta, Tm v)]
 type ContextL v = Bwd (Entry v)
 type ContextR v = [Either (Subs v) (Entry v)]
 
+type Params = BwdTele Param Proxy Name
+
 data Context v = Context
     { ctxLeft   :: ContextL v
     , ctxRight  :: ContextR v
-    , ctxParams :: BwdTele Param Proxy Name v
+    , ctxParams :: Params v
     }
 
 nestCtx :: Param v -> Context v -> Context (Var Name v)

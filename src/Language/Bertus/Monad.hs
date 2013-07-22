@@ -6,6 +6,13 @@ module Language.Bertus.Monad
     , nestM
     , lookupVar
     , lookupMeta
+    , pushL
+    , pushR
+    , putL
+    , putR
+    , popL
+    , popR
+    , goL
     , module Control.Monad.Error
     , module Control.Monad.State
     , module Control.Monad.Fresh
@@ -61,3 +68,39 @@ lookupMeta mv = go =<< gets ctxLeft
     go B0 = throwError ("missing metavariable " ++ show mv)
     go (_  :< Entry mv' ty _) | mv == mv' = return ty
     go (bw :< _             )             = go bw
+
+modifyL :: Monad m => (ContextL v -> ContextL v) -> BMonadT v m ()
+modifyL f = do ctx@Context{ctxLeft = ctxL} <- get
+               put ctx{ctxLeft = f ctxL}
+
+modifyR :: Monad m => (ContextR v -> ContextR v) -> BMonadT v m ()
+modifyR f = do ctx@Context{ctxRight = ctxR} <- get
+               put ctx{ctxRight = f ctxR}
+
+
+pushL :: Monad m => Entry v -> BMonadT v m ()
+pushL entry = modifyL (:< entry)
+
+pushR :: Monad m => Either (Subs v) (Entry v) -> BMonadT v m ()
+pushR entry = modifyR (entry :)
+
+putL :: Monad m => ContextL v -> BMonadT v m ()
+putL x = modifyL (const x)
+
+putR :: Monad m => ContextR v -> BMonadT v m ()
+putR x = modifyR (const x)
+
+popL :: Monad m => BMonadT v m (Entry v)
+popL = do ctxL <- gets ctxLeft
+          case ctxL of
+              (ctxL' :< entry) -> entry <$ putL ctxL'
+              B0               -> error "popL ran out of context"
+
+popR :: Monad m => BMonadT v m (Maybe (Either (Subs v) (Entry v)))
+popR = do ctxR <- gets ctxRight
+          case ctxR of
+              (x  : ctxR') -> Just x <$ putR ctxR'
+              []           -> return Nothing
+
+goL :: Monad m => BMonadT v m ()
+goL = popL >>= pushR . Right
