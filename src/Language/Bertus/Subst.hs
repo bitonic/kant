@@ -22,11 +22,14 @@ class Subst f where
     (//=) :: f a -> (Head a -> Tm b) -> f b
 
 instance Subst Tm where
+    Canon t         //= f = Canon (t //= f)
+    Neutr v els     //= f = f v %%% map (//= f) els
+
+instance Subst Canon where
     Type            //= _ = Type
     Lam s           //= f = Lam (s ///= f)
-    Neutr v els     //= f = f v %%% map (//= f) els
     Bind bi lhs rhs //= f = Bind bi (lhs //= f) (rhs ///= f)
-    Pair t u        //= f = Pair (t //= f) (u //= f)
+    Pair fs sn      //= f = Pair (fs //= f) (sn //= f)
 
 instance Subst Elim where
     App t //= f = App (t //= f)
@@ -53,11 +56,11 @@ nest _ (Meta mv      ) = metavar mv
 t ///= f = t //= nest f
 
 (%%) :: Tm v -> Elim v -> Tm v
-Pair t _    %% Fst   = t
-Pair _ u    %% Snd   = u
-Lam s       %% App t = inst s t
-Neutr v els %% el    = Neutr v (els ++ [el])
-_           %% _     = IMPOSSIBLE("Bad elimination")
+Canon (Pair t _) %% Fst   = t
+Canon (Pair _ u) %% Snd   = u
+Canon (Lam s   ) %% App t = inst s t
+Neutr v els      %% el    = Neutr v (els ++ [el])
+_                %% _     = IMPOSSIBLE("Bad elimination")
 
 (%%%) :: Tm v -> [Elim v] -> Tm v
 (%%%) = foldl (%%)
