@@ -61,8 +61,8 @@ matchSpine (Bind Pi dom1 cod1) t1 (App u1 : els1)
 matchSpine (Bind Sig fsty1 _) t1 (Fst : els1)
            (Bind Sig fsty2 _) t2 (Fst : els2) =
     matchSpine fsty1 (t1 %% Fst) els1 fsty2 (t2 %% Fst) els2
-matchSpine (Bind Sig _ snty1) t1 (Fst : els1)
-           (Bind Sig _ snty2) t2 (Fst : els2) =
+matchSpine (Bind Sig _ snty1) t1 (Snd : els1)
+           (Bind Sig _ snty2) t2 (Snd : els2) =
     matchSpine (snty1 `inst` fs1) sn1 els1 (snty2 `inst` fs2) sn2 els2
   where
     (fs1, sn1) = (t1 %% Fst, t1 %% Snd)
