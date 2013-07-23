@@ -73,20 +73,13 @@ simplify :: forall v m. (Eq v, Monad m)
          => ProbId -> Problem v -> [Problem v] -> BMonadT v m ()
 simplify pid prob probs = go probs []
   where
+    -- TODO check that the `wrapProb' is not needed
     go :: (Eq v, Monad m)
        => [Problem v] -> [ProbId] -> BMonadT v m ()
     go []               pids = pendingSolve pid prob pids
-    go (prob' : probs') pids = subgoal prob' (go probs' . (: pids))
-
-    -- TODO check that the `wrapProb' is indeed not needed
-    subgoal :: Monad m
-            => Problem v -> (ProbId -> BMonadT v m a) -> BMonadT v m a
-    subgoal prob' f =
-        do pid' <- probId <$> fresh
-           pushL (Prob pid' prob' Active)
-           x <- f pid'
-           goL
-           return x
+    go (prob' : probs') pids = do pid' <- probId <$> fresh
+                                  pushL (Prob pid' prob' Active)
+                                  go probs' (pid' : pids) <* goL
 
 -- TODO check that the `wrapProb' is not needed
 putProb :: Monad m => ProbId -> Problem v -> ProblemState -> BMonadT v m ()
@@ -94,8 +87,7 @@ putProb pid prob pst = pushR (Right (Prob pid prob pst))
 
 pendingSolve :: (Eq v, Monad m)
              => ProbId -> Problem v -> [ProbId] -> BMonadT v m ()
-pendingSolve pid prob []   = do checkProb Solved prob
-                                putProb pid prob Solved
+pendingSolve pid prob []   = checkProb Solved prob >> putProb pid prob Solved
 pendingSolve pid prob pids = putProb pid prob (Pending pids)
 
 tryPrune :: ProbId -> Eqn v -> BMonadT v m () -> BMonadT v m ()

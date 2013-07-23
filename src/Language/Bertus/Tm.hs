@@ -6,6 +6,7 @@ module Language.Bertus.Tm
     , Ty
     , (-->)
     , Meta
+    , meta
     , Head0(..)
     , Head
     , head_
@@ -23,8 +24,6 @@ import Data.Data (Data, Typeable)
 
 import Control.Monad.Fresh
 import Data.Var
-
-#include "../../impossible.h"
 
 type Name = String
 
@@ -45,6 +44,9 @@ dom --> cod = Bind Pi dom (fmap F cod)
 
 newtype Meta = M Ref
     deriving (Eq, Ord, Show, Data, Typeable)
+
+meta :: Ref -> Meta
+meta = M
 
 data Head0 tw v = Var v tw | Meta Meta
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)

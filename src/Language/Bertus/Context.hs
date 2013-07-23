@@ -29,7 +29,6 @@ import Language.Bertus.Subst
 import Language.Bertus.Tele
 import Language.Bertus.Tm
 
-
 data Decl v = Hole | Defn (Tm v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
