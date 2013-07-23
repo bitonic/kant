@@ -6,7 +6,8 @@ module Language.Bertus.Tm
     , Ty
     , (-->)
     , Meta
-    , Head(..)
+    , Head0(..)
+    , Head
     , head_
     , var
     , var'
@@ -45,8 +46,10 @@ dom --> cod = Bind Pi dom (fmap F cod)
 newtype Meta = M Ref
     deriving (Eq, Ord, Show, Data, Typeable)
 
-data Head v = Var v Twin | Meta Meta
+data Head0 tw v = Var v tw | Meta Meta
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
+
+type Head = Head0 Twin
 
 head_ :: Head v -> Tm v
 head_ v = Neutr v []

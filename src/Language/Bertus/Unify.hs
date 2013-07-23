@@ -106,4 +106,3 @@ flexFlex = undefined
 
 flexRigid :: (Monad m, Eq v) => [Entry v] -> ProbId -> Eqn v -> BMonadT v m ()
 flexRigid = undefined
-
