@@ -4,6 +4,7 @@ module Language.Bertus.Tm
     , Scope
     , Tm(..)
     , Ty
+    , (-->)
     , Meta
     , Head(..)
     , head_
@@ -37,6 +38,9 @@ data Tm v
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 type Ty = Tm
+
+(-->) :: Tm v -> Tm v -> Tm v
+dom --> cod = Bind Pi dom (fmap F cod)
 
 newtype Meta = M Ref
     deriving (Eq, Ord, Show, Data, Typeable)

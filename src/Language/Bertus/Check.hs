@@ -48,6 +48,7 @@ quote Type Type =
     return Type
 quote Type (Bind bi lhs rhs) =
     Bind bi <$> quote Type lhs <*> nestM (Param lhs) (quote Type rhs)
+-- TODO throwing away the type
 quote _ (Neutr he els) =
     do ty <- infer he
        quoteSpine ty (head_ he) els
