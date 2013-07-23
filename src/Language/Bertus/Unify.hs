@@ -87,7 +87,7 @@ putProb pid prob pst = pushR (Right (Prob pid prob pst))
 
 pendingSolve :: (Eq v, Monad m)
              => ProbId -> Problem v -> [ProbId] -> BMonadT v m ()
-pendingSolve pid prob []   = checkProb Solved prob >> putProb pid prob Solved
+pendingSolve pid prob []   = checkProb Solved prob *> putProb pid prob Solved
 pendingSolve pid prob pids = putProb pid prob (Pending pids)
 
 tryPrune :: ProbId -> Eqn v -> BMonadT v m () -> BMonadT v m ()
