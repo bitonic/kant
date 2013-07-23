@@ -1,4 +1,4 @@
-module Data.Var (Var(..), nest) where
+module Data.Var (Var(..), nest, toMaybe) where
 
 import Data.Traversable
 import Data.Foldable
@@ -20,3 +20,7 @@ instance Ord v => Ord (Var a v) where
 
 nest :: Functor t => t v -> t (Var a v)
 nest = fmap F
+
+toMaybe :: Var a v -> Maybe v
+toMaybe (B _) = Nothing
+toMaybe (F v) = Just v

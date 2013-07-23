@@ -1,6 +1,8 @@
 module Language.Bertus.Occurs
     ( Occurrence(..)
     , Occurs(..)
+    , fvs
+    , fmvs
     , occurrenceList
     , occurrenceScope
     , freesScope
@@ -38,20 +40,27 @@ class Occurs t where
     occurrence :: Ord v => Set (VarMeta v) -> t v -> Maybe Occurrence
     frees      :: Ord v => t v -> Set (VarMeta v)
 
--- Safe use of `mapMonotonic': we're wrapping `Var's with `F'.
+fvs :: (Occurs t, Ord v) => t v -> Set v
+fvs = mapMaybeMonotonic f . frees
+  where
+    f (Var v _) = Just v
+    f (Meta _ ) = Nothing
+
+fmvs :: (Occurs t, Ord v) => t v -> Set Meta
+fmvs = mapMaybeMonotonic f . frees
+  where
+    f (Var _ _) = Nothing
+    f (Meta mv) = Just mv
+
 nestVarMetas :: Set (VarMeta v) -> Set (VarMeta (Var a v))
 nestVarMetas = Set.mapMonotonic nest
 
--- Safe use of `mapMonotonic': we're unwrapping `Var's.
 pullVarMetas :: Set (VarMeta (Var a v)) -> Set (VarMeta v)
-pullVarMetas = Set.mapMonotonic g . Set.filter f
+pullVarMetas = mapMaybeMonotonic f
   where
-    f (Var (B _) _) = False
-    f _             = True
-
-    g (Var (B _) _ ) = IMPOSSIBLE("We removed all the bound")
-    g (Var (F v) tw) = Var v tw
-    g (Meta mv     ) = Meta mv
+    f (Var (B _) _) = Nothing
+    f (Var (F v) _) = Just (Var v ())
+    f (Meta mv    ) = Just (Meta mv)
 
 instance Occurs Tm where
     occurrence _ Type =

@@ -14,19 +14,20 @@ unify pid eqn@(Eqn (Bind Pi dom1 cod1) t1 (Bind Pi dom2 cod2) t2) =
              , All (Twins dom1 dom2) (Unify twinsEqn) ]
   where
     (xL, xR) = (var (B "x") TwinL, var (B "x") TwinR)
-    twinsEqn = Eqn (inst (nest cod1) xL) (nest t1 $$ xL)
-                   (inst (nest cod2) xR) (nest t2 $$ xR)
+    twinsEqn = Eqn (nest cod1 `inst` xL) (nest t1 $$ xL)
+                   (nest cod2 `inst` xR) (nest t2 $$ xR)
 unify pid eqn@(Eqn (Bind Sig fsty1 snty1) t1 (Bind Sig fsty2 snty2) t2) =
     simplify pid (Unify eqn)
              [ Unify (Eqn fsty1 fs1 fsty2 fs2)
-             , Unify (Eqn (inst snty1 fs1) sn1 (inst snty2 fs2) sn2) ]
+             , Unify (Eqn (snty1 `inst` fs1) sn1 (snty2 `inst` fs2) sn2) ]
   where
     (fs1, sn1) = (t1 %% Fst, t1 %% Snd)
     (fs2, sn2) = (t2 %% Fst, t2 %% Snd)
-unify pid eqn@(Eqn _ (Neutr (Meta _) _) _ (Neutr (Meta _) _)) =
-    tryPrune pid eqn (tryPrune pid (sym eqn) (flexFlex pid eqn))
-unify pid eqn@(Eqn _ (Neutr (Meta _) _) _ _) =
-    tryPrune pid eqn (flexRigid [] pid eqn)
+unify pid (Eqn ty1 t1@(Neutr (Meta mv1) els1) ty2 t2@(Neutr (Meta mv2) els2)) =
+    tryPrune pid els2 t1 $ tryPrune pid els1 t2 $
+    flexFlex pid ty1 mv1 els1 ty2 mv2 els2
+unify pid (Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2) =
+    tryPrune pid els1 t2 (flexRigid [] pid ty1 mv1 els1 ty2 t2)
 unify pid eqn@(Eqn _ _ _ (Neutr (Meta _) _)) =
     unify pid (sym eqn)
 unify pid eqn =
@@ -90,11 +91,21 @@ pendingSolve :: (Eq v, Monad m)
 pendingSolve pid prob []   = checkProb Solved prob *> putProb pid prob Solved
 pendingSolve pid prob pids = putProb pid prob (Pending pids)
 
-tryPrune :: ProbId -> Eqn v -> BMonadT v m () -> BMonadT v m ()
+tryPrune :: ProbId -> [Elim v] -> Tm v -> BMonadT v m () -> BMonadT v m ()
 tryPrune = undefined
 
-flexFlex :: (Monad m, Eq v) => ProbId -> Eqn v -> BMonadT v m ()
-flexFlex = undefined
+flexFlex :: (Monad m, Eq v)
+         => ProbId
+         -> Ty v -> Meta -> [Elim v] -- lhs
+         -> Ty v -> Meta -> [Elim v] -- rhs
+         -> BMonadT v m ()
+flexFlex pid ty1 mv1 els1 ty2 mv2 els2 = undefined
+  where
+    eqn = Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)
 
-flexRigid :: (Monad m, Eq v) => [Entry v] -> ProbId -> Eqn v -> BMonadT v m ()
-flexRigid = undefined
+flexRigid :: (Monad m, Eq v)
+          => [Entry v] -> ProbId
+          -> Ty v -> Meta -> [Elim v] -- lhs
+          -> Ty v -> Tm v             -- rhs
+          -> BMonadT v m ()
+flexRigid entries pid ty1 mv1 els1 ty2 t2 = undefined
