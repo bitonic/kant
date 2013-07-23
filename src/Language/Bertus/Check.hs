@@ -40,7 +40,7 @@ infer (Meta mv)  = lookupMeta mv
 
 quote :: Monad m => Ty v -> Tm v -> BMonadT v m (Tm v)
 quote (Bind Pi dom cod) t =
-    Lam <$> nestM (Param dom) (quote cod (fmap F t $$ var' (B "x")))
+    Lam <$> nestM (Param dom) (quote cod (nest t $$ var' (B "x")))
 quote (Bind Sig fsty snty) t =
     Pair <$> quote fsty fs <*> quote (inst snty fs) (t %% Snd)
   where fs = t %% Fst

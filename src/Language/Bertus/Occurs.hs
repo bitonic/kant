@@ -7,7 +7,7 @@ module Language.Bertus.Occurs
     ) where
 
 import Data.Data (Data, Typeable)
-import Data.Monoid (Monoid(..), mconcat)
+import Data.Monoid (Monoid(..), (<>), mconcat)
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -38,9 +38,11 @@ class Occurs t where
     occurrence :: Ord v => Set (VarMeta v) -> t v -> Maybe Occurrence
     frees      :: Ord v => t v -> Set (VarMeta v)
 
+-- Safe use of `mapMonotonic': we're wrapping `Var's with `F'.
 nestVarMetas :: Set (VarMeta v) -> Set (VarMeta (Var a v))
-nestVarMetas = Set.mapMonotonic (fmap F)
+nestVarMetas = Set.mapMonotonic nest
 
+-- Safe use of `mapMonotonic': we're unwrapping `Var's.
 pullVarMetas :: Set (VarMeta (Var a v)) -> Set (VarMeta v)
 pullVarMetas = Set.mapMonotonic g . Set.filter f
   where
@@ -55,9 +57,9 @@ instance Occurs Tm where
     occurrence _ Type =
         Nothing
     occurrence vs (Bind _ lhs rhs) =
-        occurrence vs lhs `mappend` occurrenceScope vs rhs
+        occurrence vs lhs <> occurrenceScope vs rhs
     occurrence vs (Pair fs sn) =
-        occurrence vs fs `mappend` occurrence vs sn
+        occurrence vs fs <> occurrence vs sn
     occurrence vs (Lam t) =
         occurrenceScope vs t
     occurrence vs (Neutr (Var v _) els) =
@@ -71,8 +73,8 @@ instance Occurs Tm where
         else const Flexible <$> occurrenceList vs els
 
     frees Type             = mempty
-    frees (Bind _ lhs rhs) = frees lhs `mappend` freesScope rhs
-    frees (Pair fs sn    ) = frees fs `mappend` frees sn
+    frees (Bind _ lhs rhs) = frees lhs <> freesScope rhs
+    frees (Pair fs sn    ) = frees fs  <> frees sn
     frees (Lam t         ) = freesScope t
     frees (Neutr v els)    = mconcat $
                              Set.singleton (toVarMeta v) : map (frees) els

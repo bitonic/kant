@@ -14,8 +14,8 @@ unify pid eqn@(Eqn (Bind Pi dom1 cod1) t1 (Bind Pi dom2 cod2) t2) =
              , All (Twins dom1 dom2) (Unify twinsEqn) ]
   where
     (xL, xR) = (var (B "x") TwinL, var (B "x") TwinR)
-    twinsEqn = Eqn (inst (fmap F cod1) xL) (fmap F t1 $$ xL)
-                   (inst (fmap F cod2) xR) (fmap F t2 $$ xR)
+    twinsEqn = Eqn (inst (nest cod1) xL) (nest t1 $$ xL)
+                   (inst (nest cod2) xR) (nest t2 $$ xR)
 unify pid eqn@(Eqn (Bind Sig fsty1 snty1) t1 (Bind Sig fsty2 snty2) t2) =
     simplify pid (Unify eqn)
              [ Unify (Eqn fsty1 fs1 fsty2 fs2)

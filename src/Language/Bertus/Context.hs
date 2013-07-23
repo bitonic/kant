@@ -20,7 +20,7 @@ import Control.Arrow ((+++), second)
 import Data.Data (Data, Typeable)
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
-import Data.Monoid (mempty, mappend)
+import Data.Monoid (mempty, (<>))
 
 import Control.Monad.Fresh
 import Data.Bwd
@@ -56,7 +56,7 @@ instance Subst Eqn where
 instance Occurs Eqn where
     occurrence vs (Eqn ty1 t1 ty2 t2) = occurrenceList vs [ty1, t1, ty2, t2]
     frees (Eqn ty1 t1 ty2 t2) =
-        frees ty1 `mappend` frees t1 `mappend` frees ty2 `mappend` frees t2
+        frees ty1 <> frees t1 <> frees ty2 <> frees t2
 
 data Problem v = Unify (Eqn v) | All (Param v) (Scope Problem v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
@@ -69,10 +69,10 @@ instance Occurs Problem where
     occurrence vs (Unify eqn) =
         occurrence vs eqn
     occurrence vs (All par prob) =
-        occurrence vs par `mappend` occurrenceScope vs prob
+        occurrence vs par <> occurrenceScope vs prob
 
     frees (Unify eqn)    = frees eqn
-    frees (All par prob) = frees par `mappend` freesScope prob
+    frees (All par prob) = frees par <> freesScope prob
 
 data Param v = Param (Ty v) | Twins (Ty v) (Ty v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
@@ -82,13 +82,11 @@ instance Subst Param where
     Twins ty1 ty2 //= f = Twins (ty1 //= f) (ty2 //= f)
 
 instance Occurs Param where
-    occurrence vs (Param ty) =
-        occurrence vs ty
-    occurrence vs (Twins tyL tyR) =
-        occurrence vs tyL `mappend` occurrence vs tyR
+    occurrence vs (Param ty)      = occurrence vs ty
+    occurrence vs (Twins tyL tyR) = occurrence vs tyL <> occurrence vs tyR
 
     frees (Param ty     ) = frees ty
-    frees (Twins tyL tyR) = frees tyL `mappend` frees tyR
+    frees (Twins tyL tyR) = frees tyL <> frees tyR
 
 newtype ProbId = ProbId Ref
     deriving (Eq, Ord, Show, Data, Typeable)
@@ -109,12 +107,10 @@ instance Subst Entry where
     Prob pid prob probstate //= f = Prob pid (prob //= f) probstate
 
 instance Occurs Entry where
-    occurrence vs (Entry _ ty decl) =
-        occurrence vs ty `mappend` occurrence vs decl
-    occurrence vs (Prob _ prob _) =
-        occurrence vs prob
+    occurrence vs (Entry _ ty decl) = occurrence vs ty <> occurrence vs decl
+    occurrence vs (Prob _ prob _)   = occurrence vs prob
 
-    frees (Entry _ ty decl) = frees ty `mappend` frees decl
+    frees (Entry _ ty decl) = frees ty <> frees decl
     frees (Prob _ prob _  ) = frees prob
 
 type Subs v = [(Meta, Tm v)]
@@ -132,5 +128,5 @@ data Context v = Context
 
 nestCtx :: Param v -> Context v -> Context (Var Name v)
 nestCtx par (Context le ri pars) =
-    Context (fmap (fmap F) le) (fmap (fmap (second (fmap F)) +++ fmap F) ri)
+    Context (fmap nest le) (fmap (fmap (second nest) +++ fmap F) ri)
             (pars :<< par)

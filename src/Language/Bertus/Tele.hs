@@ -30,5 +30,5 @@ data BwdTele f g a v where
 
 lookupBwd :: Functor f => BwdTele f g a v -> v -> Maybe (f v)
 lookupBwd (BT0 _)    _     = Nothing
-lookupBwd (bw :<< _) (F v) = fmap (fmap F) (lookupBwd bw v)
-lookupBwd (_  :<< t) (B _) = Just (fmap F t)
+lookupBwd (bw :<< _) (F v) = fmap nest (lookupBwd bw v)
+lookupBwd (_  :<< t) (B _) = Just (nest t)

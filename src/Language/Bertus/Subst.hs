@@ -44,13 +44,13 @@ inst s t =
 subst :: (Eq v, Subst f) => Head v -> Tm v -> f v -> f v
 subst v t u = u //= \v' -> if v == v' then t else Neutr v' []
 
-nest :: (Head t -> Tm v) -> Head (Var a t) -> Tm (Var a v)
-nest _ (Var  (B x) tw) = var (B x) tw
-nest f (Var  (F v) tw) = f (Var v tw) //= (head_ . fmap F)
-nest _ (Meta mv      ) = metavar mv
+nestHead :: (Head t -> Tm v) -> Head (Var a t) -> Tm (Var a v)
+nestHead _ (Var  (B x) tw) = var (B x) tw
+nestHead f (Var  (F v) tw) = f (Var v tw) //= (head_ . nest)
+nestHead _ (Meta mv      ) = metavar mv
 
 (///=) :: Subst f => f (Var a t) -> (Head t -> Tm v) -> f (Var a v)
-t ///= f = t //= nest f
+t ///= f = t //= nestHead f
 
 (%%) :: Tm v -> Elim v -> Tm v
 Pair t _    %% Fst   = t
