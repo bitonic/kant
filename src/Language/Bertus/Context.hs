@@ -1,6 +1,7 @@
 module Language.Bertus.Context
     ( Decl(..)
     , Eqn(..)
+    , sym
     , Problem(..)
     , Param(..)
     , ProbId
@@ -36,6 +37,9 @@ instance Subst Decl where
 
 data Eqn v = Eqn (Ty v) (Tm v) (Ty v) (Ty v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
+
+sym :: Eqn v -> Eqn v
+sym (Eqn ty1 t1 ty2 t2) = Eqn ty2 t2 ty1 t1
 
 instance Subst Eqn where
     Eqn ty1 t1 ty2 t2 //= f =

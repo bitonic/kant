@@ -46,6 +46,8 @@ runBMonadT :: Monad m
            => Context v -> BMonadT v m a -> m (Either BError (a, Context v))
 runBMonadT ctx (BMonadT m) = runErrorT (runFreshT (runStateT m ctx))
 
+-- TODO Here we *throw away* new Metas.  This can't be right, but there
+-- isn't an easy solution.  Investigate on what to do.
 nestM :: Monad m => Param v -> BMonadT (Var Name v) m a -> BMonadT v m a
 nestM ty (BMonadT m) =
     BMonadT $ StateT $ \ctx ->

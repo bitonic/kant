@@ -75,7 +75,7 @@ ty1 <-> ty2 = equal Type ty1 ty2
 
 isReflexive :: (Eq v, Monad m) => Eqn v -> BMonadT v m Bool
 isReflexive (Eqn ty1 t1 ty2 t2) =
-    do eq <- equal Type ty1 ty2
+    do eq <- ty1 <-> ty2
        if eq then equal ty1 t1 t2 else return False
 
 checkProb :: (Eq v, Monad m)
@@ -92,3 +92,8 @@ checkProb pst (Unify (Eqn ty1 t1 ty2 t2)) =
 checkProb pst (All (Param ty) prob) =
     do check Type ty
        nestM (Param ty) (checkProb pst prob)
+checkProb pst (All (Twins ty1 ty2) prob) =
+    do check Type ty1
+       check Type ty2
+       nestM (Twins ty1 ty2) (checkProb pst prob)
+
