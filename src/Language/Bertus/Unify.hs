@@ -1,19 +1,40 @@
 module Language.Bertus.Unify where
 
+import Data.Data (Typeable, Data)
+
+import Data.Set (Set)
+import qualified Data.Set as Set
+
 import Language.Bertus.Check
 import Language.Bertus.Common
 import Language.Bertus.Context
 import Language.Bertus.Monad
 import Language.Bertus.Subst
 import Language.Bertus.Tm
+import Language.Bertus.Occurs
 
-unify :: (Eq v, Monad m) => ProbId -> Eqn v -> BMonadT v m ()
+newtype FreshVar = FV Ref
+    deriving (Eq, Ord, Show, Data, Typeable)
+
+type TmFV      = Tm FreshVar
+type TyFV      = Ty FreshVar
+type ElimFV    = Elim FreshVar
+type DeclFV    = Decl FreshVar
+type EqnFV     = Eqn FreshVar
+type ProblemFV = Problem FreshVar
+type ParamFV   = Param FreshVar
+type EntryFV   = Entry FreshVar
+type ContextFV = ContextMap FreshVar FreshVar
+type SubsFV    = Subs FreshVar
+type BMonadFVT = BMonadMapT FreshVar
+
+unify :: Monad m => ProbId -> EqnFV -> BMonadFVT m ()
 unify pid eqn@(Eqn (Bind Pi dom1 cod1) t1 (Bind Pi dom2 cod2) t2) =
     simplify pid (Unify eqn)
              [ Unify (Eqn Type dom1 Type dom2)
              , All (Twins dom1 dom2) (Unify twinsEqn) ]
   where
-    (xL, xR) = (var (B "x") TwinL, var (B "x") TwinR)
+    (xL, xR) = (var dummy TwinL, var dummy TwinR)
     twinsEqn = Eqn (nest cod1 `inst` xL) (nest t1 $$ xL)
                    (nest cod2 `inst` xR) (nest t2 $$ xR)
 unify pid eqn@(Eqn (Bind Sig fsty1 snty1) t1 (Bind Sig fsty2 snty2) t2) =
@@ -24,16 +45,17 @@ unify pid eqn@(Eqn (Bind Sig fsty1 snty1) t1 (Bind Sig fsty2 snty2) t2) =
     (fs1, sn1) = (t1 %% Fst, t1 %% Snd)
     (fs2, sn2) = (t2 %% Fst, t2 %% Snd)
 unify pid (Eqn ty1 t1@(Neutr (Meta mv1) els1) ty2 t2@(Neutr (Meta mv2) els2)) =
-    tryPrune pid els2 t1 $ tryPrune pid els1 t2 $
+    tryPrune pid ty2 mv2 els2 ty1 t1 $
+    tryPrune pid ty1 mv1 els1 ty2 t2 $
     flexFlex pid ty1 mv1 els1 ty2 mv2 els2
 unify pid (Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2) =
-    tryPrune pid els1 t2 (flexRigid [] pid ty1 mv1 els1 ty2 t2)
+    tryPrune pid ty1 mv1 els1 ty1 t2 (flexRigid [] pid ty1 mv1 els1 ty2 t2)
 unify pid eqn@(Eqn _ _ _ (Neutr (Meta _) _)) =
     unify pid (sym eqn)
 unify pid eqn =
     rigidRigid eqn >>= simplify pid (Unify eqn) . map Unify
 
-rigidRigid :: (Monad m, Eq v) => Eqn v -> BMonadT v m [Eqn v]
+rigidRigid :: Monad m => EqnFV -> BMonadFVT m [EqnFV]
 rigidRigid (Eqn Type Type Type Type) = return []
 rigidRigid (Eqn Type (Bind bi1 dom1 cod1) Type (Bind bi2 dom2 cod2))
     | bi1 == bi2 =
@@ -42,16 +64,16 @@ rigidRigid (Eqn Type (Bind bi1 dom1 cod1) Type (Bind bi2 dom2 cod2))
 -- TODO throwing away types
 rigidRigid (Eqn _ (Neutr (Var v1 tw1) els1) _ (Neutr (Var v2 tw2) els2))
     | v1 == v2 =
-    do tyv1 <- lookupVar v1 tw1
-       tyv2 <- lookupVar v2 tw2
+    do tyv1 <- lookupVar lookupCtxMap v1 tw1
+       tyv2 <- lookupVar lookupCtxMap v2 tw2
        (Eqn Type tyv1 Type tyv2 :) <$>
            matchSpine tyv1 (var v1 tw1) els1 tyv2 (var v2 tw2) els2
 rigidRigid _ =
     throwError "rigidRigid mismatch"
 
-matchSpine :: (Monad m, Eq v)
-           => Ty v -> Tm v -> [Elim v] -> Ty v -> Tm v -> [Elim v]
-           -> BMonadT v m [Eqn v]
+matchSpine :: Monad m
+           => TyFV -> TmFV -> [ElimFV] -> TyFV -> TmFV -> [ElimFV]
+           -> BMonadFVT m [EqnFV]
 matchSpine _ _ [] _ _ [] =
     return []
 matchSpine (Bind Pi dom1 cod1) t1 (App u1 : els1)
@@ -70,42 +92,73 @@ matchSpine (Bind Sig _ snty1) t1 (Snd : els1)
     (fs2, sn2) = (t2 %% Fst, t2 %% Snd)
 matchSpine _ _ _ _ _ _ = throwError "spine mismatch"
 
-simplify :: forall v m. (Eq v, Monad m)
-         => ProbId -> Problem v -> [Problem v] -> BMonadT v m ()
+flexRigid :: Monad m
+          => [EntryFV] -> ProbId
+          -> TyFV -> Meta -> [ElimFV] -- lhs
+          -> TyFV -> TmFV             -- rhs
+          -> BMonadFVT m ()
+flexRigid entries pid ty1 mv1 els1 ty2 t2 = undefined
+
+flexFlex :: Monad m
+         => ProbId
+         -> TyFV -> Meta -> [ElimFV] -- lhs
+         -> TyFV -> Meta -> [ElimFV] -- rhs
+         -> BMonadFVT m ()
+flexFlex pid ty1 mv1 els1 ty2 mv2 els2 = undefined
+
+simplify :: Monad m
+         => ProbId -> ProblemFV -> [ProblemFV] -> BMonadFVT m ()
 simplify pid prob probs = go probs []
   where
     -- TODO check that the `wrapProb' is not needed
-    go :: (Eq v, Monad m)
-       => [Problem v] -> [ProbId] -> BMonadT v m ()
+    go :: Monad m
+       => [ProblemFV] -> [ProbId] -> BMonadFVT m ()
     go []               pids = pendingSolve pid prob pids
     go (prob' : probs') pids = do pid' <- probId <$> fresh
                                   pushL (Prob pid' prob' Active)
                                   go probs' (pid' : pids) <* goL
 
 -- TODO check that the `wrapProb' is not needed
-putProb :: Monad m => ProbId -> Problem v -> ProblemState -> BMonadT v m ()
+putProb :: Monad m => ProbId -> ProblemFV -> ProblemState -> BMonadFVT m ()
 putProb pid prob pst = pushR (Right (Prob pid prob pst))
 
-pendingSolve :: (Eq v, Monad m)
-             => ProbId -> Problem v -> [ProbId] -> BMonadT v m ()
-pendingSolve pid prob []   = checkProb Solved prob *> putProb pid prob Solved
+pendingSolve :: Monad m => ProbId -> ProblemFV -> [ProbId] -> BMonadFVT m ()
+pendingSolve pid prob []   = do toCtxBwdM (checkProb Solved prob)
+                                putProb pid prob Solved
 pendingSolve pid prob pids = putProb pid prob (Pending pids)
 
-tryPrune :: ProbId -> [Elim v] -> Tm v -> BMonadT v m () -> BMonadT v m ()
-tryPrune = undefined
-
-flexFlex :: (Monad m, Eq v)
+tryPrune :: Monad m
          => ProbId
-         -> Ty v -> Meta -> [Elim v] -- lhs
-         -> Ty v -> Meta -> [Elim v] -- rhs
-         -> BMonadT v m ()
-flexFlex pid ty1 mv1 els1 ty2 mv2 els2 = undefined
+         -> TyFV -> Meta -> [ElimFV] -- Lhs, ty1 (Neutr (Meta mv1) els1)
+         -> TmFV -> TmFV             -- Rhs, ty2 t2
+         -> BMonadFVT m () -> BMonadFVT m ()
+tryPrune pid ty1 mv1 els1 ty2 t2 m =
+    do pars <- gets ctxParams
+       pruneds <- prune (boundVs pars `Set.intersection` fvsList els1) t2
+       case pruneds of
+           pruned : _ -> active pid eqn >> undefined
+           []         -> m
   where
-    eqn = Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)
+    eqn = Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2
 
-flexRigid :: (Monad m, Eq v)
-          => [Entry v] -> ProbId
-          -> Ty v -> Meta -> [Elim v] -- lhs
-          -> Ty v -> Tm v             -- rhs
-          -> BMonadT v m ()
-flexRigid entries pid ty1 mv1 els1 ty2 t2 = undefined
+boundVs = undefined
+
+prune :: Monad m
+      => Set FreshVar -> TmFV -> BMonadFVT m [(FreshVar, TyFV, TmFV -> TmFV)]
+prune = undefined
+
+active :: Monad m => ProbId -> EqnFV -> BMonadFVT m ()
+active pid eqn = putProb pid (Unify eqn) Active
+
+instantiate :: Monad m => (Meta, TyFV, TmFV -> TmFV) -> BMonadFVT m ()
+instantiate pruned@(mv, ty1, f) =
+    do entry <- popL
+       case entry of
+           Entry mv' ty2 Hole | mv == mv' -> undefined
+           _                              -> pushR (Right entry) >>
+                                             instantiate pruned
+
+hole :: Monad m
+     => SubsFV -> TyFV -> (TmFV -> BMonadFVT m a) -> BMonadFVT m a
+hole subs ty f = undefined
+--    do check Type (

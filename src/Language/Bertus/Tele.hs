@@ -5,8 +5,8 @@ module Language.Bertus.Tele
     , lookupBwd
     ) where
 
-import Data.Traversable (Traversable)
 import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 import Data.Proxy
 

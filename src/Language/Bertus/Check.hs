@@ -6,11 +6,11 @@ import Language.Bertus.Monad
 import Language.Bertus.Subst
 import Language.Bertus.Tm
 
-check :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadT v m ()
+check :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadBwdT v m ()
 check Type Type =
     return ()
 check (Bind Pi dom cod) (Lam t) =
-    nestM (Param dom) (check cod t)
+    nestBwd (Param dom) (check cod t)
 check (Bind Sig fsty snty) (Pair fs sn) =
     do check fsty fs
        check (inst snty fs) sn
@@ -22,7 +22,8 @@ check ty (Neutr he els) =
 check _ _ =
     throwError "canonical inhabitant of non-canonical type"
 
-checkSpine :: (Eq v, Monad m) => Ty v -> Tm v -> [Elim v] -> BMonadT v m (Ty v)
+checkSpine :: (Eq v, Monad m)
+           => Ty v -> Tm v -> [Elim v] -> BMonadBwdT v m (Ty v)
 checkSpine ty _ [] =
     return ty
 checkSpine (Bind Pi dom cod) t (App u : els) =
@@ -34,20 +35,20 @@ checkSpine (Bind Sig _ snty) t (Snd : els) =
     checkSpine (inst snty (t %% Fst)) (t %% Snd) els
 checkSpine _ _ _ = throwError "checkSpine error"
 
-infer :: Monad m => Head v -> BMonadT v m (Ty v)
-infer (Var v tw) = lookupVar v tw
+infer :: Monad m => Head v -> BMonadBwdT v m (Ty v)
+infer (Var v tw) = lookupVar lookupCtxBwd v tw
 infer (Meta mv)  = lookupMeta mv
 
-quote :: Monad m => Ty v -> Tm v -> BMonadT v m (Tm v)
+quote :: Monad m => Ty v -> Tm v -> BMonadBwdT v m (Tm v)
 quote (Bind Pi dom cod) t =
-    Lam <$> nestM (Param dom) (quote cod (nest t $$ var' (B "x")))
+    Lam <$> nestBwd (Param dom) (quote cod (nest t $$ var' dummy))
 quote (Bind Sig fsty snty) t =
     Pair <$> quote fsty fs <*> quote (inst snty fs) (t %% Snd)
   where fs = t %% Fst
 quote Type Type =
     return Type
 quote Type (Bind bi lhs rhs) =
-    Bind bi <$> quote Type lhs <*> nestM (Param lhs) (quote Type rhs)
+    Bind bi <$> quote Type lhs <*> nestBwd (Param lhs) (quote Type rhs)
 -- TODO throwing away the type
 quote _ (Neutr he els) =
     do ty <- infer he
@@ -55,7 +56,7 @@ quote _ (Neutr he els) =
 quote _ _ =
     error "quote"
 
-quoteSpine :: Monad m => Ty v -> Tm v -> [Elim v] -> BMonadT v m (Tm v)
+quoteSpine :: Monad m => Ty v -> Tm v -> [Elim v] -> BMonadBwdT v m (Tm v)
 quoteSpine _ t [] =
     return t
 quoteSpine (Bind Pi dom cod) t (App u : els) =
@@ -68,19 +69,19 @@ quoteSpine (Bind Sig _ snty) t (Snd : els) =
 quoteSpine _ _ _ =
     error "quoteSpine"
 
-equal :: (Eq v, Monad m) => Ty v -> Tm v -> Tm v -> BMonadT v m Bool
+equal :: (Eq v, Monad m) => Ty v -> Tm v -> Tm v -> BMonadBwdT v m Bool
 equal ty t1 t2 = (==) <$> quote ty t1 <*> quote ty t2
 
-(<->) :: (Eq v, Monad m) => Ty v -> Ty v -> BMonadT v m Bool
+(<->) :: (Eq v, Monad m) => Ty v -> Ty v -> BMonadBwdT v m Bool
 ty1 <-> ty2 = equal Type ty1 ty2
 
-isReflexive :: (Eq v, Monad m) => Eqn v -> BMonadT v m Bool
+isReflexive :: (Eq v, Monad m) => Eqn v -> BMonadBwdT v m Bool
 isReflexive (Eqn ty1 t1 ty2 t2) =
     do eq <- ty1 <-> ty2
        if eq then equal ty1 t1 t2 else return False
 
 checkProb :: (Eq v, Monad m)
-          => ProblemState -> Problem v -> BMonadT v m ()
+          => ProblemState -> Problem v -> BMonadBwdT v m ()
 checkProb pst (Unify (Eqn ty1 t1 ty2 t2)) =
     do check Type ty1
        check ty1  t1
@@ -92,9 +93,8 @@ checkProb pst (Unify (Eqn ty1 t1 ty2 t2)) =
            else undefined
 checkProb pst (All (Param ty) prob) =
     do check Type ty
-       nestM (Param ty) (checkProb pst prob)
+       nestBwd (Param ty) (checkProb pst prob)
 checkProb pst (All (Twins ty1 ty2) prob) =
     do check Type ty1
        check Type ty2
-       nestM (Twins ty1 ty2) (checkProb pst prob)
-
+       nestBwd (Twins ty1 ty2) (checkProb pst prob)

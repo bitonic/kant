@@ -2,8 +2,11 @@
 module Language.Bertus.Monad
     ( BError
     , BMonadT(..)
+    , BMonadBwdT
+    , BMonadMapT
     , runBMonadT
-    , nestM
+    , nestBwd
+    , toCtxBwdM
     , lookupVar
     , lookupMeta
     , pushL
@@ -29,80 +32,94 @@ import Data.Bwd
 import Data.Var
 import Language.Bertus.Common
 import Language.Bertus.Context
-import Language.Bertus.Tele
 import Language.Bertus.Tm
 
 type BError = String
 
-newtype BMonadT v m a =
-    BMonadT {unBMonadT :: StateT (Context v) (FreshT (ErrorT BError m)) a}
-    deriving (Functor, Applicative, Monad, MonadState (Context v),
+newtype BMonadT pars v m a =
+    BMonadT {unBMonadT :: StateT (Context pars v) (FreshT (ErrorT BError m)) a}
+    deriving (Functor, Applicative, Monad, MonadState (Context pars v),
               MonadError BError, MonadFresh)
 
-instance MonadTrans (BMonadT v) where
+type BMonadBwdT = BMonadT ParamBwd
+type BMonadMapT v = BMonadT (ParamMap v) v
+
+instance MonadTrans (BMonadT pars v) where
     lift = BMonadT . lift . lift . lift
 
 runBMonadT :: Monad m
-           => Context v -> BMonadT v m a -> m (Either BError (a, Context v))
+           => Context pars v -> BMonadT pars v m a
+           -> m (Either BError (a, Context pars v))
 runBMonadT ctx (BMonadT m) = runErrorT (runFreshT (runStateT m ctx))
 
 -- TODO Here we *throw away* new Metas.  This can't be right, but there
 -- isn't an easy solution.  Investigate on what to do.
-nestM :: Monad m => Param v -> BMonadT (Var Name v) m a -> BMonadT v m a
-nestM ty (BMonadT m) =
+nestBwd :: Monad m
+        => Param v -> BMonadBwdT (Var Name v) m a -> BMonadBwdT v m a
+nestBwd ty (BMonadT m) =
     BMonadT $ StateT $ \ctx ->
-    second (const ctx) <$> runStateT m (nestCtx ty ctx)
+    second (const ctx) <$> runStateT m (nestCtxBwd ty ctx)
 
-lookupVar :: Monad m => v -> Twin -> BMonadT v m (Ty v)
-lookupVar v tw =
-    do Context{ctxParams = pars} <- get
-       case (lookupBwd pars v, tw) of
+toCtxBwdM :: (Ord v, Monad m) => BMonadBwdT v m b -> BMonadMapT v m b
+toCtxBwdM m =
+    do ctx <- get
+       res <- lift (runBMonadT (toCtxBwd ctx) m)
+       case res of
+           Left err     -> throwError err
+           Right (x, _) -> return x
+
+lookupVar :: Monad m
+          => (a -> Context pars v -> Maybe (Param v))
+          -> a -> Twin -> BMonadT pars v m (Ty v)
+lookupVar f v tw =
+    do ctx <- get
+       case (f v ctx, tw) of
            (Just (Param ty     ), Only ) -> return ty
            (Just (Twins tyl _  ), TwinL) -> return tyl
            (Just (Twins _   tyr), TwinR) -> return tyr
            (Just _,               _    ) -> throwError "evil twin"
            (Nothing,              _    ) -> throwError "out of bounds"
 
-lookupMeta :: Monad m => Meta -> BMonadT v m (Ty v)
+lookupMeta :: Monad m => Meta -> BMonadT pars v m (Ty v)
 lookupMeta mv = go =<< gets ctxLeft
   where
-    go :: Monad m => ContextL v -> BMonadT v m (Ty v)
+    go :: Monad m => ContextL v -> BMonadT pars v m (Ty v)
     go B0 = throwError ("missing metavariable " ++ show mv)
     go (_  :< Entry mv' ty _) | mv == mv' = return ty
     go (bw :< _             )             = go bw
 
-modifyL :: Monad m => (ContextL v -> ContextL v) -> BMonadT v m ()
+modifyL :: Monad m => (ContextL v -> ContextL v) -> BMonadT pars v m ()
 modifyL f = do ctx@Context{ctxLeft = ctxL} <- get
                put ctx{ctxLeft = f ctxL}
 
-modifyR :: Monad m => (ContextR v -> ContextR v) -> BMonadT v m ()
+modifyR :: Monad m => (ContextR v -> ContextR v) -> BMonadT pars v m ()
 modifyR f = do ctx@Context{ctxRight = ctxR} <- get
                put ctx{ctxRight = f ctxR}
 
 
-pushL :: Monad m => Entry v -> BMonadT v m ()
+pushL :: Monad m => Entry v -> BMonadT pars v m ()
 pushL entry = modifyL (:< entry)
 
-pushR :: Monad m => Either (Subs v) (Entry v) -> BMonadT v m ()
+pushR :: Monad m => Either (Subs v) (Entry v) -> BMonadT pars v m ()
 pushR entry = modifyR (entry :)
 
-putL :: Monad m => ContextL v -> BMonadT v m ()
+putL :: Monad m => ContextL v -> BMonadT pars v m ()
 putL x = modifyL (const x)
 
-putR :: Monad m => ContextR v -> BMonadT v m ()
+putR :: Monad m => ContextR v -> BMonadT pars v m ()
 putR x = modifyR (const x)
 
-popL :: Monad m => BMonadT v m (Entry v)
+popL :: Monad m => BMonadT pars v m (Entry v)
 popL = do ctxL <- gets ctxLeft
           case ctxL of
               (ctxL' :< entry) -> entry <$ putL ctxL'
               B0               -> error "popL ran out of context"
 
-popR :: Monad m => BMonadT v m (Maybe (Either (Subs v) (Entry v)))
+popR :: Monad m => BMonadT pars v m (Maybe (Either (Subs v) (Entry v)))
 popR = do ctxR <- gets ctxRight
           case ctxR of
               (x  : ctxR') -> Just x <$ putR ctxR'
               []           -> return Nothing
 
-goL :: Monad m => BMonadT v m ()
+goL :: Monad m => BMonadT pars v m ()
 goL = popL >>= pushR . Right

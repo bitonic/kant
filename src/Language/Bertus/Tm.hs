@@ -1,6 +1,7 @@
 module Language.Bertus.Tm
     ( module Data.Var
     , Name
+    , name
     , Scope
     , Tm(..)
     , Ty
@@ -23,9 +24,13 @@ import Data.Traversable (Traversable)
 import Data.Data (Data, Typeable)
 
 import Control.Monad.Fresh
+import Data.Dummy
 import Data.Var
 
-type Name = String
+type Name = Dummy String
+
+name :: String -> Name
+name = Dummy
 
 type Scope f v = f (Var Name v)
 

@@ -11,9 +11,16 @@ module Language.Bertus.Context
     , Subs
     , ContextL
     , ContextR
-    , Params
     , Context(..)
-    , nestCtx
+    , ParamBwd
+    , ContextBwd
+    , nestCtxBwd
+    , lookupCtxBwd
+    , ParamMap
+    , ContextMap
+    , insertCtxMap
+    , lookupCtxMap
+    , toCtxBwd
     ) where
 
 import Control.Arrow ((+++), second)
@@ -21,6 +28,9 @@ import Data.Data (Data, Typeable)
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 import Data.Monoid (mempty, (<>))
+
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Control.Monad.Fresh
 import Data.Bwd
@@ -118,15 +128,39 @@ type Subs v = [(Meta, Tm v)]
 type ContextL v = Bwd (Entry v)
 type ContextR v = [Either (Subs v) (Entry v)]
 
-type Params = BwdTele Param Proxy Name
-
-data Context v = Context
+data Context pars v = Context
     { ctxLeft   :: ContextL v
     , ctxRight  :: ContextR v
-    , ctxParams :: Params v
+    , ctxParams :: pars v
     }
 
-nestCtx :: Param v -> Context v -> Context (Var Name v)
-nestCtx par (Context le ri pars) =
+newtype ParamBwdEnd v = ParamBwdEnd (v -> Maybe (Param v))
+type ParamBwd = BwdTele Param ParamBwdEnd Name
+type ContextBwd = Context ParamBwd
+
+nestCtxBwd :: Param v -> ContextBwd v -> ContextBwd (Var Name v)
+nestCtxBwd par (Context le ri pars) =
     Context (fmap nest le) (fmap (fmap (second nest) +++ fmap F) ri)
             (pars :<< par)
+
+lookupCtxBwd :: v -> ContextBwd v -> Maybe (Param v)
+lookupCtxBwd v0 (Context _ _ pars) = go pars v0
+  where
+    go :: ParamBwd v -> v -> Maybe (Param v)
+    go (BT0 (ParamBwdEnd f)) v     = f v
+    go (bw :<< _)            (F v) = fmap nest (go bw v)
+    go (_  :<< t)            (B _) = Just (nest t)
+
+newtype ParamMap k v = ParamMap (Map k (Param v))
+type ContextMap a = Context (ParamMap a)
+
+insertCtxMap :: Ord a => a -> Param v -> ContextMap a v -> ContextMap a v
+insertCtxMap v par (Context le ri (ParamMap pars)) =
+    Context le ri (ParamMap (Map.insert v par pars))
+
+lookupCtxMap :: Ord a => a -> ContextMap a v -> Maybe (Param v)
+lookupCtxMap v (Context _ _ (ParamMap pars)) = Map.lookup v pars
+
+toCtxBwd :: Ord v => ContextMap v v -> ContextBwd v
+toCtxBwd (Context le ri (ParamMap pars)) =
+    Context le ri (BT0 (ParamBwdEnd (\v -> Map.lookup v pars)))

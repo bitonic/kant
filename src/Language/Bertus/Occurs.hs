@@ -5,6 +5,8 @@ module Language.Bertus.Occurs
     , fmvs
     , occurrenceList
     , occurrenceScope
+    , freesList
+    , fvsList
     , freesScope
     ) where
 
@@ -96,6 +98,12 @@ occurrenceList vs els = mconcat (map (occurrence vs) els)
 occurrenceScope :: (Ord v, Occurs t)
                 => Set (VarMeta v) -> Scope t v -> Maybe Occurrence
 occurrenceScope vs = occurrence (nestVarMetas vs)
+
+freesList :: (Ord v, Occurs t) => [t v] -> Set (VarMeta v)
+freesList = mconcat . map frees
+
+fvsList :: (Ord v, Occurs t) => [t v] -> Set v
+fvsList = mconcat . map fvs
 
 freesScope :: (Ord v, Occurs t) => Scope t v -> Set (VarMeta v)
 freesScope = pullVarMetas . frees
