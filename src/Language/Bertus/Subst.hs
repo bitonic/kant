@@ -68,13 +68,13 @@ t $$ u = t %% App u
 ($$$) :: Tm v -> [Tm v] -> Tm v
 ($$$) = foldl ($$)
 
-abstract :: (Eq v, Subst f) => v -> Twin -> f v -> f (Var v v)
-abstract nom tw t =
+abstract :: (Eq v, Subst f) => a -> v -> Twin -> f v -> f (Var a v)
+abstract x nom tw t =
     t //= \v ->
     head_ $ case v of
-                Var nom' _ | nom == nom' -> Var (B nom') tw
+                Var nom' _ | nom == nom' -> Var (B x) tw
                 Var nom' tw'             -> Var (F nom') tw'
                 Meta mv                  -> Meta mv
 
-abstract' :: (Eq v, Subst f) => v -> f v -> f (Var v v)
-abstract' nom t = abstract nom Only t
+abstract' :: (Eq v, Subst f) => a -> v -> f v -> f (Var a v)
+abstract' x nom t = abstract x nom Only t

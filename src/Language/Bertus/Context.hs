@@ -12,15 +12,16 @@ module Language.Bertus.Context
     , ContextL
     , ContextR
     , Context(..)
-    , ParamBwd
+    , ParamBwd(..)
     , ContextBwd
     , nestCtxBwd
     , lookupCtxBwd
-    , ParamMap
-    , ContextMap
-    , insertCtxMap
-    , lookupCtxMap
+    , ParamList(..)
+    , ContextList
+    , insertCtxList
+    , lookupCtxList
     , toCtxBwd
+    , wrapProb
     ) where
 
 import Control.Arrow ((+++), second)
@@ -28,9 +29,6 @@ import Data.Data (Data, Typeable)
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 import Data.Monoid (mempty, (<>))
-
-import Data.Map (Map)
-import qualified Data.Map as Map
 
 import Control.Monad.Fresh
 import Data.Bwd
@@ -151,16 +149,22 @@ lookupCtxBwd v0 (Context _ _ pars) = go pars v0
     go (bw :<< _)            (F v) = fmap nest (go bw v)
     go (_  :<< t)            (B _) = Just (nest t)
 
-newtype ParamMap k v = ParamMap (Map k (Param v))
-type ContextMap a = Context (ParamMap a)
+newtype ParamList k v = ParamList [(k, Param v)]
+type ContextList a = Context (ParamList a)
 
-insertCtxMap :: Ord a => a -> Param v -> ContextMap a v -> ContextMap a v
-insertCtxMap v par (Context le ri (ParamMap pars)) =
-    Context le ri (ParamMap (Map.insert v par pars))
+insertCtxList :: Ord a => a -> Param v -> ContextList a v -> ContextList a v
+insertCtxList v par (Context le ri (ParamList pars)) =
+    Context le ri (ParamList ((v, par) : pars))
 
-lookupCtxMap :: Ord a => a -> ContextMap a v -> Maybe (Param v)
-lookupCtxMap v (Context _ _ (ParamMap pars)) = Map.lookup v pars
+lookupCtxList :: Ord a => a -> ContextList a v -> Maybe (Param v)
+lookupCtxList v (Context _ _ (ParamList pars)) = lookup v pars
 
-toCtxBwd :: Ord v => ContextMap v v -> ContextBwd v
-toCtxBwd (Context le ri (ParamMap pars)) =
-    Context le ri (BT0 (ParamBwdEnd (\v -> Map.lookup v pars)))
+toCtxBwd :: Ord v => ContextList v v -> ContextBwd v
+toCtxBwd (Context le ri (ParamList pars)) =
+    Context le ri (BT0 (ParamBwdEnd (`lookup` pars)))
+
+wrapProb :: Eq v => [(v, Param v)] -> Problem v -> Problem v
+wrapProb []                prob = prob
+wrapProb ((v, par) : pars) prob = All par $
+                                  abstract' mempty v (wrapProb pars prob)
+

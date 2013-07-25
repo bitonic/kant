@@ -24,9 +24,9 @@ type EqnFV     = Eqn FreshVar
 type ProblemFV = Problem FreshVar
 type ParamFV   = Param FreshVar
 type EntryFV   = Entry FreshVar
-type ContextFV = ContextMap FreshVar FreshVar
+type ContextFV = ContextList FreshVar FreshVar
 type SubsFV    = Subs FreshVar
-type BMonadFVT = BMonadMapT FreshVar
+type BMonadFVT = BMonadListT FreshVar
 
 unify :: Monad m => ProbId -> EqnFV -> BMonadFVT m ()
 unify pid eqn@(Eqn (Bind Pi dom1 cod1) t1 (Bind Pi dom2 cod2) t2) =
@@ -64,8 +64,8 @@ rigidRigid (Eqn Type (Bind bi1 dom1 cod1) Type (Bind bi2 dom2 cod2))
 -- TODO throwing away types
 rigidRigid (Eqn _ (Neutr (Var v1 tw1) els1) _ (Neutr (Var v2 tw2) els2))
     | v1 == v2 =
-    do tyv1 <- lookupVar lookupCtxMap v1 tw1
-       tyv2 <- lookupVar lookupCtxMap v2 tw2
+    do tyv1 <- lookupVar lookupCtxList v1 tw1
+       tyv2 <- lookupVar lookupCtxList v2 tw2
        (Eqn Type tyv1 Type tyv2 :) <$>
            matchSpine tyv1 (var v1 tw1) els1 tyv2 (var v2 tw2) els2
 rigidRigid _ =
@@ -110,17 +110,19 @@ simplify :: Monad m
          => ProbId -> ProblemFV -> [ProblemFV] -> BMonadFVT m ()
 simplify pid prob probs = go probs []
   where
-    -- TODO check that the `wrapProb' is not needed
     go :: Monad m
        => [ProblemFV] -> [ProbId] -> BMonadFVT m ()
-    go []               pids = pendingSolve pid prob pids
-    go (prob' : probs') pids = do pid' <- probId <$> fresh
-                                  pushL (Prob pid' prob' Active)
-                                  go probs' (pid' : pids) <* goL
+    go [] pids =
+        pendingSolve pid prob pids
+    go (prob' : probs') pids =
+        do pid' <- probId <$> fresh
+           ParamList pars <- gets ctxParams
+           pushL (Prob pid' (wrapProb pars prob') Active)
+           go probs' (pid' : pids) <* goL
 
--- TODO check that the `wrapProb' is not needed
 putProb :: Monad m => ProbId -> ProblemFV -> ProblemState -> BMonadFVT m ()
-putProb pid prob pst = pushR (Right (Prob pid prob pst))
+putProb pid prob pst = do ParamList pars <- gets ctxParams
+                          pushR (Right (Prob pid (wrapProb pars prob) pst))
 
 pendingSolve :: Monad m => ProbId -> ProblemFV -> [ProbId] -> BMonadFVT m ()
 pendingSolve pid prob []   = do toCtxBwdM (checkProb Solved prob)
@@ -155,8 +157,8 @@ instantiate pruned@(mv, ty1, f) =
     do entry <- popL
        case entry of
            Entry mv' ty2 Hole | mv == mv' -> undefined
-           _                              -> pushR (Right entry) >>
-                                             instantiate pruned
+           _                              -> do pushR (Right entry)
+                                                instantiate pruned
 
 hole :: Monad m
      => SubsFV -> TyFV -> (TmFV -> BMonadFVT m a) -> BMonadFVT m a

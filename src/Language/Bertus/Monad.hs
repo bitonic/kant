@@ -3,7 +3,7 @@ module Language.Bertus.Monad
     ( BError
     , BMonadT(..)
     , BMonadBwdT
-    , BMonadMapT
+    , BMonadListT
     , runBMonadT
     , nestBwd
     , toCtxBwdM
@@ -42,7 +42,7 @@ newtype BMonadT pars v m a =
               MonadError BError, MonadFresh)
 
 type BMonadBwdT = BMonadT ParamBwd
-type BMonadMapT v = BMonadT (ParamMap v) v
+type BMonadListT v = BMonadT (ParamList v) v
 
 instance MonadTrans (BMonadT pars v) where
     lift = BMonadT . lift . lift . lift
@@ -60,7 +60,7 @@ nestBwd ty (BMonadT m) =
     BMonadT $ StateT $ \ctx ->
     second (const ctx) <$> runStateT m (nestCtxBwd ty ctx)
 
-toCtxBwdM :: (Ord v, Monad m) => BMonadBwdT v m b -> BMonadMapT v m b
+toCtxBwdM :: (Ord v, Monad m) => BMonadBwdT v m b -> BMonadListT v m b
 toCtxBwdM m =
     do ctx <- get
        res <- lift (runBMonadT (toCtxBwd ctx) m)
