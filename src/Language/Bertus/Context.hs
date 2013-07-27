@@ -12,7 +12,7 @@ module Language.Bertus.Context
     , ContextL
     , ContextR
     , Context(..)
-    , ParamBwd(..)
+    , ParamBwd
     , ContextBwd
     , nestCtxBwd
     , lookupCtxBwd
@@ -44,7 +44,9 @@ instance Subst Decl where
     Hole   //= _ = Hole
     Defn t //= f = Defn (t //= f)
 
-instance Occurs Decl where
+instance Ord v => Occurs (Decl v) where
+    type OccursVar (Decl v) = v
+
     occurrence _  Hole     = Nothing
     occurrence vs (Defn t) = occurrence vs t
 
@@ -61,8 +63,9 @@ instance Subst Eqn where
     Eqn ty1 t1 ty2 t2 //= f =
         Eqn (ty1 //= f) (t1 //= f) (ty2 //= f) (t2 //= f)
 
-instance Occurs Eqn where
-    occurrence vs (Eqn ty1 t1 ty2 t2) = occurrenceList vs [ty1, t1, ty2, t2]
+instance Ord v => Occurs (Eqn v) where
+    type OccursVar (Eqn v) = v
+    occurrence vs (Eqn ty1 t1 ty2 t2) = occurrence vs [ty1, t1, ty2, t2]
     frees (Eqn ty1 t1 ty2 t2) =
         frees ty1 <> frees t1 <> frees ty2 <> frees t2
 
@@ -73,14 +76,16 @@ instance Subst Problem where
     Unify eqn    //= f = Unify (eqn //= f)
     All par prob //= f = All (par //= f) (prob ///= f)
 
-instance Occurs Problem where
+instance Ord v => Occurs (Problem v) where
+    type OccursVar (Problem v) = v
+
     occurrence vs (Unify eqn) =
         occurrence vs eqn
     occurrence vs (All par prob) =
-        occurrence vs par <> occurrenceScope vs prob
+        occurrence vs par <> occurrence (nestVarOrMetas vs) prob
 
     frees (Unify eqn)    = frees eqn
-    frees (All par prob) = frees par <> freesScope prob
+    frees (All par prob) = frees par <> pullVarOrMetas (frees prob)
 
 data Param v = Param (Ty v) | Twins (Ty v) (Ty v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
@@ -89,7 +94,9 @@ instance Subst Param where
     Param ty      //= f = Param (ty //= f)
     Twins ty1 ty2 //= f = Twins (ty1 //= f) (ty2 //= f)
 
-instance Occurs Param where
+instance Ord v => Occurs (Param v) where
+    type OccursVar (Param v) = v
+
     occurrence vs (Param ty)      = occurrence vs ty
     occurrence vs (Twins tyL tyR) = occurrence vs tyL <> occurrence vs tyR
 
@@ -114,7 +121,9 @@ instance Subst Entry where
     Entry mv ty decl        //= f = Entry mv (ty //= f) (decl //= f)
     Prob pid prob probstate //= f = Prob pid (prob //= f) probstate
 
-instance Occurs Entry where
+instance Ord v => Occurs (Entry v) where
+    type OccursVar (Entry v) = v
+
     occurrence vs (Entry _ ty decl) = occurrence vs ty <> occurrence vs decl
     occurrence vs (Prob _ prob _)   = occurrence vs prob
 
@@ -167,4 +176,3 @@ wrapProb :: Eq v => [(v, Param v)] -> Problem v -> Problem v
 wrapProb []                prob = prob
 wrapProb ((v, par) : pars) prob = All par $
                                   abstract' mempty v (wrapProb pars prob)
-

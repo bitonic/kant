@@ -1,13 +1,14 @@
 module Language.Bertus.Occurs
-    ( Occurrence(..)
+    ( VarOrMeta
+    , Occurrence(..)
+    , isStrongRigid
+    , isRigid
+    , isFlexible
     , Occurs(..)
     , fvs
     , fmvs
-    , occurrenceList
-    , occurrenceScope
-    , freesList
-    , fvsList
-    , freesScope
+    , nestVarOrMetas
+    , pullVarOrMetas
     ) where
 
 import Data.Data (Data, Typeable)
@@ -22,11 +23,11 @@ import Language.Bertus.Tm
 
 #include "../../impossible.h"
 
-type VarMeta = Head0 ()
+type VarOrMeta = Either Meta
 
-toVarMeta :: Head0 a v -> VarMeta v
-toVarMeta (Var v _) = Var v ()
-toVarMeta (Meta mv) = Meta mv
+toVarOrMeta :: Head v -> VarOrMeta v
+toVarOrMeta (Var v _) = Right v
+toVarOrMeta (Meta mv) = Left mv
 
 data Strength = Weak | Strong
     deriving (Show, Read, Eq, Ord, Data, Typeable)
@@ -34,83 +35,92 @@ data Strength = Weak | Strong
 data Occurrence = Flexible | Rigid Strength
     deriving (Show, Read, Eq, Ord, Data, Typeable)
 
+isStrongRigid :: Maybe Occurrence -> Bool
+isStrongRigid (Just (Rigid Strong)) = True
+isStrongRigid _                     = False
+
+isRigid :: Maybe Occurrence -> Bool
+isRigid (Just (Rigid _)) = True
+isRigid _                = False
+
+isFlexible :: Maybe Occurrence -> Bool
+isFlexible (Just Flexible) = True
+isFlexible _               = False
+
 instance Monoid Occurrence where
     mempty  = Flexible
     mappend = max
 
-class Occurs t where
-    occurrence :: Ord v => Set (VarMeta v) -> t v -> Maybe Occurrence
-    frees      :: Ord v => t v -> Set (VarMeta v)
+class Ord (OccursVar t) => Occurs t where
+    type OccursVar t :: *
+    occurrence :: Set (VarOrMeta (OccursVar t)) -> t -> Maybe Occurrence
+    frees      :: t -> Set (VarOrMeta (OccursVar t))
 
-fvs :: (Occurs t, Ord v) => t v -> Set v
-fvs = mapMaybeMonotonic f . frees
+fvs :: Occurs t => t -> Set (OccursVar t)
+fvs = mapMaybeMonotonic (either (const Nothing) Just) . frees
+
+fmvs :: Occurs t => t -> Set Meta
+fmvs = mapMaybeMonotonic (either Just (const Nothing)) . frees
+
+nestVarOrMetas :: Set (VarOrMeta v) -> Set (VarOrMeta (Var a v))
+nestVarOrMetas = Set.mapMonotonic nest
+
+pullVarOrMetas :: Set (VarOrMeta (Var a v)) -> Set (VarOrMeta v)
+pullVarOrMetas = mapMaybeMonotonic f
   where
-    f (Var v _) = Just v
-    f (Meta _ ) = Nothing
+    f (Right (B _)) = Nothing
+    f (Right (F v)) = Just (Right v)
+    f (Left  mv   ) = Just (Left mv)
 
-fmvs :: (Occurs t, Ord v) => t v -> Set Meta
-fmvs = mapMaybeMonotonic f . frees
-  where
-    f (Var _ _) = Nothing
-    f (Meta mv) = Just mv
+instance Ord v => Occurs (Tm v) where
+    type OccursVar (Tm v) = v
 
-nestVarMetas :: Set (VarMeta v) -> Set (VarMeta (Var a v))
-nestVarMetas = Set.mapMonotonic nest
-
-pullVarMetas :: Set (VarMeta (Var a v)) -> Set (VarMeta v)
-pullVarMetas = mapMaybeMonotonic f
-  where
-    f (Var (B _) _) = Nothing
-    f (Var (F v) _) = Just (Var v ())
-    f (Meta mv    ) = Just (Meta mv)
-
-instance Occurs Tm where
     occurrence _ Type =
         Nothing
     occurrence vs (Bind _ lhs rhs) =
-        occurrence vs lhs <> occurrenceScope vs rhs
+        occurrence vs lhs <> occurrence (nestVarOrMetas vs) rhs
     occurrence vs (Pair fs sn) =
         occurrence vs fs <> occurrence vs sn
     occurrence vs (Lam t) =
-        occurrenceScope vs t
+        occurrence (nestVarOrMetas vs) t
     occurrence vs (Neutr (Var v _) els) =
-        if Var v () `Set.member` vs then Just (Rigid Strong)
-        else weaken <$> occurrenceList vs els
+        if Right v `Set.member` vs then Just (Rigid Strong)
+        else weaken <$> occurrence vs els
       where
         weaken (Rigid _) = Rigid Weak
         weaken Flexible  = Flexible
     occurrence vs (Neutr (Meta mv) els) =
-        if Meta mv `Set.member` vs then Just (Rigid Strong)
-        else const Flexible <$> occurrenceList vs els
+        if Left mv `Set.member` vs then Just (Rigid Strong)
+        else const Flexible <$> occurrence vs els
 
     frees Type             = mempty
-    frees (Bind _ lhs rhs) = frees lhs <> freesScope rhs
+    frees (Bind _ lhs rhs) = frees lhs <> pullVarOrMetas (frees rhs)
     frees (Pair fs sn    ) = frees fs  <> frees sn
-    frees (Lam t         ) = freesScope t
-    frees (Neutr v els)    = mconcat $
-                             Set.singleton (toVarMeta v) : map (frees) els
+    frees (Lam t         ) = pullVarOrMetas (frees t)
+    frees (Neutr v els)    = Set.insert (toVarOrMeta v) (frees els)
 
-occurrenceList :: (Ord v, Occurs t)
-               => Set (VarMeta v) -> [t v] -> Maybe Occurrence
-occurrenceList _  []  = Nothing
-occurrenceList vs els = mconcat (map (occurrence vs) els)
+instance Ord v => Occurs (Elim v) where
+    type OccursVar (Elim v) = v
 
-occurrenceScope :: (Ord v, Occurs t)
-                => Set (VarMeta v) -> Scope t v -> Maybe Occurrence
-occurrenceScope vs = occurrence (nestVarMetas vs)
-
-freesList :: (Ord v, Occurs t) => [t v] -> Set (VarMeta v)
-freesList = mconcat . map frees
-
-fvsList :: (Ord v, Occurs t) => [t v] -> Set v
-fvsList = mconcat . map fvs
-
-freesScope :: (Ord v, Occurs t) => Scope t v -> Set (VarMeta v)
-freesScope = pullVarMetas . frees
-
-instance Occurs Elim where
     occurrence vs (App t) = occurrence vs t
     occurrence _  _       = Nothing
 
     frees (App t) = frees t
     frees _       = Set.empty
+
+instance Occurs t => Occurs [t] where
+    type OccursVar [t] = OccursVar t
+
+    occurrence vs = mconcat . map (occurrence vs)
+    frees         = mconcat . map frees
+
+instance (Occurs a, Occurs b, OccursVar a ~ OccursVar b) => Occurs (a, b) where
+    type OccursVar (a, b) = OccursVar a
+    occurrence vs (a, b) = occurrence vs a <> occurrence vs b
+    frees (a, b) = frees a <> frees b
+
+instance (Occurs a, Occurs b, Occurs c, OccursVar a ~ OccursVar b, OccursVar b ~ OccursVar c) => Occurs (a, b, c) where
+    type OccursVar (a, b, c) = OccursVar a
+    occurrence vs (a, b, c) =
+        occurrence vs a <> occurrence vs b <> occurrence vs c
+    frees (a, b, c) = frees a <> frees b <> frees c

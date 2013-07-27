@@ -8,8 +8,7 @@ module Language.Bertus.Tm
     , (-->)
     , Meta
     , meta
-    , Head0(..)
-    , Head
+    , Head(..)
     , head_
     , var
     , var'
@@ -17,10 +16,14 @@ module Language.Bertus.Tm
     , Twin(..)
     , Bind(..)
     , Elim(..)
+    , boundName
+    , unnest
+    , etaContract
+    , isVar
     ) where
 
 import Data.Foldable (Foldable)
-import Data.Traversable (Traversable)
+import Data.Traversable (Traversable, traverse)
 import Data.Data (Data, Typeable)
 
 import Control.Monad.Fresh
@@ -53,13 +56,23 @@ newtype Meta = M Ref
 meta :: Ref -> Meta
 meta = M
 
-data Head0 tw v = Var v tw | Meta Meta
+data Head v = Var v Twin | Meta Meta
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
-
-type Head = Head0 Twin
 
 head_ :: Head v -> Tm v
 head_ v = Neutr v []
+
+data Twin = Only | TwinL | TwinR
+    deriving (Eq, Ord, Show, Data, Typeable)
+
+data Bind = Pi | Sig
+    deriving (Eq, Ord, Show, Data, Typeable)
+
+data Elim v = App (Tm v) | Fst | Snd
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
+
+mapElim :: (Tm a -> Tm b) -> Elim a -> Elim b
+mapElim = undefined
 
 var :: v -> Twin -> Tm v
 var v tw = head_ (Var v tw)
@@ -70,11 +83,46 @@ var' v = var v Only
 metavar :: Meta -> Tm v
 metavar mv = Neutr (Meta mv) []
 
-data Twin = Only | TwinL | TwinR
-    deriving (Eq, Ord, Show, Data, Typeable)
+boundName :: Scope f v -> Name
+boundName = undefined
 
-data Bind = Pi | Sig
-    deriving (Eq, Ord, Show, Data, Typeable)
+unnest :: Traversable f => Scope f v -> Maybe (f v)
+unnest = traverse f
+  where
+    f (B _) = Nothing
+    f (F v) = Just v
 
-data Elim v = App (Tm v) | Fst | Snd
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
+unnestHead :: Head (Var a v) -> Maybe (Head v)
+unnestHead = undefined
+
+initLast :: [a] -> Maybe ([a], a)
+initLast [] = Nothing
+initLast xs = Just (init xs, last xs)
+
+etaContract :: Ord v => Tm v -> Tm v
+etaContract (Lam t) =
+    case etaContract t of
+        Neutr (unnestHead -> Just v1) els
+            | Just (els', App (Neutr (Var (B _) _) [])) <- initLast els
+            , Just els'' <- traverse unnest els' ->
+            Neutr v1 els''
+        t' -> Lam t'
+etaContract (Neutr v els) =
+    Neutr v (map (mapElim etaContract) els)
+etaContract (Pair fs sn) =
+    case (etaContract fs, etaContract sn) of
+        (Neutr v1 els1, Neutr v2 els2)
+            | Just (els1', Fst) <- initLast els1
+            , Just (els2', Snd) <- initLast els2
+            , v1 == v2
+            , els1' == els2' ->
+            Neutr v1 els1'
+        (fs', sn') -> Pair fs' sn'
+etaContract (Bind bi lhs rhs) =
+    Bind bi (etaContract lhs) (etaContract rhs)
+etaContract Type =
+    Type
+
+isVar :: Ord v => Tm v -> Bool
+isVar (etaContract -> Neutr (Var _ _) []) = True
+isVar _                                   = False

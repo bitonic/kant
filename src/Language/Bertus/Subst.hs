@@ -7,9 +7,19 @@ module Language.Bertus.Subst
     , (%%%)
     , ($$)
     , ($$$)
+    , ($*$)
     , abstract
     , abstract'
+    , bind
+    , pi_
+    , pis
+    , lam
+    , lams
+    , lams'
     ) where
+
+import Data.Foldable (Foldable, foldr, foldl)
+import Prelude hiding (foldr, foldl)
 
 import Data.Var
 import Language.Bertus.Tm
@@ -65,8 +75,11 @@ _           %% _     = IMPOSSIBLE("Bad elimination")
 ($$) :: Tm v -> Tm v -> Tm v
 t $$ u = t %% App u
 
-($$$) :: Tm v -> [Tm v] -> Tm v
+($$$) :: Foldable t => Tm v -> t (Tm v) -> Tm v
 ($$$) = foldl ($$)
+
+($*$) :: (Functor t, Foldable t) => Tm v -> t (v, Tm v) -> Tm v
+t $*$ tele = t $$$ fmap (var' . fst) tele
 
 abstract :: (Eq v, Subst f) => a -> v -> Twin -> f v -> f (Var a v)
 abstract x nom tw t =
@@ -78,3 +91,22 @@ abstract x nom tw t =
 
 abstract' :: (Eq v, Subst f) => a -> v -> f v -> f (Var a v)
 abstract' x nom t = abstract x nom Only t
+
+bind :: Eq v => Bind -> Name -> v -> Ty v -> Ty v -> Ty v
+bind bi nom v lhs rhs = Bind bi lhs (abstract' nom v rhs)
+
+pi_ :: Eq v => Name -> v -> Ty v -> Ty v -> Ty v
+pi_ = bind Pi
+
+pis :: (Foldable t, Eq v) => t (Name, v, Ty v) -> Ty v -> Ty v
+pis xs ty = foldr (\(x, nom, ty') -> pi_ x nom ty') ty xs
+
+lam :: Eq v => Name -> v -> Tm v -> Tm v
+lam nom v t = Lam (abstract' nom v t)
+
+lams :: (Foldable t, Eq v) => t (Name, v) -> Tm v -> Tm v
+lams xs t = foldr (uncurry lam) t xs
+
+lams' :: (Foldable t, Eq v) => t (Name, v, Ty v) -> Tm v -> Tm v
+lams' xs t = foldr (\(nom, v, _) -> lam nom v) t xs
+
