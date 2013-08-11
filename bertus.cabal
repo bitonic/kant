@@ -1,0 +1,57 @@
+Cabal-Version:        >= 1.8
+Name:                 bertus
+Version:              0.0
+Author:               Francesco Mazzoli (f@mazzo.li)
+Maintainer:           Francesco Mazzoli (f@mazzo.li)
+Build-Type:           Simple
+License:              GPL-3
+Build-Type:           Simple
+Category:             Compilers/Interpreters, Dependent Types
+Synopsis:             Core dependent language based on OTT (hopefully)
+Tested-With:          GHC==7.6.3
+Homepage:             https://github.com/bitonic/kant
+Bug-Reports:          https://github.com/bitonic/kant/issues
+Extra-Source-Files:   src/impossible.h
+Data-Dir:             data
+
+Source-Repository head
+    Type:             git
+    Location:         git://github.com/bitonic/kant.git
+
+Library
+    Hs-Source-Dirs:   src
+
+    Build-Depends:    base >= 3 && < 5,
+                      containers,
+                      mtl >= 2 && < 3,
+                      tagged
+
+    GHC-Options:      -Wall -O2 -fno-warn-unused-do-bind
+
+    Extensions:       CPP,
+                      DeriveDataTypeable,
+                      DeriveFoldable,
+                      DeriveFunctor,
+                      DeriveTraversable,
+                      FlexibleContexts,
+                      FlexibleInstances,
+                      FunctionalDependencies,
+                      GADTs,
+                      MultiParamTypeClasses,
+                      PatternGuards,
+                      ScopedTypeVariables,
+                      TupleSections,
+                      TypeFamilies,
+                      ViewPatterns
+
+    Exposed-Modules:  Control.Monad.Fresh,
+                      Data.Dummy,
+                      Data.Var,
+                      Language.Bertus.Check,
+                      Language.Bertus.Context,
+                      Language.Bertus.Subst,
+                      Language.Bertus.Tele,
+                      Language.Bertus.Tm,
+                      Language.Bertus.Unify
+
+    Other-Modules:    Paths_bertus
