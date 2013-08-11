@@ -15,6 +15,7 @@ import Language.Bertus.Context
 import Language.Bertus.Monad
 import Language.Bertus.Occurs
 import Language.Bertus.Subst
+import Language.Bertus.Tele
 import Language.Bertus.Tm
 
 toListMap :: Foldable t => (a -> b) -> t a -> [b]
@@ -28,6 +29,8 @@ type TyFV      = Ty FreshVar
 type ElimFV    = Elim FreshVar
 type DeclFV    = Decl FreshVar
 type EqnFV     = Eqn FreshVar
+type EqnFFFV   = EqnFF FreshVar
+type EqnFRFV   = EqnFR FreshVar
 type ProblemFV = Problem FreshVar
 type ParamFV   = Param FreshVar
 type EntryFV   = Entry FreshVar
@@ -41,36 +44,12 @@ freshVar n = FV . (, n) <$> fresh
 freshVar' :: Monad m => BMonadFVT m FreshVar
 freshVar' = freshVar mempty
 
+freshMeta :: Monad m => BMonadFVT m Meta
+freshMeta = meta <$> fresh
+
 unbind :: Monad m => Scope Tm FreshVar -> BMonadFVT m (FreshVar, TmFV)
 unbind t = do v <- freshVar (boundName t)
               return (v, inst t (var' v))
-
-data FREqn = FREqn TyFV Meta [ElimFV] TyFV TmFV
-
-eqnFR :: EqnFV -> Maybe FREqn
-eqnFR (Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2) =
-    Just (FREqn ty1 mv1 els1 ty2 t2)
-eqnFR _ =
-    Nothing
-
-frEqn :: FREqn -> EqnFV
-frEqn (FREqn ty1 mv1 els1 ty2 t2) = Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2
-
-data FFEqn = FFEqn TyFV Meta [ElimFV] TyFV Meta [ElimFV]
-
-eqnFF :: EqnFV -> Maybe FFEqn
-eqnFF (Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)) =
-    Just (FFEqn ty1 mv1 els1 ty2 mv2 els2)
-eqnFF _ =
-    Nothing
-
-ffEqn :: FFEqn -> EqnFV
-ffEqn (FFEqn ty1 mv1 els1 ty2 mv2 els2) =
-    Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)
-
-ffFr :: FFEqn -> FREqn
-ffFr (FFEqn ty1 mv1 els1 ty2 mv2 els2) =
-    FREqn ty1 mv1 els1 ty2 (Neutr (Meta mv2) els2)
 
 unify :: Monad m => ProbId -> EqnFV -> BMonadFVT m ()
 unify pid eqn@(Eqn (Bind Pi dom1 cod1) t1 (Bind Pi dom2 cod2) t2) =
@@ -134,9 +113,10 @@ matchSpine (Bind Sig _ snty1) t1 (Snd : els1)
     (fs2, sn2) = (t2 %% Fst, t2 %% Snd)
 matchSpine _ _ _ _ _ _ = throwError "spine mismatch"
 
-flexRigid :: Monad m => [EntryFV] -> ProbId -> FREqn -> BMonadFVT m ()
-flexRigid depends pid fr@(FREqn _ mv1 _ _ _) =
-    do entry <- popL
+flexRigid :: Monad m => [EntryFV] -> ProbId -> EqnFRFV -> BMonadFVT m ()
+flexRigid depends pid fr@(EqnFR _ mv1 _ _ _) =
+    do pars <- gets ctxParams
+       entry <- popL
        case entry of
            Entry mv2 mv2ty Hole
                | mv1 == mv2 && mv1 `Set.member` fmvs depends ->
@@ -145,24 +125,92 @@ flexRigid depends pid fr@(FREqn _ mv1 _ _ _) =
                   block pid (frEqn fr)
                | mv1 == mv2 ->
                do mapM_ pushL depends
-                  tryInvert pid fr mv2ty (block pid (frEqn fr) >> pushL entry)
+                  tryInvert pid fr mv2ty (block pid (frEqn fr) *> pushL entry)
+               | mv2 `Set.member` fmvs (pars, depends, fr) ->
+               flexRigid (entry : depends) pid fr
            _ ->
                do pushR (Right entry)
                   flexRigid depends pid fr
 
-flexFlex :: Monad m => ProbId -> FFEqn -> BMonadFVT m ()
-flexFlex = undefined
+flexFlex :: Monad m => ProbId -> EqnFFFV -> BMonadFVT m ()
+flexFlex pid ff@(EqnFF _ mv1 els1 _ mv2 els2) =
+    do pars <- gets ctxParams
+       entry <- popL
+       case entry of
+           Entry mv3 mv3ty Hole
+               | mv3 == mv1 && mv3 == mv1 ->
+               do block pid (ffEqn ff)
+                  tryIntersect mv1 mv3ty els1 els2
+               | mv3 == mv1 ->
+               tryInvert pid fr mv3ty (flexRigid [entry] pid frSym)
+               | mv3 == mv2 ->
+               tryInvert pid frSym mv3ty (flexRigid [entry] pid fr)
+               | mv3 `Set.member` fmvs (pars, ff) ->
+               do pushL entry
+                  block pid (ffEqn ff)
+           _ ->
+               do pushR (Right entry)
+                  flexFlex pid ff
+  where
+    fr = ffFr ff
+    frSym = ffFr (sym ff)
 
 tryInvert :: Monad m
-          => ProbId -> FREqn -> TyFV -> BMonadFVT m () -> BMonadFVT m ()
-tryInvert = undefined
+          => ProbId -> EqnFRFV -> TyFV -> BMonadFVT m () -> BMonadFVT m ()
+tryInvert pid fr@(EqnFR _ mv1 els1 _ t2) ty1 m =
+    do t1m <- invert mv1 ty1 els1 t2
+       case t1m of
+           Nothing -> m
+           Just t1 -> active pid (frEqn fr) *> define [] mv1 ty1 t1
+
+invert :: Monad m
+       => Meta -> TyFV -> [ElimFV] -> TmFV -> BMonadFVT m (Maybe TmFV)
+invert mv1 ty1 els1 t2 =
+    do when (isStrongRigid o) (throwError "occurrence")
+       case toVars els1 of
+           Just vs | Nothing <- o, linearOn t2 vs ->
+               do let t = lams' vs t2
+                  b <- localParams (const (BT0 (ParamBwdEnd (const Nothing))))
+                                   (typecheck ty1 t)
+                  return (if b then Just t else Nothing)
+           _ ->
+               return Nothing
+  where
+    o = occurrence (Set.singleton (Left mv1)) t2
+
+tryIntersect :: Monad m
+             => Meta -> TyFV -> [ElimFV] -> [ElimFV] -> BMonadFVT m ()
+tryIntersect mv ty els1 els2 =
+    case (toVars els1, toVars els2) of
+        (Just vs1, Just vs2) ->
+            do m <- intersect B0 B0 ty vs1 vs2
+               case m of
+                   Just (ty', f) -> hole [] ty' (define [] mv ty . f)
+                   Nothing       -> pushL (Entry mv ty Hole)
+        _ ->
+            pushL (Entry mv ty Hole)
+
+intersect :: Monad m
+          => Bwd (FreshVar, TyFV) -> Bwd (FreshVar, TyFV)
+          -> TyFV -> [FreshVar] -> [FreshVar]
+          -> BMonadFVT m (Maybe (TyFV, TmFV -> TmFV))
+intersect tys1 tys2 ty [] [] =
+    return $
+    if fvs ty `Set.isSubsetOf` vars tys1
+    then Just (pis' tys2 ty, \mv -> lams' (fmap fst tys1) (mv $*$ tys2))
+    else Nothing
+intersect tys1 tys2 (Bind Pi dom cod) (v1 : vs1) (v2 : vs2) =
+    do v <- freshVar (boundName cod)
+       let tys2' = if v1 == v2 then tys2 :< (v, dom) else tys2
+       intersect (tys1 :< (v, dom)) tys2' (cod `inst` var' v) vs1 vs2
+intersect _ _ _ _ _ =
+    error "intersect: ill-typed!"
 
 simplify :: Monad m
          => ProbId -> ProblemFV -> [ProblemFV] -> BMonadFVT m ()
 simplify pid prob probs = go probs []
   where
-    go :: Monad m
-       => [ProblemFV] -> [ProbId] -> BMonadFVT m ()
+    go :: Monad m => [ProblemFV] -> [ProbId] -> BMonadFVT m ()
     go [] pids =
         pendingSolve pid prob pids
     go (prob' : probs') pids =
@@ -176,12 +224,12 @@ putProb pid prob pst = do ParamList pars <- gets ctxParams
                           pushR (Right (Prob pid (wrapProb pars prob) pst))
 
 pendingSolve :: Monad m => ProbId -> ProblemFV -> [ProbId] -> BMonadFVT m ()
-pendingSolve pid prob []   = do toCtxBwdM (checkProb Solved prob)
+pendingSolve pid prob []   = do localParams toCtxBwd (checkProb Solved prob)
                                 putProb pid prob Solved
 pendingSolve pid prob pids = putProb pid prob (Pending pids)
 
-tryPrune :: Monad m => ProbId -> FREqn -> BMonadFVT m () -> BMonadFVT m ()
-tryPrune pid fr@(FREqn _ _ els1 _ t2) m =
+tryPrune :: Monad m => ProbId -> EqnFRFV -> BMonadFVT m () -> BMonadFVT m ()
+tryPrune pid fr@(EqnFR _ _ els1 _ t2) m =
     do ParamList pars <- gets ctxParams
        pruneds <- prune (vars pars `Set.intersection` fvs els1) t2
        case pruneds of
@@ -235,11 +283,10 @@ pruneSpine unpruned pruned vs (Bind Pi dom cod) (App t : els) =
               (not toPrune && not (isVar t))
 pruneSpine unpruned pruned _ ty []
     | fvs ty `Set.isSubsetOf` vars pruned, pruned /= unpruned =
-        return (Just (pis pruned' ty, \v -> lams' unpruned' (v $*$ unpruned)))
+        return (Just (pis pruned' ty, \v -> lams unpruned' (v $*$ unpruned)))
   where
-    toTriple (fv@(FV (_, nom)), ty') = (nom, fv, ty')
-    unpruned' = fmap toTriple unpruned
-    pruned'   = fmap toTriple pruned
+    unpruned' = fmap (\(fv@(FV (_, nom)), _)   -> (nom, fv))      unpruned
+    pruned'   = fmap (\(fv@(FV (_, nom)), ty') -> (nom, fv, ty')) pruned
 pruneSpine _ _ _ _ _ = return Nothing
 
 active, block :: Monad m => ProbId -> EqnFV -> BMonadFVT m ()
@@ -258,8 +305,23 @@ instantiate pruned@(mv, ty1, f) =
 
 hole :: Monad m
      => [(FreshVar, TyFV)] -> TyFV -> (TmFV -> BMonadFVT m a) -> BMonadFVT m a
-hole = undefined
+hole tys ty f =
+    do catchError (localParams toCtxBwd (check Type (pis' tys ty)))
+                  (const (error "hole"))
+       mv <- freshMeta
+       pushL (Entry mv (pis' tys ty) Hole)
+       f (Neutr (Meta mv) [] $*$ tys) <* goLeft
 
 define :: Monad m
-       => [(FreshVar, TyFV)] -> Meta -> TyFV -> TmFV -> BMonadFVT m a
-define = undefined
+       => [(FreshVar, TyFV)] -> Meta -> TyFV -> TmFV -> BMonadFVT m ()
+define tys mv ty0 t0 =
+    do localParams toCtxBwd (check ty t) `catchError` const (error "define")
+       pushL (Entry mv ty (Defn t))
+       pushR (Left [(mv, t)])
+       goLeft
+  where
+    ty = pis' tys ty0
+    t  = lams' (map fst tys) t0
+
+goLeft :: Monad m => BMonadFVT m ()
+goLeft = popL >>= pushR . Right

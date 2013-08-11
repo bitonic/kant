@@ -12,6 +12,7 @@ module Language.Bertus.Context
     , ContextL
     , ContextR
     , Context(..)
+    , ParamBwdEnd(..)
     , ParamBwd
     , ContextBwd
     , nestCtxBwd
@@ -22,6 +23,14 @@ module Language.Bertus.Context
     , lookupCtxList
     , toCtxBwd
     , wrapProb
+      -- views
+    , EqnFR(..)
+    , eqnFR
+    , frEqn
+    , EqnFF(..)
+    , eqnFF
+    , ffEqn
+    , ffFr
     ) where
 
 import Control.Arrow ((+++), second)
@@ -55,9 +64,6 @@ instance Ord v => Occurs (Decl v) where
 
 data Eqn v = Eqn (Ty v) (Tm v) (Ty v) (Ty v)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data, Typeable)
-
-sym :: Eqn v -> Eqn v
-sym (Eqn ty1 t1 ty2 t2) = Eqn ty2 t2 ty1 t1
 
 instance Subst Eqn where
     Eqn ty1 t1 ty2 t2 //= f =
@@ -158,8 +164,14 @@ lookupCtxBwd v0 (Context _ _ pars) = go pars v0
     go (bw :<< _)            (F v) = fmap nest (go bw v)
     go (_  :<< t)            (B _) = Just (nest t)
 
-newtype ParamList k v = ParamList [(k, Param v)]
+newtype ParamList k v = ParamList {unParamList :: [(k, Param v)]}
 type ContextList a = Context (ParamList a)
+
+-- TODO is this right?  can I discard the `k's?
+instance Ord v => Occurs (ParamList k v) where
+    type OccursVar (ParamList k v) = OccursVar (Param v)
+    occurrence vs = occurrence vs . map snd . unParamList
+    frees = frees . map snd . unParamList
 
 insertCtxList :: Ord a => a -> Param v -> ContextList a v -> ContextList a v
 insertCtxList v par (Context le ri (ParamList pars)) =
@@ -168,11 +180,65 @@ insertCtxList v par (Context le ri (ParamList pars)) =
 lookupCtxList :: Ord a => a -> ContextList a v -> Maybe (Param v)
 lookupCtxList v (Context _ _ (ParamList pars)) = lookup v pars
 
-toCtxBwd :: Ord v => ContextList v v -> ContextBwd v
-toCtxBwd (Context le ri (ParamList pars)) =
-    Context le ri (BT0 (ParamBwdEnd (`lookup` pars)))
+-- toCtxBwd :: Ord v => ContextList v v -> ContextBwd v
+toCtxBwd :: Eq v => ParamList v v -> ParamBwd v
+toCtxBwd (ParamList pars) = BT0 (ParamBwdEnd (`lookup` pars))
 
 wrapProb :: Eq v => [(v, Param v)] -> Problem v -> Problem v
 wrapProb []                prob = prob
 wrapProb ((v, par) : pars) prob = All par $
                                   abstract' mempty v (wrapProb pars prob)
+
+
+---- Views
+
+
+data EqnFR v = EqnFR (Ty v) Meta [Elim v] (Ty v) (Tm v)
+
+instance Ord v => Occurs (EqnFR v) where
+    type OccursVar (EqnFR v) = v
+    occurrence vs = occurrence vs . frEqn
+    frees = frees . frEqn
+
+eqnFR :: Eqn v -> Maybe (EqnFR v)
+eqnFR (Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2) =
+    Just (EqnFR ty1 mv1 els1 ty2 t2)
+eqnFR _ =
+    Nothing
+
+frEqn :: EqnFR v -> Eqn v
+frEqn (EqnFR ty1 mv1 els1 ty2 t2) = Eqn ty1 (Neutr (Meta mv1) els1) ty2 t2
+
+data EqnFF v = EqnFF (Ty v) Meta [Elim v] (Ty v) Meta [Elim v]
+
+instance Ord v => Occurs (EqnFF v) where
+    type OccursVar (EqnFF v) = v
+    occurrence vs = occurrence vs . ffEqn
+    frees = frees . ffEqn
+
+eqnFF :: Eqn v -> Maybe (EqnFF v)
+eqnFF (Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)) =
+    Just (EqnFF ty1 mv1 els1 ty2 mv2 els2)
+eqnFF _ =
+    Nothing
+
+ffEqn :: EqnFF v -> Eqn v
+ffEqn (EqnFF ty1 mv1 els1 ty2 mv2 els2) =
+    Eqn ty1 (Neutr (Meta mv1) els1) ty2 (Neutr (Meta mv2) els2)
+
+ffFr :: EqnFF v -> EqnFR v
+ffFr (EqnFF ty1 mv1 els1 ty2 mv2 els2) =
+    EqnFR ty1 mv1 els1 ty2 (Neutr (Meta mv2) els2)
+
+
+-- Sym
+
+class Sym eqn where
+    sym :: eqn -> eqn
+
+instance Sym (Eqn v) where
+    sym (Eqn ty1 t1 ty2 t2) = Eqn ty2 t2 ty1 t1
+
+instance Sym (EqnFF v) where
+    sym (EqnFF ty1 mv1 els1 ty2 mv2 els2) = EqnFF ty2 mv2 els2 ty1 mv1 els1
+

@@ -6,6 +6,10 @@ import Language.Bertus.Monad
 import Language.Bertus.Subst
 import Language.Bertus.Tm
 
+typecheck :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadBwdT v m Bool
+typecheck ty t =
+    (True <$ check ty t) `catchError` const (return False)
+
 check :: (Eq v, Monad m) => Ty v -> Tm v -> BMonadBwdT v m ()
 check Type Type =
     return ()

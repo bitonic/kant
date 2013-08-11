@@ -13,12 +13,14 @@ module Language.Bertus.Subst
     , bind
     , pi_
     , pis
+    , pis'
     , lam
     , lams
     , lams'
     ) where
 
 import Data.Foldable (Foldable, foldr, foldl)
+import Data.Monoid (mempty)
 import Prelude hiding (foldr, foldl)
 
 import Data.Var
@@ -101,12 +103,14 @@ pi_ = bind Pi
 pis :: (Foldable t, Eq v) => t (Name, v, Ty v) -> Ty v -> Ty v
 pis xs ty = foldr (\(x, nom, ty') -> pi_ x nom ty') ty xs
 
+pis' :: (Functor t, Foldable t, Eq v) => t (v, Ty v) -> Ty v -> Ty v
+pis' xs = pis (fmap (\(x, ty) -> (mempty, x, ty)) xs)
+
 lam :: Eq v => Name -> v -> Tm v -> Tm v
 lam nom v t = Lam (abstract' nom v t)
 
 lams :: (Foldable t, Eq v) => t (Name, v) -> Tm v -> Tm v
 lams xs t = foldr (uncurry lam) t xs
 
-lams' :: (Foldable t, Eq v) => t (Name, v, Ty v) -> Tm v -> Tm v
-lams' xs t = foldr (\(nom, v, _) -> lam nom v) t xs
-
+lams' :: (Functor t, Foldable t, Eq v) => t v -> Tm v -> Tm v
+lams' xs = lams (fmap (mempty ,) xs)

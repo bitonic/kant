@@ -6,7 +6,6 @@ module Language.Bertus.Monad
     , BMonadListT
     , runBMonadT
     , nestBwd
-    , toCtxBwdM
     , lookupVar
     , lookupMeta
     , pushL
@@ -16,6 +15,7 @@ module Language.Bertus.Monad
     , popL
     , popR
     , goL
+    , localParams
     , module Control.Monad.Error
     , module Control.Monad.State
     , module Control.Monad.Fresh
@@ -59,14 +59,6 @@ nestBwd :: Monad m
 nestBwd ty (BMonadT m) =
     BMonadT $ StateT $ \ctx ->
     second (const ctx) <$> runStateT m (nestCtxBwd ty ctx)
-
-toCtxBwdM :: (Ord v, Monad m) => BMonadBwdT v m b -> BMonadListT v m b
-toCtxBwdM m =
-    do ctx <- get
-       res <- lift (runBMonadT (toCtxBwd ctx) m)
-       case res of
-           Left err     -> throwError err
-           Right (x, _) -> return x
 
 lookupVar :: Monad m
           => (a -> Context pars v -> Maybe (Param v))
@@ -123,3 +115,13 @@ popR = do ctxR <- gets ctxRight
 
 goL :: Monad m => BMonadT pars v m ()
 goL = popL >>= pushR . Right
+
+localParams :: Monad m
+             => (pars v -> pars' v)
+             -> BMonadT pars' v m a -> BMonadT pars v m a
+localParams f m =
+    do ctx@Context{ctxParams = pars} <- get
+       res <- lift (runBMonadT (ctx{ctxParams = f pars}) m)
+       case res of
+           Left err        -> throwError err
+           Right (x, ctx') -> x <$ put ctx'{ctxParams = pars}

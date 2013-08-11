@@ -20,11 +20,15 @@ module Language.Bertus.Tm
     , unnest
     , etaContract
     , isVar
+    , toVars
+    , occursIn
+    , linearOn
     ) where
 
-import Data.Foldable (Foldable)
+import Data.Foldable (Foldable, foldMap)
 import Data.Traversable (Traversable, traverse)
 import Data.Data (Data, Typeable)
+import Data.Monoid (Any(..))
 
 import Control.Monad.Fresh
 import Data.Dummy
@@ -92,9 +96,6 @@ unnest = traverse f
     f (B _) = Nothing
     f (F v) = Just v
 
-unnestHead :: Head (Var a v) -> Maybe (Head v)
-unnestHead = undefined
-
 initLast :: [a] -> Maybe ([a], a)
 initLast [] = Nothing
 initLast xs = Just (init xs, last xs)
@@ -102,7 +103,7 @@ initLast xs = Just (init xs, last xs)
 etaContract :: Ord v => Tm v -> Tm v
 etaContract (Lam t) =
     case etaContract t of
-        Neutr (unnestHead -> Just v1) els
+        Neutr (unnest -> Just v1) els
             | Just (els', App (Neutr (Var (B _) _) [])) <- initLast els
             , Just els'' <- traverse unnest els' ->
             Neutr v1 els''
@@ -126,3 +127,16 @@ etaContract Type =
 isVar :: Ord v => Tm v -> Bool
 isVar (etaContract -> Neutr (Var _ _) []) = True
 isVar _                                   = False
+
+toVars :: Ord v => [Elim v] -> Maybe [v]
+toVars = traverse (toVar . mapElim etaContract)
+  where
+    toVar (App (Neutr (Var v _) [])) = Just v
+    toVar _                          = Nothing
+
+occursIn :: (Traversable f, Eq v) => v -> f v -> Bool
+v `occursIn` t = getAny (foldMap (Any . (v ==)) t)
+
+linearOn :: Eq v => Tm v -> [v] -> Bool
+linearOn _ [] = True
+linearOn t (v : vs) = not (v `occursIn` t) && linearOn t vs
